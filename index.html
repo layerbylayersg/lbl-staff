@@ -4,33 +4,43 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Layer by Layer — Staff Service Report</title>
+<title>Layer by Layer · Staff Service Report</title>
 <style>
   /* ---------- staff login gate ---------- */
   #gate{display:none;min-height:100vh;align-items:center;justify-content:center;padding:16px}
   body.locked #gate{display:flex}
   body.locked .bar, body.locked .mobiletabs, body.locked .layout{display:none}
-  #gate form{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:24px;width:100%;max-width:340px;display:grid;gap:12px}
-  #gate h1{margin:0;font-size:18px}
+  /* the same paper and shadow as the report sheet; the logo and brand button carry the identity */
+  #gate form{background:var(--paper);border-radius:3px;
+    padding:26px 24px 22px;width:100%;max-width:340px;display:grid;gap:12px;
+    box-shadow:0 1px 2px rgba(43,46,49,.14),0 10px 30px rgba(43,46,49,.09)}
+  #gate img{height:56px;width:auto;justify-self:start}
+  #gate h1{margin:4px 0 0;font-family:var(--cond);font-size:19px;letter-spacing:.06em;text-transform:uppercase}
   #gate p{margin:0;color:var(--ink-2);font-size:14px}
-  #gate input{padding:10px;border:1px solid var(--rule);border-radius:6px;background:var(--paper)}
-  #gate button{padding:10px;border:0;border-radius:6px;background:#4A6E22;color:#fff;font-weight:600;cursor:pointer}
+  #gate label{display:grid;gap:4px;font-size:12px;color:var(--ink-2)}
+  #gate input{padding:10px;border:1px solid var(--rule);border-radius:3px;background:var(--paper);font-size:15px}
+  #gate button{padding:11px;border:1px solid var(--green-deep);border-radius:3px;background:var(--green);color:#20260F;font-weight:600;cursor:pointer}
+  #gate button:hover{background:#b3d97b}
+  #gate button:focus-visible,#gate input:focus-visible{outline:2px solid var(--green-deep);outline-offset:2px}
   #gate button:disabled{opacity:.6;cursor:wait}
-  #gateMsg{color:#B3261E;min-height:1.2em}
-  .jobpick{margin-bottom:10px}
+  #gateMsg{color:#8C1D18;min-height:1.2em;font-size:14px}
+  .jobpick{margin-bottom:4px}
+  .jobpick select{border-color:var(--green-deep)!important;background:var(--green-wash)!important;font-weight:600}
+  label.f input[readonly]{background:var(--bench-2);color:var(--ink-2)}
   :root{
     --green:#A5CD67;
     --green-deep:#6E9B33;
     --green-wash:#F1F7E8;
     --ink:#2B2E31;
     --ink-2:#54595F;
-    --muted:#8A9099;
+    --muted:#656B72;      /* 4.8:1 on bench, 5.4:1 on white */
     --bench:#F2F3F0;
     --bench-2:#E7E9E3;
     --rule:#D9DCD6;
     --paper:#ffffff;
-    --ok:#5E8F2A;
-    --warn:#8A9099;
+    --ok:#4A6E22;         /* stamp text, 5.9:1 on white */
+    --green-ink:#4A6E22;  /* brand green for small text; --green-deep stays for rules and markers */
+    --warn:#8A5A00;       /* amber: follow-up or parts on order, needs attention */
     --bad:#2B2E31;
     --ui:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --doc:Georgia,"Iowan Old Style","Times New Roman",serif;
@@ -73,6 +83,25 @@
   .bar button:hover{background:var(--bench)}
   .bar button.primary{background:var(--green);color:#20260F;border-color:var(--green-deep);font-weight:600}
   .bar button.primary:hover{background:#b3d97b}
+  .bar button:disabled{opacity:.6;cursor:wait}
+  .bar{flex-wrap:wrap}
+  .bar .more{display:contents}
+  .bar .more-toggle{display:none}
+  .bar .actions{display:flex;gap:8px;margin-left:6px}
+  .bar #btnLogout{border-color:transparent;color:var(--ink-2)}
+  @media (max-width:1180px){ .bar .sub{display:none} .bar h1{margin-right:auto} }
+
+  /* save result: stays in the sticky bar until the next save or dismiss */
+  .savestatus{flex-basis:100%;order:10;display:flex;align-items:center;gap:10px;
+    font-size:13px;line-height:1.4;padding:7px 10px;border-radius:3px;border:1px solid}
+  .savestatus[hidden]{display:none}
+  .savestatus.ok{background:var(--green-wash);color:#2F4A12;border-color:var(--green)}
+  .savestatus.err{background:#FDECEA;color:#8C1D18;border-color:#E8A29C}
+  .savestatus.stale{background:#FFF7E0;color:#5C4300;border-color:#E9CF7A}
+  .savestatus.busy{background:#fff;color:var(--ink-2);border-color:var(--rule)}
+  .savestatus span{flex:1}
+  .savestatus button{background:none;border:0;color:inherit;font-size:13px;text-decoration:underline;padding:4px 2px;cursor:pointer}
+  .stdbtn{margin:2px 0 4px}
   .bar button:focus-visible,.pane button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.chip:focus-within{outline:2px solid var(--green-deep);outline-offset:2px}
 
   .layout{display:grid;grid-template-columns:minmax(380px,460px) 1fr;gap:0;align-items:start}
@@ -135,12 +164,6 @@
   table.parts button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px}
   table.parts button:hover{color:var(--bad)}
 
-  .fixedline{
-    background:var(--green-wash);border:1px solid var(--green);border-radius:3px;
-    padding:9px 11px;font-size:13px;line-height:1.5;
-  }
-  .fixedline b{display:block}
-  .fixedline span{color:var(--ink-2);font-size:12.5px}
 
   .toggle{display:flex;align-items:center;gap:7px;font-size:13px;margin-top:10px;cursor:pointer}
 
@@ -161,7 +184,7 @@
   .band .shop .name{font-family:var(--ui);font-size:15px;font-weight:600;letter-spacing:.01em}
   .band .shop .meta{font-size:11.5px;color:var(--ink-2);margin-top:4px;font-family:var(--ui);line-height:1.5}
   .band .ref{text-align:right;font-family:var(--ui);flex:none}
-  .band .ref .t{font-size:10.5px;letter-spacing:.12em;color:var(--green-deep);font-weight:700}
+  .band .ref .t{font-size:11px;letter-spacing:.1em;color:var(--green-ink);font-weight:700}
   .band .ref .no{font-family:var(--cond);font-size:21px;font-weight:700;letter-spacing:.04em;line-height:1.2}
   .band .ref .dt{font-size:11.5px;color:var(--ink-2)}
 
@@ -183,7 +206,7 @@
   .sheet .body{padding:6px 26px 26px}
   .facts{display:grid;grid-template-columns:1fr 1fr;gap:0 26px;margin:10px 0 6px}
   .facts .box{border-top:2px solid var(--ink);padding-top:7px}
-  .facts .box h4{font-family:var(--ui);font-size:10.5px;letter-spacing:.1em;color:var(--ink-2);margin:0 0 5px;font-weight:700}
+  .facts .box h4{font-family:var(--ui);font-size:11px;letter-spacing:.1em;color:var(--ink-2);margin:0 0 5px;font-weight:700}
   .facts dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-size:12.5px}
   .facts dt{color:var(--muted);font-family:var(--ui);font-size:11.5px}
   .facts dd{margin:0}
@@ -194,7 +217,7 @@
     padding-bottom:3px;border-bottom:1px solid var(--rule);
     display:flex;gap:8px;align-items:baseline;
   }
-  .sec h3 .n{color:var(--green-deep);font-family:var(--cond);font-size:13px}
+  .sec h3 .n{color:var(--green-ink);font-family:var(--cond);font-size:13px}
   .sec ul{margin:0;padding-left:17px}
   .sec li{margin:1px 0}
   .sec li::marker{color:var(--green-deep)}
@@ -243,6 +266,29 @@
     .facts,.signrow{grid-template-columns:1fr;gap:12px}
     .bar .sub{display:none}
   }
+  /* phones: Save + Download PDF in a thumb-reach bottom bar, everything else under More */
+  @media (max-width:700px){
+    .bar{padding:8px 12px;gap:10px}
+    .bar h1{font-size:16px;margin-right:auto}
+    .bar .more-toggle{display:inline-block}
+    .bar .more{display:none;position:absolute;top:100%;right:12px;z-index:50;flex-direction:column;
+      background:#fff;border-radius:3px;box-shadow:0 6px 18px rgba(43,46,49,.18);padding:6px;min-width:170px}
+    .bar .more.open{display:flex}
+    .bar .more button{text-align:left;border-color:transparent;padding:11px 12px}
+    .bar .actions{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:45;background:#fff;
+      border-top:1px solid var(--rule);padding:8px 12px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -2px 10px rgba(43,46,49,.08)}
+    .bar .actions button{flex:1;min-height:46px;font-size:15px}
+    .pane,.preview{padding-bottom:96px}
+    .toast{bottom:84px}
+    .sheet .band{flex-wrap:wrap;padding:18px 16px 12px;gap:12px}
+    .band img.logo{height:56px}
+    .band .ref{text-align:left;flex-basis:100%}
+    .layers{margin:0 16px}
+    .sheet .body{padding:6px 16px 20px}
+    .stampwrap{padding:12px 16px 0}
+  }
+  /* small phones: one field per row so quote numbers and serials are never cut off */
+  @media (max-width:480px){ .grid{grid-template-columns:1fr} }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
   /* ---------- print ---------- */
@@ -263,9 +309,12 @@
 
 <div id="gate">
   <form id="gateForm">
-    <h1>Layer by Layer staff</h1>
-    <p>Service reports. Staff only.</p>
-    <input type="password" id="gatePw" placeholder="Password" autocomplete="current-password" required>
+    <img id="gateLogo" alt="Layer by Layer">
+    <h1>Service reports</h1>
+    <p>Layer by Layer staff only.</p>
+    <label>Staff password
+      <input type="password" id="gatePw" autocomplete="current-password" required>
+    </label>
     <button type="submit" id="gateBtn">Log in</button>
     <div id="gateMsg" role="alert"></div>
   </form>
@@ -275,12 +324,18 @@
   <img id="barLogo" alt="Layer by Layer">
   <h1>Service report</h1>
   <span class="sub">Maintenance, diagnosis &amp; repair</span>
-  <button id="btnNew">New job</button>
-  <button id="btnSaved">Saved jobs</button>
-  <button id="btnSave">Save job</button>
-  <button id="btnPrint">Print</button>
-  <button id="btnPdf" class="primary">Download PDF</button>
-  <button id="btnLogout">Log out</button>
+  <button class="more-toggle" id="btnMore" aria-expanded="false" aria-controls="moreMenu">More</button>
+  <div class="more" id="moreMenu">
+    <button id="btnNew">New job</button>
+    <button id="btnSaved">Saved jobs</button>
+    <button id="btnPrint">Print</button>
+    <button id="btnLogout">Log out</button>
+  </div>
+  <div class="actions">
+    <button id="btnSave">Save job</button>
+    <button id="btnPdf" class="primary">Download PDF</button>
+  </div>
+  <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
 </div>
 
 <div class="mobiletabs">
@@ -296,10 +351,10 @@
 <dialog id="dlg">
   <header><h2>Saved jobs</h2><button class="mini" id="dlgClose">Close</button></header>
   <div class="list" id="dlgList"></div>
-  <footer>Jobs are stored with this app. Loading a job replaces what's currently in the form.</footer>
+  <footer>Saved jobs are kept on this device only; the Sheet holds the permanent copy. Opening one replaces the report in the form.</footer>
 </dialog>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 /* =====================================================================
@@ -345,14 +400,14 @@ const WORK = {
   "Parts replaced":       ["Replaced nozzle","Replaced hotend","Replaced heatbreak","Replaced thermistor","Replaced heater cartridge","Replaced TH board","Replaced hotend fan","Replaced part cooling fan","Replaced extruder gears","Replaced extruder assembly","Replaced PTFE tube","Replaced belt","Replaced build plate","Replaced stepper motor","Repaired / re-terminated wiring"]
 };
 
+// Ticked by the "Tick the standard maintenance package" button, never by default.
 const DEFAULT_WORK   = ["General cleaning","Clearing of nozzle","Cleaning of build plate","General lubrication","Belt tensioning","Full calibration"];
-const DEFAULT_VERIFY = ["Benchmark test print completed","Visual inspection passed"];
 
 const VERIFY = ["Benchmark test print completed","Temperature tower run","Cold and hot function test","Extended soak test","First layer test passed","Motion system checked by hand","Visual inspection passed","Customer walkthrough given"];
 
 const STATUS = [
   ["Resolved","ok"],
-  ["Resolved — monitor","warn"],
+  ["Resolved (monitor)","warn"],
   ["Partially resolved","warn"],
   ["Follow-up required","warn"],
   ["Parts on order","warn"],
@@ -374,15 +429,16 @@ function blank(){
   return {
     id:null,
     shop:{ name:SHOP_NAME, contact:SHOP_CONTACT, tech:"" },
-    job:{ ref:"", quoteNo:"", date:today(), status:"Resolved", currency:"$", showCharges:true,
-          labourHours:"", labourRate:"", terms:DEFAULT_TERMS },
+    // No default outcome and nothing pre-ticked: the report only claims what staff actually chose.
+    // Charges are not on the report; pricing and invoicing live in Xero.
+    job:{ ref:"", quoteNo:"", serviceType:"", date:today(), status:"", terms:DEFAULT_TERMS },
     cust:{ name:"", phone:"", email:"", intake:"" },
     machine:{ brand:"Bambu Lab", model:"A1", serial:"", mfms:"None", mfmsSerial:"", nozzle:"", plate:"", filament:"", usage:"" },
     symptoms:[], symptomsCustom:[], symptomNotes:"",
     findings:"",
-    work:DEFAULT_WORK.slice(), workCustom:[], workNotes:"",
+    work:[], workCustom:[], workNotes:"",
     parts:[],
-    verify:DEFAULT_VERIFY.slice(), verifyCustom:[], verifyNotes:"",
+    verify:[], verifyCustom:[], verifyNotes:"",
     advice:""
   };
 }
@@ -390,7 +446,6 @@ function today(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth(
 function pad(n){ return String(n).padStart(2,"0"); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function nl2br(s){ return esc(s).replace(/\n/g,"<br>"); }
-function money(n,cur){ return cur+" "+(Math.round(n*100)/100).toFixed(2); }
 
 /* ---------- storage ---------- */
 async function loadStore(){
@@ -455,7 +510,8 @@ function fillFromJob(j){
   state.job.quoteNo = j.quoteNo;
   state.cust.name = j.name || ""; state.cust.phone = j.contact || ""; state.cust.email = j.email || "";
   state.cust.intake = j.issue || "";
-  state.machine.brand = PRINTERS[j.brand] ? j.brand : "Other";
+  state.job.serviceType = j.serviceType || "";
+  state.machine.brand = PRINTERS[j.brand] ? j.brand : (j.brand ? "Other" : "");
   state.machine.model = j.model || "";
   state.machine.serial = j.serialNo || "";
   state.machine.mfms = MFMS.includes(j.mfms) ? j.mfms : "None";
@@ -463,15 +519,18 @@ function fillFromJob(j){
 }
 
 async function saveToSheet(report){
+  let pdf = null;
+  try{ pdf = await downloadPdf(true); }catch(e){ console.error(e); }
   try{
-    const out = await callSheet({ action:"serviceReport", report:report });
+    const out = await callSheet({ action:"serviceReport", report:report, pdf:pdf });
     if(out.result !== "success"){
       if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); }
       return "NOT saved to the Sheet: " + out.message;
     }
     const j = JOBS.find(x=>x.quoteNo===report.job.quoteNo);
     if(j && out.tagged) j.report = report.job.ref;
-    return "Saved to the Sheet" + (report.job.quoteNo ? (out.tagged ? " and tagged to job " + report.job.quoteNo + "." : ", but no job has Quotation No " + report.job.quoteNo + ".") : ".");
+    return "Saved to the Sheet" + (report.job.quoteNo ? (out.tagged ? " and tagged to job " + report.job.quoteNo + "." : ", but no job has Quotation No " + report.job.quoteNo + ".") : ".") +
+      (out.pdfUrl ? " PDF saved to Drive." : " (PDF copy NOT saved to Drive.)");
   }catch(e){
     return "NOT saved to the Sheet (no connection?). Try Save job again.";
   }
@@ -528,7 +587,7 @@ function field(path, label, opts){
     }
     return '<label class="f'+cls+'">'+esc(label)+'<select data-f="'+path+'">'+o+'</select></label>';
   }
-  return '<label class="f'+cls+'">'+esc(label)+'<input type="'+(opts.type||"text")+'" data-f="'+path+'" placeholder="'+esc(opts.ph||"")+'" value="'+esc(v)+'"></label>';
+  return '<label class="f'+cls+'">'+esc(label)+'<input type="'+(opts.type||"text")+'" data-f="'+path+'" placeholder="'+esc(opts.ph||"")+'" value="'+esc(v)+'"'+(opts.readonly?" readonly":"")+'></label>';
 }
 function get(path){ return path.split(".").reduce((o,k)=>(o||{})[k], state); }
 function set(path,val){
@@ -539,49 +598,50 @@ function set(path,val){
 function renderForm(){
   let models = PRINTERS[state.machine.brand] || [];
   if(state.machine.model && !models.includes(state.machine.model)) models = [state.machine.model].concat(models);
-  const pick = '<label class="f span2 jobpick">Confirmed job (fills in the details below)<select data-pickjob="1"><option value="">'+
-    (JOBS.length ? "Pick a job..." : "No jobs are In Progress on the job sheet") + '</option>' +
+  const pick = '<label class="f span2 jobpick">Confirmed job<select data-pickjob="1"><option value="">'+
+    (JOBS.length ? "Pick the job you are reporting on..." : "No jobs are In Progress on the job sheet") + '</option>' +
     JOBS.map((j,i)=>'<option value="'+i+'"'+(j.quoteNo===state.job.quoteNo?" selected":"")+'>'+
       esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.report?" · has report":""))+'</option>').join("") +
     '</select></label>';
+  // Once a job is picked its quote number is the link to the job sheet, so it is not typed by hand.
+  const fromJob = JOBS.some(j=>j.quoteNo===state.job.quoteNo);
+  const mfmsOnly = state.job.serviceType === "MFMS only";
   const p = document.getElementById("pane");
   p.innerHTML = `
     <div class="stage">
-      <h2><span class="n">1</span>Your workshop<small>on every report</small></h2>
-      <div class="fixedline">
-        <b>${esc(SHOP_NAME)}</b>
-        <span>${esc(SHOP_CONTACT)}</span>
-      </div>
-      <div class="grid one" style="margin-top:9px">
+      <h2><span class="n">1</span>Job</h2>
+      <div class="grid">
+        ${pick}
+        ${field("job.quoteNo", fromJob ? "Quotation No (from the picked job)" : "Quotation No", {ph:"LBL-QT-MDR-20260928-01", readonly:fromJob})}
+        ${field("job.ref","Report reference")}
+        ${field("job.date","Service date",{type:"date"})}
         ${field("shop.tech","Technician")}
       </div>
     </div>
 
     <div class="stage">
-      <h2><span class="n">2</span>Job &amp; customer</h2>
+      <h2><span class="n">2</span>Customer</h2>
       <div class="grid">
-        ${pick}
-        ${field("job.ref","Job reference")}
-        ${field("job.quoteNo","Quotation No (from the job sheet)",{ph:"LBL-QT-MDR-20260928-01"})}
-        ${field("job.date","Service date",{type:"date"})}
-        ${field("cust.name","Customer")}
+        ${field("cust.name","Name")}
         ${field("cust.phone","Phone")}
         ${field("cust.email","Email",{span:true})}
-        ${field("cust.intake","What the customer reported",{type:"textarea",span:true,ph:"In their words — helps them recognise the problem in the report."})}
+        ${field("cust.intake","What the customer reported",{type:"textarea",span:true,ph:"In their words. Helps them recognise the problem in the report."})}
       </div>
     </div>
 
     <div class="stage">
-      <h2><span class="n">3</span>Machine</h2>
+      <h2><span class="n">3</span>${mfmsOnly ? "MFMS" : "Machine"}</h2>
       <div class="grid">
+        ${mfmsOnly ? "" : `
         <label class="f">Brand<select data-f="machine.brand" data-rerender="1">${Object.keys(PRINTERS).map(b=>'<option'+(b===state.machine.brand?" selected":"")+'>'+esc(b)+'</option>').join("")}</select></label>
         ${field("machine.model","Model",{options:models})}
-        ${field("machine.serial","Serial number")}
+        ${field("machine.serial","Serial number",{span:true})}`}
         ${field("machine.mfms","MFMS",{options:MFMS})}
         ${field("machine.mfmsSerial","MFMS serial number")}
+        ${mfmsOnly ? "" : `
         ${field("machine.nozzle","Nozzle",{ph:"0.4 mm hardened"})}
         ${field("machine.plate","Build plate",{ph:"Textured PEI"})}
-        ${field("machine.filament","Filament in use",{ph:"PLA / PETG / ABS"})}
+        ${field("machine.filament","Filament in use",{span:true,ph:"PLA / PETG / ABS"})}`}
         ${field("machine.usage","Approx. usage",{span:true,ph:"e.g. 600 print hours, first service"})}
       </div>
     </div>
@@ -603,19 +663,19 @@ function renderForm(){
 
     <div class="stage">
       <h2><span class="n">6</span>Work performed<small>${state.work.length+state.workCustom.length} selected</small></h2>
+      <button type="button" class="mini stdbtn" id="applyStd">Tick the standard maintenance package</button>
       ${chipGroup(WORK,"work","workCustom")}
       <div class="grid one" style="margin-top:10px">
         ${field("workNotes","Work notes",{type:"textarea"})}
       </div>
       <div class="group">
         <h3>Parts fitted</h3>
-        <table class="parts"><thead><tr><th>Part</th><th>Qty</th><th>Unit</th><th></th></tr></thead>
+        <table class="parts"><thead><tr><th>Part</th><th>Qty</th><th></th></tr></thead>
         <tbody>${state.parts.map((pt,i)=>`
           <tr>
-            <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan"></td>
-            <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="decimal"></td>
-            <td class="p"><input value="${esc(pt.price)}" data-part="price" data-i="${i}" inputmode="decimal"></td>
-            <td class="d"><button type="button" data-delpart="${i}" title="Remove">&times;</button></td>
+            <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
+            <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="decimal" aria-label="Part ${i+1} quantity"></td>
+            <td class="d"><button type="button" data-delpart="${i}" title="Remove part" aria-label="Remove part ${i+1}">&times;</button></td>
           </tr>`).join("")}</tbody></table>
         <div class="addrow"><button type="button" id="addPart">Add part</button></div>
       </div>
@@ -635,13 +695,12 @@ function renderForm(){
         ${field("advice","Recommendations for the customer",{type:"textarea",ph:"Preventive maintenance, settings to keep, what to watch for."})}
       </div>
       <div class="grid" style="margin-top:9px">
-        ${field("job.status","Outcome",{options:STATUS.map(s=>s[0])})}
-        ${field("job.currency","Currency symbol")}
-        ${field("job.labourHours","Labour hours",{type:"text",ph:"1.5"})}
-        ${field("job.labourRate","Rate per hour",{type:"text",ph:"60"})}
+        <label class="f span2">Outcome (printed as the stamp on the report)<select data-f="job.status">
+          <option value="">Choose the outcome...</option>
+          ${STATUS.map(s=>'<option'+(s[0]===state.job.status?" selected":"")+'>'+esc(s[0])+'</option>').join("")}
+        </select></label>
         ${field("job.terms","Warranty & terms",{type:"textarea",span:true})}
       </div>
-      <label class="toggle"><input type="checkbox" data-f="job.showCharges" ${state.job.showCharges?"checked":""}> Show charges on the report</label>
     </div>
   `;
 }
@@ -652,30 +711,23 @@ function list(items, custom){
   if(!all.length) return '<p class="empty">None recorded.</p>';
   return "<ul>"+all.map(i=>"<li>"+esc(i)+"</li>").join("")+"</ul>";
 }
+// Machine facts for the report and PDF. MFMS-only jobs show just the MFMS, no empty printer rows.
+function machineRows(s){
+  const m = s.machine, hasMfms = m.mfms && m.mfms !== "None";
+  const mfmsRow = ["MFMS", hasMfms ? m.mfms + (m.mfmsSerial ? " (SN " + m.mfmsSerial + ")" : "") : ""];
+  const rows = s.job.serviceType === "MFMS only"
+    ? [mfmsRow]
+    : [["Printer", ((m.brand||"") + " " + (m.model||"")).trim()], ["Serial", m.serial]]
+        .concat(hasMfms ? [mfmsRow] : [])
+        .concat([["Nozzle", m.nozzle], ["Plate", m.plate], ["Filament", m.filament]]);
+  if(m.usage) rows.push(["Usage", m.usage]);
+  return rows;
+}
 function renderReport(){
-  const s = state, cur = s.job.currency || "$";
-  const st = STATUS.find(x=>x[0]===s.job.status) || STATUS[0];
-  const hrs = parseFloat(s.job.labourHours)||0, rate = parseFloat(s.job.labourRate)||0;
-  const labour = hrs*rate;
+  const s = state;
+  const st = STATUS.find(x=>x[0]===s.job.status); // no stamp until an outcome is chosen
   const partRows = s.parts.filter(p=>p.name);
-  const partsTotal = partRows.reduce((t,p)=>t+(parseFloat(p.qty)||0)*(parseFloat(p.price)||0),0);
   const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}) : "";
-
-  let charges = "";
-  if(s.job.showCharges && (labour>0 || partsTotal>0)){
-    charges = `
-    <div class="sec"><h3><span class="n">§</span>Charges</h3>
-      <table class="tbl">
-        <tr><th>Item</th><th class="r">Qty</th><th class="r">Unit</th><th class="r">Amount</th></tr>
-        ${labour>0?`<tr><td>Labour — service and repair</td><td class="r">${hrs} h</td><td class="r">${money(rate,cur)}</td><td class="r">${money(labour,cur)}</td></tr>`:""}
-        ${partRows.map(p=>{
-          const q=parseFloat(p.qty)||0, u=parseFloat(p.price)||0;
-          return `<tr><td>${esc(p.name)}</td><td class="r">${q||""}</td><td class="r">${u?money(u,cur):""}</td><td class="r">${money(q*u,cur)}</td></tr>`;
-        }).join("")}
-        <tr class="total"><td colspan="3">Total</td><td class="r">${money(labour+partsTotal,cur)}</td></tr>
-      </table>
-    </div>`;
-  }
 
   let partsSec = "";
   if(partRows.length){
@@ -693,29 +745,23 @@ function renderReport(){
       </div>
       <div class="ref">
         <div class="t">Maintenance, diagnosis &amp; repair</div>
-        <div class="no">${esc(s.job.ref||"—")}</div>
+        <div class="no">${esc(s.job.ref||"–")}</div>
         <div class="dt">${esc(dateStr)}</div>
       </div>
     </div>
     <div class="layers"><i></i><i></i><i></i></div>
 
-    <div class="stampwrap"><div class="stamp ${st[1]}">${esc(st[0])}</div></div>
+    ${st?`<div class="stampwrap"><div class="stamp ${st[1]}">${esc(st[0])}</div></div>`:""}
 
     <div class="body">
       <div class="facts">
         <div class="box"><h4>CUSTOMER</h4><dl>
-          <dt>Name</dt><dd>${esc(s.cust.name||"—")}</dd>
-          <dt>Phone</dt><dd>${esc(s.cust.phone||"—")}</dd>
-          <dt>Email</dt><dd>${esc(s.cust.email||"—")}</dd>
+          <dt>Name</dt><dd>${esc(s.cust.name||"–")}</dd>
+          <dt>Phone</dt><dd>${esc(s.cust.phone||"–")}</dd>
+          <dt>Email</dt><dd>${esc(s.cust.email||"–")}</dd>
         </dl></div>
         <div class="box"><h4>MACHINE</h4><dl>
-          <dt>Printer</dt><dd>${esc(s.machine.brand)} ${esc(s.machine.model)}</dd>
-          <dt>Serial</dt><dd>${esc(s.machine.serial||"—")}</dd>
-          ${s.machine.mfms && s.machine.mfms!=="None"?`<dt>MFMS</dt><dd>${esc(s.machine.mfms)}${s.machine.mfmsSerial?" (SN "+esc(s.machine.mfmsSerial)+")":""}</dd>`:""}
-          <dt>Nozzle</dt><dd>${esc(s.machine.nozzle||"—")}</dd>
-          <dt>Plate</dt><dd>${esc(s.machine.plate||"—")}</dd>
-          <dt>Filament</dt><dd>${esc(s.machine.filament||"—")}</dd>
-          ${s.machine.usage?`<dt>Usage</dt><dd>${esc(s.machine.usage)}</dd>`:""}
+          ${machineRows(s).map(r=>`<dt>${esc(r[0])}</dt><dd>${esc(r[1]||"–")}</dd>`).join("")}
         </dl></div>
       </div>
 
@@ -743,11 +789,10 @@ function renderReport(){
 
       ${s.advice?`<div class="sec"><h3><span class="n">6</span>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
 
-      ${charges}
 
       <div class="signrow">
-        <div class="sig"><b>${esc(s.shop.tech||"")}</b>Technician — ${esc(s.shop.name||"")}</div>
-        <div class="sig"><b>${esc(s.cust.name||"")}</b>Received in working order — signature &amp; date</div>
+        <div class="sig"><b>${esc(s.shop.tech||"")}</b>Technician, ${esc(s.shop.name||"")}</div>
+        <div class="sig"><b>${esc(s.cust.name||"")}</b>Received in working order: signature and date</div>
       </div>
 
       ${s.job.terms?`<div class="terms">${nl2br(s.job.terms)}</div>`:""}
@@ -756,10 +801,41 @@ function renderReport(){
 
 function render(){ renderForm(); renderReport(); }
 
+/* ---------- unsaved changes + save status ---------- */
+let dirty = false, lastSaved = "";
+function markDirty(){
+  dirty = true;
+  if(lastSaved) showStatus("stale", "Changes since the last save at " + lastSaved + ". Press Save job to update the Sheet.");
+}
+function showStatus(kind, msg){
+  const el = document.getElementById("saveStatus");
+  el.className = "savestatus " + kind;
+  el.innerHTML = '<span></span>' + (kind === "busy" ? "" : '<button type="button" data-dismiss="1">Dismiss</button>');
+  el.firstChild.textContent = msg;
+  el.hidden = false;
+}
+function clearStatus(){ document.getElementById("saveStatus").hidden = true; lastSaved = ""; }
+document.getElementById("saveStatus").addEventListener("click", e=>{ if(e.target.dataset.dismiss) document.getElementById("saveStatus").hidden = true; });
+
+// A fresh report, keeping who is working and the standard terms.
+function newReport(){
+  const tech = state.shop.tech, terms = state.job.terms;
+  state = blank();
+  state.shop.tech = tech; state.job.terms = terms;
+  state.job.ref = nextRef();
+  dirty = false; clearStatus();
+}
+
 /* ---------- events ---------- */
 document.getElementById("pane").addEventListener("input", e=>{
   const t = e.target;
-  if(t.dataset.pickjob){ if(t.value !== "") fillFromJob(JOBS[+t.value]); render(); return; }
+  if(t.dataset.pickjob){
+    const j = JOBS[+t.value];
+    if(t.value === "" || !j || j.quoteNo === state.job.quoteNo){ render(); return; }
+    if(dirty && !confirm("Start a new report for " + j.quoteNo + " (" + j.name + ")? Unsaved changes to the current report will be lost.")){ render(); return; }
+    newReport(); fillFromJob(j); render(); return;
+  }
+  markDirty();
   if(t.dataset.f){
     set(t.dataset.f, t.type==="checkbox" ? t.checked : t.value);
     if(t.dataset.rerender){ state.machine.model = (PRINTERS[state.machine.brand]||[""])[0]; render(); return; }
@@ -773,6 +849,7 @@ document.getElementById("pane").addEventListener("input", e=>{
 document.getElementById("pane").addEventListener("change", e=>{
   const t = e.target;
   if(t.dataset.multi){
+    markDirty();
     const arr = state[t.dataset.multi];
     const i = arr.indexOf(t.value);
     if(t.checked && i<0) arr.push(t.value);
@@ -789,10 +866,14 @@ document.getElementById("pane").addEventListener("change", e=>{
 });
 document.getElementById("pane").addEventListener("click", e=>{
   const t = e.target;
-  if(t.id === "addPart"){ state.parts.push({name:"",qty:"1",price:""}); render(); return; }
-  if(t.dataset.delpart !== undefined){ state.parts.splice(+t.dataset.delpart,1); render(); return; }
+  if(t.id === "applyStd"){
+    DEFAULT_WORK.forEach(w=>{ if(!state.work.includes(w)) state.work.push(w); });
+    markDirty(); render(); return;
+  }
+  if(t.id === "addPart"){ markDirty(); state.parts.push({name:"",qty:"1"}); render(); return; }
+  if(t.dataset.delpart !== undefined){ markDirty(); state.parts.splice(+t.dataset.delpart,1); render(); return; }
   if(t.dataset.addbtn){ addCustom(t.dataset.addbtn); return; }
-  if(t.dataset.delcustom){ state[t.dataset.delcustom].splice(+t.dataset.i,1); render(); return; }
+  if(t.dataset.delcustom){ markDirty(); state[t.dataset.delcustom].splice(+t.dataset.i,1); render(); return; }
 });
 document.getElementById("pane").addEventListener("keydown", e=>{
   if(e.key === "Enter" && e.target.dataset.addinput){ e.preventDefault(); addCustom(e.target.dataset.addinput); }
@@ -802,33 +883,68 @@ function addCustom(key){
   const v = input && input.value.trim();
   if(!v) return;
   state[key].push(v);
+  markDirty();
   render();
   const again = document.querySelector('[data-addinput="'+key+'"]');
   if(again) again.focus();
 }
 
-document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
+// Before anything goes to the customer: flag what is missing and whether it is saved.
+function readyForCustomer(){
+  const missing = [];
+  if(!state.job.status) missing.push("Outcome");
+  if(!String(state.findings||"").trim()) missing.push("Diagnosis");
+  if(!String(state.shop.tech||"").trim()) missing.push("Technician");
+  const warn = [];
+  if(missing.length) warn.push("Not filled in yet: " + missing.join(", ") + ".");
+  if(dirty || !lastSaved) warn.push("This report has not been saved to the Sheet yet.");
+  return !warn.length || confirm(warn.join("\n") + "\n\nContinue anyway?");
+}
+document.getElementById("btnPrint").addEventListener("click", ()=>{ if(readyForCustomer()) window.print(); });
 document.getElementById("btnNew").addEventListener("click", ()=>{
-  const shop = state.shop, terms = state.job.terms, cur = state.job.currency, rate = state.job.labourRate;
-  state = blank();
-  state.shop = shop; state.job.terms = terms; state.job.currency = cur; state.job.labourRate = rate;
-  state.job.ref = nextRef();
-  render();
+  if(dirty && !confirm("Start a new report? Unsaved changes to the current report will be lost.")) return;
+  newReport(); render();
 });
 
-document.getElementById("btnSave").addEventListener("click", async ()=>{
-  store.shop = state.shop;
-  if(!state.id){
-    state.id = "j"+Date.now();
-    store.seq = Math.max(store.seq, refSeq(state.job.ref)+1);
+document.getElementById("btnSave").addEventListener("click", async e=>{
+  const b = e.currentTarget;
+  if(b.disabled) return;
+  b.disabled = true; b.textContent = "Saving...";
+  showStatus("busy", "Saving " + (state.job.ref || "report") + " to the Sheet and Drive...");
+  try{
+    store.shop = state.shop;
+    if(!state.id){
+      state.id = "j"+Date.now();
+      store.seq = Math.max(store.seq, refSeq(state.job.ref)+1);
+    }
+    const idx = store.jobs.findIndex(j=>j.id===state.id);
+    const copy = JSON.parse(JSON.stringify(state));
+    if(idx>=0) store.jobs[idx] = copy; else store.jobs.unshift(copy);
+    const onDevice = await saveStore();
+    const msg = await saveToSheet(copy);
+    if(msg.indexOf("NOT saved") === 0){
+      showStatus("err", msg.replace(/\.?$/, ".") + (onDevice ? " A copy is kept on this device." : ""));
+    } else {
+      dirty = false;
+      lastSaved = new Date().toLocaleTimeString("en-SG", { hour:"2-digit", minute:"2-digit" });
+      showStatus("ok", "Saved at " + lastSaved + ". " + msg);
+    }
+  } finally {
+    b.disabled = false; b.textContent = "Save job";
   }
-  const idx = store.jobs.findIndex(j=>j.id===state.id);
-  const copy = JSON.parse(JSON.stringify(state));
-  if(idx>=0) store.jobs[idx] = copy; else store.jobs.unshift(copy);
-  const ok = await saveStore();
-  toast((ok ? "Saved on this device. " : "") + "Sending to the Sheet...");
-  toast((ok ? "Saved on this device. " : "") + await saveToSheet(copy));
 });
+
+// Phone "More" menu
+const moreBtn = document.getElementById("btnMore"), moreMenu = document.getElementById("moreMenu");
+function closeMore(){ moreMenu.classList.remove("open"); moreBtn.setAttribute("aria-expanded","false"); }
+moreBtn.addEventListener("click", e=>{
+  e.stopPropagation();
+  const open = !moreMenu.classList.contains("open");
+  moreMenu.classList.toggle("open", open); moreBtn.setAttribute("aria-expanded", String(open));
+});
+moreMenu.addEventListener("click", closeMore);
+document.addEventListener("click", e=>{ if(!moreMenu.contains(e.target)) closeMore(); });
+document.addEventListener("keydown", e=>{ if(e.key === "Escape" && moreMenu.classList.contains("open")){ closeMore(); moreBtn.focus(); } });
 
 const dlg = document.getElementById("dlg");
 document.getElementById("btnSaved").addEventListener("click", ()=>{ renderSaved(); dlg.showModal(); });
@@ -838,7 +954,7 @@ function renderSaved(){
   if(!store.jobs.length){ l.innerHTML = '<div class="row"><div class="t">No saved jobs yet. Fill in a job and choose “Save job”.</div></div>'; return; }
   l.innerHTML = store.jobs.map(j=>`
     <div class="row">
-      <div class="t">${esc(j.job.ref||"(no ref)")} — ${esc(j.cust.name||"unnamed customer")}
+      <div class="t">${esc(j.job.ref||"(no ref)")} · ${esc(j.cust.name||"unnamed customer")}
         <span>${esc(j.machine.brand)} ${esc(j.machine.model)} · ${esc(j.job.date)} · ${esc(j.job.status)}</span></div>
       <button class="mini" data-load="${j.id}">Open</button>
       <button class="mini" data-del="${j.id}">Delete</button>
@@ -848,10 +964,13 @@ document.getElementById("dlgList").addEventListener("click", async e=>{
   const id = e.target.dataset.load || e.target.dataset.del;
   if(!id) return;
   if(e.target.dataset.load){
+    if(dirty && !confirm("Open this saved job? Unsaved changes to the current report will be lost.")) return;
     state = JSON.parse(JSON.stringify(store.jobs.find(j=>j.id===id)));
     state.shop.name = SHOP_NAME; state.shop.contact = SHOP_CONTACT;
-    render(); dlg.close(); toast("Job opened.");
+    dirty = false; clearStatus();
+    render(); dlg.close(); toast("Job opened. Save job again after changes to update the Sheet.");
   } else {
+    if(!confirm("Delete this saved job from this device? The copy in the Sheet stays.")) return;
     store.jobs = store.jobs.filter(j=>j.id!==id);
     await saveStore(); renderSaved();
   }
@@ -892,26 +1011,25 @@ function loadJsPDF(){
   });
 }
 
-async function downloadPdf(){
+// asData: return {name, base64} for saving to Drive instead of downloading.
+async function downloadPdf(asData){
   let jsPDF;
   try{ jsPDF = await loadJsPDF(); }
   catch(e){
-    toast("PDF library unavailable offline — opening the print dialog, choose Save as PDF.");
+    if(asData) return null;
+    toast("PDF maker unavailable offline. Opening the print dialog instead: choose Save as PDF.");
     setTimeout(()=>window.print(), 1200);
     return;
   }
 
-  const s = state, cur = s.job.currency || "$";
-  const st = STATUS.find(x=>x[0]===s.job.status) || STATUS[0];
-  const hrs = parseFloat(s.job.labourHours)||0, rate = parseFloat(s.job.labourRate)||0;
-  const labour = hrs*rate;
+  const s = state;
+  const st = STATUS.find(x=>x[0]===s.job.status); // no stamp until an outcome is chosen
   const partRows = s.parts.filter(p=>p.name);
-  const partsTotal = partRows.reduce((t,p)=>t+(parseFloat(p.qty)||0)*(parseFloat(p.price)||0),0);
   const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}) : "";
 
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const M=15, W=210, R=W-M, CW=W-2*M, BOT=297-20;
-  const GREEN=[165,205,103], GDEEP=[110,155,51], INK=[43,46,49], MID=[84,89,95], MUTED=[138,144,153], RULE=[217,220,214];
+  const GREEN=[165,205,103], GDEEP=[74,110,34], INK=[43,46,49], MID=[84,89,95], MUTED=[101,107,114], AMBER=[138,90,0], RULE=[217,220,214];
   let y = M;
 
   const lh = pt => pt*0.3528*1.34;
@@ -950,7 +1068,7 @@ async function downloadPdf(){
   }
   function kv(pairs, x, w){
     for(const [k,v] of pairs){
-      const lines = doc.splitTextToSize(String(v||"—"), w-26);
+      const lines = doc.splitTextToSize(String(v||"–"), w-26);
       ensure(4.6*lines.length);
       doc.setFont("helvetica","normal"); doc.setFontSize(8.4); doc.setTextColor.apply(doc, MUTED);
       doc.text(k, x, y+3.1);
@@ -972,7 +1090,7 @@ async function downloadPdf(){
   doc.setFont("helvetica","bold"); doc.setFontSize(8.4); doc.setTextColor.apply(doc, GDEEP);
   doc.text("Maintenance, diagnosis & repair", R, y+6, {align:"right"});
   doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor.apply(doc, INK);
-  doc.text(s.job.ref||"—", R, y+13, {align:"right"});
+  doc.text(s.job.ref||"–", R, y+13, {align:"right"});
   doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor.apply(doc, MID);
   doc.text(dateStr, R, y+18, {align:"right"});
 
@@ -983,14 +1101,16 @@ async function downloadPdf(){
   y += 9;
 
   /* status stamp */
-  const stampColor = st[1]==="ok" ? [94,143,42] : st[1]==="bad" ? INK : MID;
-  doc.setFont("helvetica","bold"); doc.setFontSize(10);
-  const label = st[0].toUpperCase();
-  const sw = doc.getTextWidth(label) + 9;
-  doc.setDrawColor.apply(doc, stampColor); doc.setLineWidth(0.7);
-  doc.roundedRect(R-sw, y, sw, 8, 1, 1);
-  doc.setTextColor.apply(doc, stampColor);
-  doc.text(label, R-sw/2, y+5.4, {align:"center"});
+  if(st){
+    const stampColor = st[1]==="ok" ? GDEEP : st[1]==="bad" ? INK : AMBER;
+    doc.setFont("helvetica","bold"); doc.setFontSize(10);
+    const label = st[0].toUpperCase();
+    const sw = doc.getTextWidth(label) + 9;
+    doc.setDrawColor.apply(doc, stampColor); doc.setLineWidth(0.7);
+    doc.roundedRect(R-sw, y, sw, 8, 1, 1);
+    doc.setTextColor.apply(doc, stampColor);
+    doc.text(label, R-sw/2, y+5.4, {align:"center"});
+  }
   y += 13;
 
   /* facts, two columns */
@@ -1004,11 +1124,7 @@ async function downloadPdf(){
   const factTop = y;
   kv([["Name",s.cust.name],["Phone",s.cust.phone],["Email",s.cust.email]], M, colW);
   const leftEnd = y; y = factTop;
-  const machine = [["Printer",(s.machine.brand||"")+" "+(s.machine.model||"")],["Serial",s.machine.serial],
-                   ["Nozzle",s.machine.nozzle],["Plate",s.machine.plate],["Filament",s.machine.filament]];
-  if(s.machine.mfms && s.machine.mfms!=="None") machine.splice(2, 0, ["MFMS", s.machine.mfms+(s.machine.mfmsSerial?" (SN "+s.machine.mfmsSerial+")":"")]);
-  if(s.machine.usage) machine.push(["Usage",s.machine.usage]);
-  kv(machine, M+colW+10, colW);
+  kv(machineRows(s), M+colW+10, colW);
   y = Math.max(leftEnd, y) + 2;
 
   /* sections */
@@ -1041,37 +1157,6 @@ async function downloadPdf(){
   if(s.verifyNotes) para(s.verifyNotes, {color:MID});
   if(s.advice){ head(n++, "Recommendations"); para(s.advice); }
 
-  /* charges */
-  if(s.job.showCharges && (labour>0 || partsTotal>0)){
-    head(n++, "Charges");
-    const cQty = R-58, cUnit = R-30, cAmt = R;
-    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor.apply(doc, MID);
-    ensure(6);
-    doc.text("ITEM", M, y+3); doc.text("QTY", cQty, y+3, {align:"right"});
-    doc.text("UNIT", cUnit, y+3, {align:"right"}); doc.text("AMOUNT", cAmt, y+3, {align:"right"});
-    y += 5; doc.setDrawColor.apply(doc, RULE); doc.line(M, y, R, y); y += 1;
-    const rows = [];
-    if(labour>0) rows.push(["Labour — service and repair", hrs+" h", money(rate,cur), money(labour,cur)]);
-    for(const p of partRows){
-      const q = parseFloat(p.qty)||0, u = parseFloat(p.price)||0;
-      rows.push([p.name, q?String(q):"", u?money(u,cur):"", money(q*u,cur)]);
-    }
-    for(const r of rows){
-      ensure(5.4);
-      doc.setFont("times","normal"); doc.setFontSize(10); doc.setTextColor.apply(doc, INK);
-      doc.text(String(r[0]), M, y+3.6, {maxWidth:CW-62});
-      doc.text(r[1], cQty, y+3.6, {align:"right"});
-      doc.text(r[2], cUnit, y+3.6, {align:"right"});
-      doc.text(r[3], cAmt, y+3.6, {align:"right"});
-      y += 5.2; doc.setDrawColor(231,233,227); doc.line(M, y-1, R, y-1);
-    }
-    ensure(8); y += 1.5;
-    doc.setDrawColor.apply(doc, INK); doc.setLineWidth(0.4); doc.line(M, y, R, y); y += 1;
-    doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor.apply(doc, INK);
-    doc.text("Total", M, y+4); doc.text(money(labour+partsTotal,cur), cAmt, y+4, {align:"right"});
-    y += 7;
-  }
-
   /* sign-off */
   ensure(24); y += 10;
   const sw2 = (CW-14)/2;
@@ -1081,8 +1166,8 @@ async function downloadPdf(){
   if(s.shop.tech) doc.text(s.shop.tech, M, y-2);
   if(s.cust.name) doc.text(s.cust.name, M+sw2+14, y-2);
   doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor.apply(doc, MID);
-  doc.text("Technician — "+(s.shop.name||"Layer by Layer"), M, y+3.6);
-  doc.text("Received in working order — signature & date", M+sw2+14, y+3.6);
+  doc.text("Technician, "+(s.shop.name||"Layer by Layer"), M, y+3.6);
+  doc.text("Received in working order: signature and date", M+sw2+14, y+3.6);
   y += 10;
 
   if(s.job.terms){
@@ -1097,25 +1182,29 @@ async function downloadPdf(){
     doc.setPage(i);
     doc.setFillColor.apply(doc, GREEN); doc.rect(M, 285, CW, 0.8, "F");
     doc.setFont("helvetica","normal"); doc.setFontSize(7.6); doc.setTextColor.apply(doc, MUTED);
-    doc.text((s.shop.name||"Layer by Layer")+" — "+(s.job.ref||""), M, 290);
+    doc.text((s.shop.name||"Layer by Layer")+" · "+(s.job.ref||""), M, 290);
     doc.text("Page "+i+" of "+pages, R, 290, {align:"right"});
   }
 
   const safe = t => String(t||"").replace(/[^A-Za-z0-9-_]+/g,"-").replace(/^-|-$/g,"");
-  doc.save([safe(s.job.ref)||"MDR-report", safe(s.cust.name)].filter(Boolean).join("_")+".pdf");
+  const fileName = [safe(s.job.ref)||"MDR-report", safe(s.cust.name)].filter(Boolean).join("_")+".pdf";
+  if(asData) return { name: fileName, base64: doc.output("datauristring").split(",")[1] };
+  doc.save(fileName);
 }
 
 document.getElementById("btnPdf").addEventListener("click", async e=>{
   const b = e.target; const t = b.textContent;
+  if(!readyForCustomer()) return;
   b.disabled = true; b.textContent = "Building PDF…";
   try{ await downloadPdf(); }
-  catch(err){ console.error(err); toast("PDF build failed — opening the print dialog instead."); setTimeout(()=>window.print(), 1200); }
+  catch(err){ console.error(err); toast("PDF could not be built. Opening the print dialog instead."); setTimeout(()=>window.print(), 1200); }
   finally { b.disabled = false; b.textContent = t; }
 });
 
 /* ---------- boot ---------- */
 (async function(){
   document.getElementById("barLogo").src = LOGO;
+  document.getElementById("gateLogo").src = LOGO;
   await loadStore();
   state.shop.tech = (store.shop||{}).tech || "";
   state.job.ref = nextRef();
