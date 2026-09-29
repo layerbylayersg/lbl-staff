@@ -457,7 +457,6 @@ async function loadStore(){
     if(mem) store = mem;
   }
   if(!store.jobs) store.jobs = [];
-  if(!store.seq)  store.seq = 1;
   if(!store.shop) store.shop = {};
 }
 async function saveStore(){
@@ -613,7 +612,7 @@ function renderForm(){
       <div class="grid">
         ${pick}
         ${field("job.quoteNo", fromJob ? "Quotation No (from the picked job)" : "Quotation No", {ph:"LBL-QT-MDR-20260928-01", readonly:fromJob})}
-        ${field("job.ref","Report reference")}
+        ${field("job.ref","Report No",{ph:"Given when first saved", readonly:true})}
         ${field("job.date","Service date",{type:"date"})}
         ${field("shop.tech","Technician")}
       </div>
@@ -821,8 +820,7 @@ document.getElementById("saveStatus").addEventListener("click", e=>{ if(e.target
 function newReport(){
   const tech = state.shop.tech, terms = state.job.terms;
   state = blank();
-  state.shop.tech = tech; state.job.terms = terms;
-  state.job.ref = nextRef();
+  state.shop.tech = tech; state.job.terms = terms; // report number comes from the Sheet on first save
   dirty = false; clearStatus();
 }
 
@@ -912,11 +910,22 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
   b.disabled = true; b.textContent = "Saving...";
   showStatus("busy", "Saving " + (state.job.ref || "report") + " to the Sheet and Drive...");
   try{
-    store.shop = state.shop;
-    if(!state.id){
-      state.id = "j"+Date.now();
-      store.seq = Math.max(store.seq, refSeq(state.job.ref)+1);
+    // The Sheet hands out the report number on the first save, so numbers never repeat across
+    // devices. Re-saves keep it. Older reports numbered on a device get a proper number here.
+    if(!/^LBL-SR-MDR-/.test(state.job.ref || "")){
+      let out;
+      try{ out = await callSheet({ action:"reserveReportNo" }); }
+      catch(err){ out = { result:"error", message:"no connection? Try Save job again." }; }
+      if(out.result !== "success"){
+        if(out.message === "Wrong password.") lock("Password changed. Log in again, then save again.");
+        showStatus("err", "NOT saved to the Sheet: " + out.message);
+        return;
+      }
+      state.job.ref = out.reportNo;
+      render();
     }
+    store.shop = state.shop;
+    if(!state.id) state.id = "j"+Date.now(); // this device's saved-jobs key only
     const idx = store.jobs.findIndex(j=>j.id===state.id);
     const copy = JSON.parse(JSON.stringify(state));
     if(idx>=0) store.jobs[idx] = copy; else store.jobs.unshift(copy);
@@ -992,11 +1001,6 @@ function toast(msg){
   clearTimeout(toastT); toastT = setTimeout(()=>el.classList.remove("show"), 2600);
 }
 
-function refSeq(ref){ const m = /(\d+)$/.exec(ref||""); return m ? +m[1] : 0; }
-function nextRef(){
-  const d = new Date();
-  return "LBL-JR-MDR-"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"-"+pad(store.seq);
-}
 
 /* ---------- PDF export ---------- */
 const PDF_LIB = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
@@ -1207,7 +1211,6 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
   document.getElementById("gateLogo").src = LOGO;
   await loadStore();
   state.shop.tech = (store.shop||{}).tech || "";
-  state.job.ref = nextRef();
   render();
   let saved = "";
   try{ saved = localStorage.getItem(PIN_KEY) || ""; }catch(e){}
