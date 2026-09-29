@@ -469,10 +469,28 @@ async function saveStore(){
 
 /* ---------- staff login + Sheet ---------- */
 // The password is checked by the Apps Script backend (Script Property REPORT_PIN) before any
-// job data is returned, and again on every save. Remembered on this device until Log out.
+// job data is returned, and again on every save. Remembered on this device for REMEMBER_MS
+// (one working day) or until Log out; stored as {pin, until}.
 const PIN_KEY = "mdr-staff-pin";
+const REMEMBER_MS = 12 * 60 * 60 * 1000;
 let STAFF_PIN = "";
 let JOBS = [];
+
+// The remembered password if it has not expired yet, otherwise "".
+function rememberedPin(){
+  try{
+    const s = JSON.parse(localStorage.getItem(PIN_KEY) || "null");
+    if(s && s.pin && s.until > Date.now()) return s.pin;
+    localStorage.removeItem(PIN_KEY); // expired, or the old plain-text format
+  }catch(e){ try{ localStorage.removeItem(PIN_KEY); }catch(e2){} }
+  return "";
+}
+// While a remembered login is being checked, the gate says so instead of looking empty.
+function gateChecking(on){
+  document.getElementById("gatePw").disabled = on;
+  document.getElementById("gateBtn").disabled = on;
+  document.getElementById("gateBtn").textContent = on ? "Logging you back in..." : "Log in";
+}
 
 async function callSheet(body){
   const res = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(Object.assign({ pin: STAFF_PIN }, body)) });
@@ -489,7 +507,7 @@ async function login(pw){
   const out = await callSheet({ action:"staffJobs" });
   if(out.result !== "success"){ lock(out.message); return false; }
   JOBS = out.jobs || [];
-  try{ localStorage.setItem(PIN_KEY, pw); }catch(e){}
+  try{ localStorage.setItem(PIN_KEY, JSON.stringify({ pin: pw, until: Date.now() + REMEMBER_MS })); }catch(e){}
   document.body.classList.remove("locked");
   render();
   return true;
@@ -1212,9 +1230,13 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
   await loadStore();
   state.shop.tech = (store.shop||{}).tech || "";
   render();
-  let saved = "";
-  try{ saved = localStorage.getItem(PIN_KEY) || ""; }catch(e){}
-  if(saved){ try{ await login(saved); }catch(e){ lock("Could not reach the server. Check the connection and try again."); } }
+  const saved = rememberedPin();
+  if(saved){
+    gateChecking(true);
+    try{ await login(saved); }
+    catch(e){ lock("Could not reach the server. Check the connection and try again."); }
+    finally{ gateChecking(false); }
+  }
 })();
 </script>
 </body>
