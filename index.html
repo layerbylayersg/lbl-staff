@@ -82,7 +82,8 @@
   .sigctl{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:12.5px;color:var(--muted)}
   .photos{display:flex;flex-wrap:wrap;gap:8px}
   .photos .ph{position:relative;width:92px;height:92px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
-  .photos .ph img{width:100%;height:100%;object-fit:cover;display:block}
+  .photos .ph img,.photos .ph video{width:100%;height:100%;object-fit:cover;display:block;background:#1F2421}
+  .photos .ph .vtag{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:6px;background:rgba(20,24,20,.7);color:#fff;font-size:11px;font-weight:600}
   .photos .ph button{position:absolute;top:4px;right:4px;width:24px;height:24px;border:0;border-radius:999px;background:rgba(20,24,20,.7);color:#fff;font-size:15px;line-height:1;cursor:pointer}
   .addph{display:flex;align-items:center;justify-content:center;width:92px;height:92px;border:1.5px dashed var(--line-strong);border-radius:10px;font-size:13px;font-weight:600;color:var(--green-ink);cursor:pointer;text-align:center;padding:6px}
   .addph:hover{border-color:var(--green-600);background:var(--green-wash)}
@@ -480,8 +481,6 @@
 </div>
 
 <main id="hoView"><div class="howrap" id="hoPane"></div></main>
-<datalist id="dlNozzle"><option>0.2 mm stainless steel</option><option>0.4 mm stainless steel</option><option>0.4 mm hardened steel</option><option>0.6 mm hardened steel</option><option>0.8 mm hardened steel</option></datalist>
-<datalist id="dlPlate"><option>Textured PEI</option><option>Smooth PEI</option><option>Cool plate (SuperTack)</option><option>Engineering plate</option><option>High temperature plate</option></datalist>
 
 <dialog id="mailDlg" aria-labelledby="mailTitle">
   <form id="mailForm">
@@ -1716,11 +1715,14 @@ const HO_ITEMS = ["Printer power cable","PTFE tube","Build plate","SD card","Fil
 const HO_NOTICE = "By signing below, the customer acknowledges the printer condition and included items as recorded on this form. " +
   "Layer By Layer is not liable for any additional damages, malfunction, or loss arising from improper care, handling, storage, " +
   "or use of the printer or its accessories after this handover.";
-const HO_MAX_PHOTOS = 10;
+const HO_MAX_PHOTOS = 10; // photos and videos together
+const HO_MAX_VIDEO = 300 * 1024 * 1024; // same cap as the backend
+const NOZZLES = ["0.2 mm","0.4 mm","0.6 mm","0.8 mm"];
+const PLATES = ["Textured PEI","Smooth PEI","Cool plate (SuperTack)","Engineering plate","High temperature plate"];
 let ho = hoBlank(), hoPhotos = [], hoDirty = false, hoFile = null;
 function hoBlank(){
   return { quoteNo:"", date:today(), method:"", rep:"", custName:"", custContact:"", custEmail:"", printer:"", mfms:"",
-    nozzle:"", items:[], otherOn:false, plateType:"", cablePins:[], filamentDetail:"", otherItems:"", condition:"",
+    nozzle:"", nozzleOther:false, items:[], otherOn:false, plateType:"", plateTypeOther:false, cablePins:[], filamentDetail:"", otherItems:"", condition:"",
     photoUrls:[], signature:"", saved:false };
 }
 // Confirmed jobs wait for handover; In Progress jobs with a handover can be reopened to resend.
@@ -1779,8 +1781,8 @@ function renderHo(){
   const hasPrinterHo = !/^No printer/.test(ho.printer);
   const chipBox = (attr, val, on, label) => '<label class="chip"><input type="checkbox" '+attr+'="'+esc(val)+'"'+(on?" checked":"")+'>'+esc(label||val)+'</label>';
   const sigHtml = ho.signature
-    ? '<div class="sigbox"><img src="'+ho.signature+'" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-hosigclear="1">Clear and sign again</button></div>'
-    : '<div class="sigbox"><canvas id="hoSig" aria-label="Customer signature pad"></canvas><span class="sighint">Customer signs here</span></div><div class="sigctl"><span>Draw with a finger, stylus or mouse</span></div>';
+    ? '<div class="sigbox"><img src="'+ho.signature+'" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>'
+    : '<div class="sigbox"><canvas id="hoSig" aria-label="Customer signature pad"></canvas><span class="sighint">Customer signs here</span></div><div class="sigctl"><span>Draw with a finger, stylus or mouse</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>';
 
   p.innerHTML = `
     <div class="stage">
@@ -1803,13 +1805,13 @@ function renderHo(){
 
     <div class="stage">
       <h2><span class="n">2</span>Items handed over</h2>
-      ${hasPrinterHo ? '<div class="grid one">'+hoField("nozzle","Nozzle installed",{ph:"e.g. 0.4 mm hardened steel", list:"dlNozzle"})+'</div>' : ""}
+      ${hasPrinterHo ? '<div class="grid one">'+hoPick("nozzle","Nozzle installed",NOZZLES,"e.g. 1.0 mm")+'</div>' : ""}
       <h3 class="sub">Accessories included</h3>
       <div class="chips">
         ${HO_ITEMS.filter(x => x !== "MFMS cable" || ho.mfms).map(x => chipBox("data-hoitem", x, has(x))).join("")}
         ${chipBox("data-hoother", "1", ho.otherOn, "Others")}
       </div>
-      ${has("Build plate") ? '<div class="sub2">'+hoField("plateType","Build plate type",{ph:"e.g. Textured PEI", list:"dlPlate"})+'</div>' : ""}
+      ${has("Build plate") ? '<div class="sub2"><div class="grid one">'+hoPick("plateType","Build plate type",PLATES,"e.g. Glacier plate")+'</div></div>' : ""}
       ${has("MFMS cable") ? '<div class="sub2"><span class="lab">MFMS cable pin type</span><div class="chips">'+["4 pin cable","6 pin cable"].map(x=>chipBox("data-hopin", x, ho.cablePins.includes(x))).join("")+'</div></div>' : ""}
       ${has("Filament") ? '<div class="sub2">'+hoField("filamentDetail","Filament type and amount",{ph:"e.g. PLA Basic black, about 500 g"})+'</div>' : ""}
       ${ho.otherOn ? '<div class="sub2">'+hoField("otherItems","Other items included",{type:"textarea",ph:"e.g. spare nozzle kit, tool box, original box"})+'</div>' : ""}
@@ -1820,12 +1822,16 @@ function renderHo(){
       <div class="grid one">
         ${hoField("condition","Existing damage or marks",{type:"textarea",ph:"Scratches, cracks, missing or broken parts. Write “No visible damage” if none."})}
       </div>
-      <h3 class="sub">Photos<small>${ho.photoUrls.length + hoPhotos.length} of ${HO_MAX_PHOTOS}</small></h3>
+      <h3 class="sub">Photos &amp; videos<small>${ho.photoUrls.length + hoPhotos.length} of ${HO_MAX_PHOTOS}</small></h3>
       <div class="photos">
-        ${hoPhotos.map((ph,i)=>'<div class="ph"><img src="'+ph.dataUrl+'" alt="Handover photo '+(i+1)+'"><button type="button" data-hophotodel="'+i+'" aria-label="Remove photo '+(i+1)+'">&times;</button></div>').join("")}
-        ${ho.photoUrls.length + hoPhotos.length < HO_MAX_PHOTOS ? '<label class="addph"><input type="file" accept="image/*" multiple data-hophotos="1">+ Add photos</label>' : ""}
+        ${hoPhotos.map((ph,i)=>'<div class="ph">'+(ph.kind === "video"
+            ? '<video src="'+ph.url+'" muted playsinline preload="metadata"></video><span class="vtag">Video</span>'
+            : '<img src="'+ph.dataUrl+'" alt="Handover photo '+(i+1)+'">')+
+          '<button type="button" data-hophotodel="'+i+'" aria-label="Remove item '+(i+1)+'">&times;</button></div>').join("")}
+        ${ho.photoUrls.length + hoPhotos.length < HO_MAX_PHOTOS ? '<label class="addph"><input type="file" accept="image/*,video/*" multiple data-hophotos="1">+ Add photos / videos</label>' : ""}
       </div>
-      ${ho.photoUrls.length ? '<p class="hint">'+ho.photoUrls.length+' photo'+(ho.photoUrls.length>1?"s":"")+' already saved to Drive.</p>' : ""}
+      <p class="hint">On a phone you can take a photo or video now, or pick from your library. Videos up to 300 MB.</p>
+      ${ho.photoUrls.length ? '<p class="hint">'+ho.photoUrls.length+' already saved to Drive.</p>' : ""}
     </div>
 
     <div class="stage">
@@ -1847,6 +1853,16 @@ function renderHo(){
     </div>`;
   if(!ho.signature) initSigPad();
   hoSyncSend();
+}
+// Dropdown with "Other" (then a text box), same behaviour as the Job dropdown: pick again any time.
+function hoPick(key, label, options, otherPh){
+  const v = ho[key] || "", other = !!ho[key+"Other"] || (v && !options.includes(v));
+  const sel = other ? "Other" : v;
+  let h = '<label class="f">'+esc(label)+'<select data-hosel="'+key+'"><option value="">Select...</option>'+
+    options.map(o=>'<option'+(o===sel?" selected":"")+'>'+esc(o)+'</option>').join("")+
+    '<option value="Other"'+(other?" selected":"")+'>Other / not listed</option></select></label>';
+  if(other) h += hoField(key, "Please specify", { ph: otherPh });
+  return h;
 }
 function hoField(key, label, opts){
   opts = opts || {};
@@ -1940,7 +1956,7 @@ async function hoPdf(){
   head("Condition at handover");
   row("Existing damage", ho.condition || "Not recorded");
   const nPh = ho.photoUrls.length + hoPhotos.length;
-  row("Photos", nPh ? nPh + " photo" + (nPh > 1 ? "s" : "") + " taken at handover, kept on file by Layer By Layer" : "None taken");
+  row("Photos / videos", nPh ? nPh + " taken at handover, kept on file by Layer By Layer" : "None taken");
 
   // acknowledgement + signature
   set(8.6, "normal", INK);
@@ -1972,6 +1988,20 @@ async function hoPdf(){
 }
 const fileToBase64 = f => new Promise((ok, fail) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.onerror = fail; fr.readAsDataURL(f); });
 
+// Sends one video to the private handover folder in 4 MB pieces; returns its Drive link.
+async function uploadVideo(file, progress){
+  const CHUNK = 4 * 1024 * 1024;
+  const start = await callSheet({ action:"handoverUpload", quoteNo: ho.quoteNo, name: file.name, mimeType: file.type, size: file.size });
+  if(start.result !== "success") throw new Error(start.message === "Wrong password." ? "Password changed. Log in again." : "Video upload: " + start.message);
+  for(let offset = 0; offset < file.size; offset += CHUNK){
+    progress(Math.round(offset / file.size * 100));
+    const data = await fileToBase64(file.slice(offset, Math.min(offset + CHUNK, file.size)));
+    const out = await callSheet({ action:"uploadChunk", sessionUrl: start.sessionUrl, offset, total: file.size, data });
+    if(out.result !== "success") throw new Error("Video upload: " + out.message);
+    if(out.done) return out.fileUrl || "(video saved to Drive)";
+  }
+  throw new Error("Video upload did not finish.");
+}
 function hoStatus(kind, msg){ const el = document.getElementById("hoStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 async function saveHo(b){
   const missing = [];
@@ -1981,13 +2011,20 @@ async function saveHo(b){
   if(!ho.signature) missing.push("customer signature");
   if(missing.length){ hoStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
   b.disabled = true; b.textContent = "Saving...";
-  hoStatus("busy", "Saving the handover to the Sheet and Drive...");
   try{
+    const videos = hoPhotos.filter(p => p.kind === "video");
+    for(let i = 0; i < videos.length; i++){
+      const v = videos[i];
+      const url = await uploadVideo(v.file, pct => hoStatus("busy", "Uploading video " + (i+1) + " of " + videos.length + ": " + pct + "%. Keep this page open."));
+      ho.photoUrls.push(url);
+      hoPhotos.splice(hoPhotos.indexOf(v), 1); URL.revokeObjectURL(v.url);
+    }
+    hoStatus("busy", "Saving the handover to the Sheet and Drive...");
     const file = await hoPdf();
     const d = hoDerived(ho);
     const h = Object.assign({}, ho, d); delete h.signature; delete h.saved; delete h.pdfUrl;
     const out = await callSheet({ action:"handover", handover:h, signature: ho.signature,
-      photos: hoPhotos.map(p => ({ base64: p.dataUrl.split(",")[1] })), pdf: { name: file.name, base64: await fileToBase64(file) } });
+      photos: hoPhotos.filter(p => p.kind !== "video").map(p => ({ base64: p.dataUrl.split(",")[1] })), pdf: { name: file.name, base64: await fileToBase64(file) } });
     if(out.result !== "success"){
       if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); return; }
       hoStatus("err", "NOT saved: " + out.message); return;
@@ -1998,7 +2035,7 @@ async function saveHo(b){
     renderHo();
     hoStatus("ok", "Saved." + (out.movedToInProgress ? " " + q + " is now In Progress and ready for its service report." : "") +
       (out.pdfUrl ? " Signed PDF saved to Drive." : " (PDF copy NOT saved to Drive.)"));
-  }catch(err){ console.error(err); hoStatus("err", "NOT saved (no connection?). Try again."); }
+  }catch(err){ console.error(err); hoStatus("err", "NOT saved: " + (err.message || "no connection?") + " Try again; videos already uploaded will not upload twice."); renderHo(); }
   finally{ const s = document.getElementById("hoSave"); if(s){ s.disabled = false; s.textContent = ho.saved ? "Save changes" : "Save handover"; } }
 }
 
@@ -2045,11 +2082,24 @@ hoPane.addEventListener("change", async e => {
   if(t.dataset.hoitem){ const i = ho.items.indexOf(t.dataset.hoitem); if(t.checked && i < 0) ho.items.push(t.dataset.hoitem); if(!t.checked && i >= 0) ho.items.splice(i, 1); hoMark(); renderHo(); return; }
   if(t.dataset.hoother){ ho.otherOn = t.checked; hoMark(); renderHo(); return; }
   if(t.dataset.hopin){ const i = ho.cablePins.indexOf(t.dataset.hopin); if(t.checked && i < 0) ho.cablePins.push(t.dataset.hopin); if(!t.checked && i >= 0) ho.cablePins.splice(i, 1); hoMark(); return; }
+  if(t.dataset.hosel){
+    const k = t.dataset.hosel, other = t.value === "Other";
+    ho[k] = other ? "" : t.value; ho[k+"Other"] = other; hoMark(); renderHo();
+    if(other){ const box = hoPane.querySelector('[data-h="'+k+'"]'); if(box) box.focus(); }
+    return;
+  }
   if(t.dataset.hophotos){
     const room = HO_MAX_PHOTOS - ho.photoUrls.length - hoPhotos.length;
     const files = Array.from(t.files || []).slice(0, room);
-    for(const f of files){ try{ hoPhotos.push({ name: f.name, dataUrl: await shrinkPhoto(f) }); }catch(err){ toast(f.name + " is not a photo."); } }
-    if((t.files || []).length > room) toast("Only " + HO_MAX_PHOTOS + " photos per handover.");
+    for(const f of files){
+      if(/^video\//.test(f.type)){
+        if(f.size > HO_MAX_VIDEO){ toast(f.name + " is over 300 MB. Record a shorter clip."); continue; }
+        hoPhotos.push({ kind:"video", file: f, name: f.name, url: URL.createObjectURL(f) });
+      } else {
+        try{ hoPhotos.push({ kind:"photo", name: f.name, dataUrl: await shrinkPhoto(f) }); }catch(err){ toast(f.name + " is not a photo or video."); }
+      }
+    }
+    if((t.files || []).length > room) toast("Only " + HO_MAX_PHOTOS + " photos and videos per handover.");
     hoMark(); renderHo(); return;
   }
   if(t.dataset.h === "rep"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
@@ -2060,7 +2110,11 @@ hoPane.addEventListener("click", e => {
   if(!t) return;
   if(t.dataset.horefresh){ loadJobs().then(() => { const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(j && !hoDirty) openHo(j); else renderHo(); }); return; }
   if(t.dataset.hosigclear){ ho.signature = ""; hoMark(); renderHo(); return; }
-  if(t.dataset.hophotodel !== undefined){ hoPhotos.splice(+t.dataset.hophotodel, 1); hoMark(); renderHo(); return; }
+  if(t.dataset.hophotodel !== undefined){
+    const [gone] = hoPhotos.splice(+t.dataset.hophotodel, 1);
+    if(gone && gone.url) URL.revokeObjectURL(gone.url);
+    hoMark(); renderHo(); return;
+  }
   if(t.id === "hoSave"){ saveHo(t); return; }
   if(t.id === "hoPdfBtn"){
     t.disabled = true;
