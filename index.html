@@ -76,12 +76,20 @@
   .bar .modes button{height:32px;padding:0 12px;border:0;background:transparent;color:var(--ink-2);font-size:13.5px;font-weight:600;border-radius:7px}
   .bar .modes button:hover{background:var(--surface);border-color:transparent}
   .bar .modes button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .bar .modes .sm{display:none}
+  @media (max-width:480px){ .bar .modes .lg{display:none} .bar .modes .sm{display:inline}
+    .bar{gap:6px} .bar img{height:24px} .bar .modes button{padding:0 8px;font-size:12.5px} .bar #btnLogout{padding:0 6px;font-size:13px} }
   #hoView{display:none}
   body.mode-ho #hoView{display:block}
   body.mode-ho .layout,body.mode-ho .mobiletabs,body.mode-ho #saveStatus,body.locked #hoView{display:none!important}
   .howrap{max-width:680px;margin:0 auto;padding:20px 20px 60px}
   .sub2{margin-top:12px;padding:12px 14px;background:var(--green-wash);border:1px solid #CFE3B0;border-radius:10px}
-  .chip.confirm{margin-top:12px;border-radius:10px;align-items:flex-start;padding:8px 12px;line-height:1.4}
+  .notret{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);border:1px solid #F0D9A0;color:#6B4700;font-size:13.5px}
+  .confirmrow{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;font-size:14px;line-height:1.45;cursor:pointer}
+  .confirmrow input{width:20px;height:20px;margin:0;flex:none;accent-color:var(--green-700)}
+  .confirmrow .req{font-size:12px;font-weight:700;color:var(--red-ink);white-space:nowrap}
+  .confirmrow:has(input:checked) .req{display:none}
+  .siglocked{display:flex;align-items:center;justify-content:center;height:170px;padding:16px;text-align:center;font-size:13.5px;color:var(--muted);background:var(--surface-2)}
   .sub2 .lab{display:block;font-size:13px;font-weight:500;color:var(--ink-2);margin-bottom:8px}
   .notice{margin:0 0 14px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.5;color:var(--ink-2)}
   .sigbox{position:relative;border:1px solid var(--line-strong);border-radius:10px;background:#fff;overflow:hidden}
@@ -467,8 +475,9 @@
 <div class="bar">
   <img id="barLogo" alt="Layer By Layer">
   <div class="modes" role="group" aria-label="Form">
-    <button type="button" id="modeReport" aria-pressed="true">Service report</button>
+    <button type="button" id="modeReport" aria-pressed="true"><span class="lg">Service report</span><span class="sm">Report</span></button>
     <button type="button" id="modeHo" aria-pressed="false">Handover</button>
+    <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
   </div>
   <button id="btnLogout">Log out</button>
   <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
@@ -653,7 +662,7 @@ async function callSheet(body){
 }
 function lock(msg){
   STAFF_PIN = ""; JOBS = [];
-  if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; }
+  if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; for(const k in hoStash) delete hoStash[k]; }
   try{ localStorage.removeItem(PIN_KEY); }catch(e){}
   document.body.classList.add("locked");
   if(typeof setPeek === "function") setPeek(false); // never leave the password showing
@@ -1644,6 +1653,7 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
 // WhatsApp message templates: same placeholders as the emails, filled per customer.
 const WA_TEXT = "Hi {name}, thank you for choosing Layer By Layer. Attached is the service report for your {machine} (reference: {quote}). If you have any questions, just reply here.";
 const HO_WA_TEXT = "Hi {name}, thank you for entrusting your {machine} to Layer By Layer. Attached is the signed handover form (reference: {quote}). We will update you once the service is complete.";
+const TO_WA_TEXT = "Hi {name}, thank you for choosing Layer By Layer. Attached is the signed takeover form (reference: {quote}) confirming the return of your {machine}. We hope it prints well for you!";
 function sendText(){ return fillTemplate(WA_TEXT); }
 function saveFileLocally(file){
   const a = document.createElement("a");
@@ -1739,11 +1749,32 @@ document.getElementById("mailForm").addEventListener("submit", async e=>{
 // Staff fill this at drop-off or pick-up for a Confirmed job (based on Nigel's handover template, titled "Handover Form").
 // Saving moves the job to In Progress; its date, nozzle, plate and filament then fill the service
 // report, read-only there. The customer signs on the staff device and gets the PDF.
+// Handover (printer comes in) and takeover (printer goes back) share this form; only the words,
+// the job list and the status change differ.
+let hoKind = "handover";
+const HW = {
+  handover: { title:"Handover", form:"Handover form", pickPh:"Pick the job being handed over...", empty:"No Confirmed jobs on the job sheet",
+    doneTag:" · handed over", listHint:"Jobs show here when their Status on the job sheet is <b>Confirmed</b>. Saving the handover moves the job to In Progress.",
+    date:"Date of handover", how:"How we received it", methods:[["Drop-off","Customer dropped off","Drop-off"],["Pick-up","We picked up","Pick-up by us"]],
+    howPdf:"Received by", items:"Items handed over", acc:"Accessories included", other:"Other items included",
+    cond:"Condition at handover", condLabel:"Existing damage or marks", condPh:"Scratches, cracks, missing or broken parts. Write “No visible damage” if none.",
+    by:"Handed over by", byStage:"Handed over by &amp; signature", authDo:"hand over the printer", itemsWord:"included items",
+    saveHint:"Save after the customer signs. Saving moves the job to In Progress and fills the service report.", save:"Save handover" },
+  takeover: { title:"Takeover", form:"Takeover form", pickPh:"Pick the job being returned...", empty:"No In Progress jobs with a handover",
+    doneTag:" · taken over", listHint:"Jobs show here when they are <b>In Progress</b> and have a handover. The service report must be saved first. Saving the takeover marks the job Completed.",
+    date:"Date of takeover", how:"How it went back", methods:[["Collection","Customer collected","Collection"],["Delivery","We delivered","Delivery by us"]],
+    howPdf:"Returned by", items:"Items returned", acc:"Returned items (ticked from the handover)", other:"Other items returned",
+    cond:"Condition at takeover", condLabel:"Condition when returned", condPh:"Anything to note on the printer's condition at return. Write “Good working condition” if nothing to note.",
+    by:"Collected by", byStage:"Collected by &amp; signature", authDo:"collect the printer", itemsWord:"returned items",
+    saveHint:"Save after the customer signs. Saving marks the job Completed.", save:"Save takeover" }
+};
+const W = () => HW[hoKind];
 const HO_ITEMS = ["Printer power cable","PTFE tube","Build plate","SD card","Filament stand","MFMS cable","Filament"];
-const HO_NOTICE = "By signing below, {who} acknowledges the printer condition and included items as recorded on this form. " +
+const HO_NOTICE = "By signing below, {who} acknowledges the printer condition and {items} as recorded on this form. " +
   "Layer By Layer is not liable for any additional damages, malfunction, or loss arising from improper care, handling, storage, " +
-  "or use of the printer or its accessories after this handover.";
-const hoNotice = () => HO_NOTICE.replace("{who}", ho.handedBy === "Authorised person" ? "the person authorised by the customer" : "the customer");
+  "or use of the printer or its accessories after this {form}.";
+const hoNotice = () => HO_NOTICE.replace("{who}", ho.handedBy === "Authorised person" ? "the person authorised by the customer" : "the customer")
+  .replace("{items}", W().itemsWord).replace("{form}", hoKind);
 const HO_MAX_PHOTOS = 10; // photos and videos together
 const HO_MAX_VIDEO = 300 * 1024 * 1024; // same cap as the backend
 const NOZZLES = ["0.2 mm","0.4 mm","0.6 mm","0.8 mm"];
@@ -1756,8 +1787,12 @@ function hoBlank(){
     // When the customer cannot come, someone they authorise hands over and signs.
     handedBy:"Customer", authName:"", authContact:"", authRelation:"", authConfirmed:false };
 }
-// Confirmed jobs wait for handover; In Progress jobs with a handover can be reopened to resend.
-const hoJobs = () => JOBS.filter(j => j.status === "Confirmed" || j.handover);
+// Handover: Confirmed jobs (plus In Progress ones with a handover, to reopen and resend).
+// Takeover: In Progress jobs with a handover (Completed ones drop off the list).
+const hoJobs = () => hoKind === "takeover" ? JOBS.filter(j => j.status === "In Progress" && j.handover)
+  : JOBS.filter(j => j.status === "Confirmed" || j.handover);
+// Each form keeps its own unsaved work when switching between them.
+const hoStash = {};
 const dmy = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso||"") ? iso.slice(8,10)+"/"+iso.slice(5,7)+"/"+iso.slice(0,4) : (iso||"");
 
 function openHo(j){
@@ -1766,10 +1801,22 @@ function openHo(j){
     quoteNo: j.quoteNo, custName: j.name || "", custContact: j.contact || "", custEmail: j.email || "",
     printer: j.serviceType === "MFMS only" ? "No printer (MFMS only)" : ((j.brand||"")+" "+(j.model||"")).trim(),
     mfms: j.mfms && j.mfms !== "No" ? j.mfms : "",
-    method: /^y/i.test(j.needTransport||"") ? "Pick-up" : "Drop-off", // customer asked for transport on the MDR form
+    method: hoKind === "takeover" ? (/^y/i.test(j.needTransport||"") ? "Delivery" : "Collection")
+      : (/^y/i.test(j.needTransport||"") ? "Pick-up" : "Drop-off"), // customer asked for transport on the MDR form
     rep: state.shop.tech || ""
   });
-  if(j.handover){ Object.assign(ho, j.handover); ho.saved = true; }
+  const saved = hoKind === "takeover" ? j.takeover : j.handover;
+  if(saved){ Object.assign(ho, saved); ho.saved = true; }
+  else if(hoKind === "takeover" && j.handover){
+    // start from what came in: everything handed over is ticked as returned
+    ["nozzle","nozzleOther","otherOn","plateType","plateTypeOther","filamentDetail","otherItems"].forEach(k => { if(j.handover[k] != null) ho[k] = j.handover[k]; });
+    ho.items = (j.handover.items || []).slice(); ho.cablePins = (j.handover.cablePins || []).slice();
+  }
+  if(hoKind === "takeover"){
+    ho.handoverItems = j.handover ? (j.handover.items || []).slice() : [];
+    ho.handoverOther = j.handover && j.handover.otherOn ? String(j.handover.otherItems || "").trim() : "";
+    ho.noReport = !j.savedReport; // the service report must be saved before the printer goes back
+  }
   hoDirty = false;
   renderHo();
   if(ho.saved) hoPdf().then(f => { if(!hoDirty && ho.quoteNo === j.quoteNo){ hoFile = f; hoSyncSend(); } }).catch(console.error);
@@ -1786,7 +1833,9 @@ function hoDerived(h){
     : x === "MFMS cable" && h.cablePins.length ? "MFMS cable (" + h.cablePins.join(", ") + ")"
     : x === "Filament" && h.filamentDetail ? "Filament (" + h.filamentDetail + ")" : x);
   if(h.otherOn && h.otherItems.trim()) items.push("Other: " + h.otherItems.trim());
-  return { items,
+  const notReturned = (h.handoverItems || []).filter(x => !has(x));
+  if(h.handoverOther && !h.otherOn) notReturned.push("Other: " + h.handoverOther);
+  return { items, notReturned,
     plate: has("Build plate") ? (h.plateType || "Included") : "Not included",
     filament: has("Filament") ? (h.filamentDetail || "Included") : "Not included" };
 }
@@ -1795,13 +1844,14 @@ function renderHo(){
   const p = document.getElementById("hoPane");
   const jobs = hoJobs();
   const pick = '<label class="f span2 jobpick">Job<span class="pickrow"><select data-hopick="1"><option value="">'+
-    (jobs.length ? "Pick the job being handed over..." : "No Confirmed jobs on the job sheet") + '</option>' +
+    (jobs.length ? W().pickPh : W().empty) + '</option>' +
+    (ho.quoteNo && !jobs.some(j => j.quoteNo === ho.quoteNo) ? '<option value="'+esc(ho.quoteNo)+'" selected>'+esc(ho.quoteNo+" · "+ho.custName)+'</option>' : "") +
     jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===ho.quoteNo?" selected":"")+'>'+
-      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.handover?" · handed over":""))+'</option>').join("") +
+      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+((hoKind === "takeover" ? j.takeover : j.handover) ? W().doneTag : ""))+'</option>').join("") +
     '</select><button type="button" class="mini" data-horefresh="1" title="Reload jobs from the Sheet">Refresh</button></span></label>';
   if(!ho.quoteNo){
     p.innerHTML = `<div class="stage"><h2><span class="n">1</span>Job</h2><div class="grid">${pick}</div>
-      <p class="hint">Jobs show here when their Status on the job sheet is <b>Confirmed</b>. Saving the handover moves the job to In Progress.</p></div>`;
+      <p class="hint">${W().listHint}</p></div>`;
     return;
   }
   const names = STAFF.slice(); if(ho.rep && !names.includes(ho.rep)) names.unshift(ho.rep);
@@ -1811,7 +1861,10 @@ function renderHo(){
   const has = x => ho.items.includes(x);
   const hasPrinterHo = !/^No printer/.test(ho.printer);
   const chipBox = (attr, val, on, label) => '<label class="chip"><input type="checkbox" '+attr+'="'+esc(val)+'"'+(on?" checked":"")+'>'+esc(label||val)+'</label>';
-  const sigHtml = ho.signature
+  const sigLocked = ho.handedBy === "Authorised person" && !ho.authConfirmed && !ho.signature;
+  const sigHtml = sigLocked
+    ? '<div class="sigbox"><p class="siglocked">Tick the authorisation box above before the authorised person signs.</p></div>'
+    : ho.signature
     ? '<div class="sigbox"><img src="'+ho.signature+'" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>'
     : '<div class="sigbox"><canvas id="hoSig" aria-label="Customer signature pad"></canvas><span class="sighint">'+(ho.handedBy === "Authorised person" ? "Authorised person signs here" : "Customer signs here")+'</span></div><div class="sigctl"><span>Draw with a finger, stylus or mouse</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>';
 
@@ -1821,11 +1874,12 @@ function renderHo(){
       <div class="grid">
         ${pick}
         ${rep}
-        ${hoField("date","Date of handover",{type:"date"})}
+        ${hoField("date",W().date,{type:"date"})}
       </div>
-      <h3 class="sub">How we received it</h3>
-      <div class="chips" role="radiogroup" aria-label="How we received it">
-        ${["Drop-off","Pick-up"].map(m=>'<label class="chip"><input type="radio" name="homethod" data-homethod="1" value="'+m+'"'+(ho.method===m?" checked":"")+'>'+(m==="Drop-off"?"Customer dropped off":"We picked up")+'</label>').join("")}
+      ${ho.noReport ? '<p class="hostatus err">The service report for this job is not saved yet. Save it in Service report first; the takeover cannot be saved until then.</p>' : ""}
+      <h3 class="sub">${W().how}</h3>
+      <div class="chips" role="radiogroup" aria-label="${W().how}">
+        ${W().methods.map(([v,label])=>'<label class="chip"><input type="radio" name="homethod" data-homethod="1" value="'+v+'"'+(ho.method===v?" checked":"")+'>'+label+'</label>').join("")}
       </div>
       <div class="info summarycard">
         ${infoRow("Customer", ho.custName)}${infoRow("Contact", [ho.custContact, ho.custEmail].filter(Boolean).join(" · "))}
@@ -1835,23 +1889,24 @@ function renderHo(){
     </div>
 
     <div class="stage">
-      <h2><span class="n">2</span>Items handed over</h2>
+      <h2><span class="n">2</span>${W().items}</h2>
       ${hasPrinterHo ? '<div class="grid one">'+hoPick("nozzle","Nozzle installed",NOZZLES,"e.g. 1.0 mm")+'</div>' : ""}
-      <h3 class="sub">Accessories included</h3>
+      <h3 class="sub">${W().acc}</h3>
       <div class="chips">
         ${HO_ITEMS.filter(x => x !== "MFMS cable" || ho.mfms).map(x => chipBox("data-hoitem", x, has(x))).join("")}
         ${chipBox("data-hoother", "1", ho.otherOn, "Others")}
       </div>
+      ${hoKind === "takeover" && hoDerived(ho).notReturned.length ? '<p class="notret"><b>Not returned:</b> '+esc(hoDerived(ho).notReturned.join(", "))+'. This shows on the takeover form.</p>' : ""}
       ${has("Build plate") ? '<div class="sub2"><div class="grid one">'+hoPick("plateType","Build plate type",PLATES,"e.g. Glacier plate")+'</div></div>' : ""}
       ${has("MFMS cable") ? '<div class="sub2"><span class="lab">MFMS cable pin type</span><div class="chips">'+["4 pin cable","6 pin cable"].map(x=>chipBox("data-hopin", x, ho.cablePins.includes(x))).join("")+'</div></div>' : ""}
       ${has("Filament") ? '<div class="sub2">'+hoField("filamentDetail","Filament type and amount",{ph:"e.g. PLA Basic black, about 500 g"})+'</div>' : ""}
-      ${ho.otherOn ? '<div class="sub2">'+hoField("otherItems","Other items included",{type:"textarea",ph:"e.g. spare nozzle kit, tool box, original box"})+'</div>' : ""}
+      ${ho.otherOn ? '<div class="sub2">'+hoField("otherItems",W().other,{type:"textarea",ph:"e.g. spare nozzle kit, tool box, original box"})+'</div>' : ""}
     </div>
 
     <div class="stage">
-      <h2><span class="n">3</span>Condition at handover</h2>
+      <h2><span class="n">3</span>${W().cond}</h2>
       <div class="grid one">
-        ${hoField("condition","Existing damage or marks",{type:"textarea",ph:"Scratches, cracks, missing or broken parts. Write “No visible damage” if none."})}
+        ${hoField("condition",W().condLabel,{type:"textarea",ph:W().condPh})}
       </div>
       <h3 class="sub">Photos &amp; videos<small>${ho.photoUrls.length + hoPhotos.length} of ${HO_MAX_PHOTOS}</small></h3>
       <div class="photos">
@@ -1866,8 +1921,8 @@ function renderHo(){
     </div>
 
     <div class="stage">
-      <h2><span class="n">4</span>Handed over by &amp; signature</h2>
-      <div class="chips" role="radiogroup" aria-label="Handed over by">
+      <h2><span class="n">4</span>${W().byStage}</h2>
+      <div class="chips" role="radiogroup" aria-label="${W().by}">
         ${["Customer","Authorised person"].map(v=>'<label class="chip"><input type="radio" name="hoby" data-hoby="1" value="'+v+'"'+(ho.handedBy===v?" checked":"")+'>'+(v==="Customer"?"The customer":"Someone authorised by the customer")+'</label>').join("")}
       </div>
       ${ho.handedBy === "Authorised person" ? `<div class="sub2">
@@ -1876,7 +1931,7 @@ function renderHo(){
           ${hoField("authContact","Their contact number",{type:"tel",ph:"e.g. 9123 4567"})}
           <div class="span2">${hoField("authRelation","Relationship to the customer",{ph:"e.g. family member, colleague, driver"})}</div>
         </div>
-        <label class="chip confirm"><input type="checkbox" data-hoauthok="1"${ho.authConfirmed?" checked":""}>The customer has authorised this person to hand over the printer (e.g. by WhatsApp or call)</label>
+        <label class="confirmrow"><input type="checkbox" data-hoauthok="1" required${ho.authConfirmed?" checked":""}><span>The customer has authorised this person to ${W().authDo} (e.g. by WhatsApp or call) <b class="req">Required</b></span></label>
       </div>` : ""}
       <p class="notice" style="margin-top:14px">${esc(hoNotice())}</p>
       ${sigHtml}
@@ -1884,9 +1939,9 @@ function renderHo(){
 
     <div class="stage">
       <h2><span class="n">5</span>Save &amp; send</h2>
-      <p class="hint" style="margin:0 0 14px">Save after the customer signs. Saving moves the job to In Progress and fills the service report.</p>
+      <p class="hint" style="margin:0 0 14px">${W().saveHint}</p>
       <div class="actions hoactions">
-        <button type="button" class="primary" id="hoSave">${ho.saved ? "Save changes" : "Save handover"}</button>
+        <button type="button" class="primary" id="hoSave">${ho.saved ? "Save changes" : W().save}</button>
         <button type="button" id="hoPdfBtn">Download PDF</button>
         <button type="button" id="hoWa" disabled title="Save first">Send on WhatsApp</button>
         <button type="button" id="hoMail" disabled title="Save first">Send by email</button>
@@ -1985,13 +2040,14 @@ async function hoPdf(){
   const tx = M + logoH*LOGO_RATIO + 5;
   set(13, "bold", INK); doc.text(SHOP_NAME, tx, y+6.5);
   set(8.8, "normal", MUTED); doc.splitTextToSize(SHOP_CONTACT, 80).slice(0,2).forEach((ln,i) => doc.text(ln, tx, y+11.5+i*4));
-  set(9, "normal", MUTED); doc.text("Handover form", R, y+5, {align:"right"});
+  set(9, "normal", MUTED); doc.text(W().form, R, y+5, {align:"right"});
   set(14.5, "bold", INK); doc.text(ho.quoteNo || "", R, y+11.5, {align:"right"});
   y += logoH + 6;
   doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, y, R, y); y += 5;
 
   /* summary strip */
-  const cells = [["Date of handover", longDate], ["Received by", ho.method === "Pick-up" ? "Pick-up by us" : "Drop-off"],
+  const how = (W().methods.find(m => m[0] === ho.method) || [,, ho.method || "–"])[2];
+  const cells = [[W().date, longDate], [W().howPdf, how],
                  ["Representative", ho.rep || "–"], ["Quotation", ho.quoteNo || "–"]];
   const weights = [0.26, 0.2, 0.22, 0.32];
   doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE); doc.roundedRect(M, y, CW, 16, 2.5, 2.5, "FD");
@@ -2017,17 +2073,18 @@ async function hoPdf(){
   y += boxH + 2;
 
   /* sections */
-  head("Handed over by");
+  head(W().by);
   if(byAuth){
     para(ho.authName + ", authorised by the customer" + (ho.authRelation ? " (" + ho.authRelation + ")" : ""));
     if(ho.authContact) para("Contact: " + ho.authContact, INK2);
   } else para("The customer, " + (ho.custName || ""));
-  head("Items handed over");
+  head(W().items);
   bullets(d.items);
-  head("Condition at handover");
+  if(d.notReturned.length){ y += 1; para("Not returned: " + d.notReturned.join(", "), [138,90,0]); }
+  head(W().cond);
   para(ho.condition || "Not recorded.", ho.condition ? INK : MUTED);
   const nPh = ho.photoUrls.length + hoPhotos.length;
-  y += 1; para(nPh ? "Photos / videos: " + nPh + " taken at handover, kept on file by Layer By Layer." : "Photos / videos: none taken.", INK2);
+  y += 1; para(nPh ? "Photos / videos: " + nPh + " taken at " + hoKind + ", kept on file by Layer By Layer." : "Photos / videos: none taken.", INK2);
 
   /* acknowledgement + signature */
   set(8.6, "normal", INK2);
@@ -2051,18 +2108,18 @@ async function hoPdf(){
     doc.setPage(i);
     doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, 284, R, 284);
     set(7.8, "normal", MUTED);
-    doc.text(SHOP_NAME + "  ·  Handover form  ·  " + (ho.quoteNo || "") + "  ·  Retain a copy for your records", M, 289);
+    doc.text(SHOP_NAME + "  ·  " + W().form + "  ·  " + (ho.quoteNo || "") + "  ·  Retain a copy for your records", M, 289);
     doc.text("Page " + i + " of " + pages, R, 289, {align:"right"});
   }
   const safe = t => String(t||"").replace(/[^A-Za-z0-9-_]+/g,"-").replace(/^-|-$/g,"");
-  return new File([doc.output("blob")], [safe(ho.quoteNo), "Handover", safe(ho.custName)].filter(Boolean).join("_") + ".pdf", { type:"application/pdf" });
+  return new File([doc.output("blob")], [safe(ho.quoteNo), W().title, safe(ho.custName)].filter(Boolean).join("_") + ".pdf", { type:"application/pdf" });
 }
 const fileToBase64 = f => new Promise((ok, fail) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.onerror = fail; fr.readAsDataURL(f); });
 
 // Sends one video to the private handover folder in 4 MB pieces; returns its Drive link.
 async function uploadVideo(file, progress){
   const CHUNK = 4 * 1024 * 1024;
-  const start = await callSheet({ action:"handoverUpload", quoteNo: ho.quoteNo, name: file.name, mimeType: file.type, size: file.size });
+  const start = await callSheet({ action:"handoverUpload", kind: hoKind, quoteNo: ho.quoteNo, name: file.name, mimeType: file.type, size: file.size });
   if(start.result !== "success") throw new Error(start.message === "Wrong password." ? "Password changed. Log in again." : "Video upload: " + start.message);
   for(let offset = 0; offset < file.size; offset += CHUNK){
     progress(Math.round(offset / file.size * 100));
@@ -2085,6 +2142,7 @@ async function saveHo(b){
     if(!ho.authConfirmed) missing.push("tick that the customer authorised them");
   }
   if(!ho.signature) missing.push("signature");
+  if(ho.noReport){ hoStatus("err", "Save the service report for " + ho.quoteNo + " first."); return; }
   if(missing.length){ hoStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
   b.disabled = true; b.textContent = "Saving...";
   try{
@@ -2095,11 +2153,11 @@ async function saveHo(b){
       ho.photoUrls.push(url);
       hoPhotos.splice(hoPhotos.indexOf(v), 1); URL.revokeObjectURL(v.url);
     }
-    hoStatus("busy", "Saving the handover to the Sheet and Drive...");
+    hoStatus("busy", "Saving the " + hoKind + " to the Sheet and Drive...");
     const file = await hoPdf();
     const d = hoDerived(ho);
     const h = Object.assign({}, ho, d); delete h.signature; delete h.saved; delete h.pdfUrl;
-    const out = await callSheet({ action:"handover", handover:h, signature: ho.signature,
+    const out = await callSheet({ action:"handover", kind: hoKind, handover:h, signature: ho.signature,
       photos: hoPhotos.filter(p => p.kind !== "video").map(p => ({ base64: p.dataUrl.split(",")[1] })), pdf: { name: file.name, base64: await fileToBase64(file) } });
     if(out.result !== "success"){
       if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); return; }
@@ -2109,10 +2167,10 @@ async function saveHo(b){
     const q = ho.quoteNo;
     try{ await loadJobs(); render(); }catch(e){}
     renderHo();
-    hoStatus("ok", "Saved." + (out.movedToInProgress ? " " + q + " is now In Progress and ready for its service report." : "") +
+    hoStatus("ok", "Saved." + (out.moved ? " " + q + " is now " + out.newStatus + (hoKind === "handover" ? " and ready for its service report." : ".") : "") +
       (out.pdfUrl ? " Signed PDF saved to Drive." : " (PDF copy NOT saved to Drive.)"));
   }catch(err){ console.error(err); hoStatus("err", "NOT saved: " + (err.message || "no connection?") + " Try again; videos already uploaded will not upload twice."); renderHo(); }
-  finally{ const s = document.getElementById("hoSave"); if(s){ s.disabled = false; s.textContent = ho.saved ? "Save changes" : "Save handover"; } }
+  finally{ const s = document.getElementById("hoSave"); if(s){ s.disabled = false; s.textContent = ho.saved ? "Save changes" : W().save; } }
 }
 
 // Handover email / WhatsApp wording. Same placeholders as the report email.
@@ -2125,6 +2183,15 @@ Please keep it for your records. We will update you once the service is complete
 
 Best regards,
 Layer By Layer`;
+const TO_EMAIL_SUBJECT = "Your printer takeover form for {quote} | Layer By Layer";
+const TO_EMAIL_BODY = `Hi {name},
+
+Thank you for choosing Layer By Layer. Attached is the signed takeover form (reference: {quote}), confirming the return of your {machine}, the items returned and its condition at takeover.
+
+Please keep it for your records. If you have any questions, just reply to this email or WhatsApp us at +65 8986 7382.
+
+Best regards,
+Layer By Layer`;
 function hoFill(t){
   const vals = { name: ho.custName || "there", quote: ho.quoteNo, specialist: ho.rep || "The Layer By Layer team",
     machine: [/^No printer/.test(ho.printer) ? "" : ho.printer, ho.mfms].filter(Boolean).join(" and ") || "3D printer" };
@@ -2132,15 +2199,22 @@ function hoFill(t){
 }
 
 function setMode(m){
-  const isHo = m === "ho";
-  document.body.classList.toggle("mode-ho", isHo);
-  document.getElementById("modeReport").setAttribute("aria-pressed", String(!isHo));
-  document.getElementById("modeHo").setAttribute("aria-pressed", String(isHo));
-  if(isHo) renderHo();
+  const isForm = m === "handover" || m === "takeover";
+  if(isForm && m !== hoKind){
+    hoStash[hoKind] = { ho, hoPhotos, hoDirty, hoFile };
+    hoKind = m;
+    ({ ho, hoPhotos, hoDirty, hoFile } = hoStash[hoKind] || { ho: hoBlank(), hoPhotos: [], hoDirty: false, hoFile: null });
+  }
+  document.body.classList.toggle("mode-ho", isForm);
+  document.getElementById("modeReport").setAttribute("aria-pressed", String(!isForm));
+  document.getElementById("modeHo").setAttribute("aria-pressed", String(m === "handover"));
+  document.getElementById("modeTo").setAttribute("aria-pressed", String(m === "takeover"));
+  if(isForm) renderHo();
   scrollTo(0, 0);
 }
 document.getElementById("modeReport").addEventListener("click", () => setMode("report"));
-document.getElementById("modeHo").addEventListener("click", () => setMode("ho"));
+document.getElementById("modeHo").addEventListener("click", () => setMode("handover"));
+document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
 
 const hoPane = document.getElementById("hoPane");
 hoPane.addEventListener("change", async e => {
@@ -2155,7 +2229,11 @@ hoPane.addEventListener("change", async e => {
   }
   if(t.dataset.homethod){ ho.method = t.value; hoMark(); return; }
   if(t.dataset.hoby){ ho.handedBy = t.value; hoMark(); renderHo(); return; }
-  if(t.dataset.hoauthok){ ho.authConfirmed = t.checked; hoMark(); return; }
+  if(t.dataset.hoauthok){
+    ho.authConfirmed = t.checked;
+    if(!t.checked) ho.signature = ""; // a signature without the authorisation does not count
+    hoMark(); renderHo(); return;
+  }
   if(t.dataset.hoitem){ const i = ho.items.indexOf(t.dataset.hoitem); if(t.checked && i < 0) ho.items.push(t.dataset.hoitem); if(!t.checked && i >= 0) ho.items.splice(i, 1); hoMark(); renderHo(); return; }
   if(t.dataset.hoother){ ho.otherOn = t.checked; hoMark(); renderHo(); return; }
   if(t.dataset.hopin){ const i = ho.cablePins.indexOf(t.dataset.hopin); if(t.checked && i < 0) ho.cablePins.push(t.dataset.hopin); if(!t.checked && i >= 0) ho.cablePins.splice(i, 1); hoMark(); return; }
@@ -2198,11 +2276,12 @@ hoPane.addEventListener("click", e => {
     hoPdf().then(saveFileLocally).catch(err => { console.error(err); toast("PDF could not be built."); }).finally(() => { t.disabled = false; });
     return;
   }
-  if(t.id === "hoWa"){ if(hoFile) shareOrChat(hoFile, hoFill(HO_WA_TEXT), ho.custContact, e.shiftKey); return; }
+  if(t.id === "hoWa"){ if(hoFile) shareOrChat(hoFile, hoFill(hoKind === "takeover" ? TO_WA_TEXT : HO_WA_TEXT), ho.custContact, e.shiftKey); return; }
   if(t.id === "hoMail"){
     if(!hoFile) return;
-    openMail({ to: ho.custEmail, subject: hoFill(HO_EMAIL_SUBJECT), body: hoFill(HO_EMAIL_BODY), file: hoFile,
-      extra: { kind:"handover", quoteNo: ho.quoteNo, tech: ho.rep }, done: "Handover form emailed to " });
+    const tk = hoKind === "takeover";
+    openMail({ to: ho.custEmail, subject: hoFill(tk ? TO_EMAIL_SUBJECT : HO_EMAIL_SUBJECT), body: hoFill(tk ? TO_EMAIL_BODY : HO_EMAIL_BODY), file: hoFile,
+      extra: { kind: hoKind, quoteNo: ho.quoteNo, tech: ho.rep }, done: W().form + " emailed to " });
   }
 });
 
@@ -2213,7 +2292,7 @@ hoPane.addEventListener("click", e => {
   render();
   try{ localStorage.removeItem(PIN_KEY); }catch(e){} // forget passwords older versions remembered
   // A refresh logs out, so warn before throwing away an unsaved report.
-  window.addEventListener("beforeunload", e=>{ if(dirty || hoDirty){ e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", e=>{ if(dirty || hoDirty || Object.values(hoStash).some(x => x.hoDirty)){ e.preventDefault(); e.returnValue = ""; } });
 })();
 </script>
 </body>
