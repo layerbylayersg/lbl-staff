@@ -51,14 +51,14 @@
   :focus-visible{outline:2px solid var(--green-600);outline-offset:2px}
 
   /* shared button styles */
-  .btn,.bar button,.finish button,.mini,.addrow button,#gate button,.mobiletabs button{
+  .btn,.bar button,.finish button,dialog button,.mini,.addrow button,#gate button,.mobiletabs button{
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
     height:36px;padding:0 14px;border-radius:var(--radius-sm);
     border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);
     font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;
     transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
   }
-  .bar button:hover,.finish button:hover,.mini:hover,.addrow button:hover{background:var(--surface-2);border-color:var(--line-strong)}
+  .bar button:hover,.finish button:hover,dialog button:hover,.mini:hover,.addrow button:hover{background:var(--surface-2);border-color:var(--line-strong)}
   button.primary,#gate button{background:var(--green-700);border-color:var(--green-700);color:#fff;font-weight:600}
   button.primary:hover,#gate button:hover{background:#335A19;border-color:#335A19}
   button:disabled{opacity:.55;cursor:wait}
@@ -113,7 +113,13 @@
   .finish .hint{margin:0 0 14px}
   .finish .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .finish .actions button{height:40px}
-  .finish #btnWa:disabled{cursor:not-allowed}
+  .finish #btnSave{grid-column:1 / -1}
+  .finish #btnWa:disabled,.finish #btnMail:disabled{cursor:not-allowed}
+  #mailDlg .mailbody{display:grid;gap:12px;padding:16px 18px}
+  #mailDlg textarea{min-height:230px}
+  #mailDlg .hint{margin:0}
+  #mailMsg{color:var(--red-ink);font-size:13.5px;margin:0}
+  #mailDlg footer{display:flex;justify-content:flex-end;gap:8px}
   .stage{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
     box-shadow:var(--shadow);padding:18px 18px 20px;margin:0 0 14px}
   .stage > h2{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:650;margin:0 0 14px;letter-spacing:-.005em}
@@ -393,14 +399,29 @@
       <h2><span class="n">9</span>Save &amp; send</h2>
       <p class="hint">Check the report preview, save it, then send it to the customer.</p>
       <div class="actions">
-        <button id="btnSave">Save job</button>
+        <button id="btnSave" class="primary">Save job</button>
         <button id="btnPrint">Print</button>
         <button id="btnPdf">Download PDF</button>
-        <button id="btnWa" class="primary" disabled title="Save the report first">Send on WhatsApp</button>
+        <button id="btnWa" disabled title="Save the report first">Send on WhatsApp</button>
+        <button id="btnMail" disabled title="Save the report first">Send by email</button>
       </div>
     </div>
   </div>
 </div>
+
+<dialog id="mailDlg" aria-labelledby="mailTitle">
+  <form id="mailForm">
+    <header><h2 id="mailTitle">Email the report</h2></header>
+    <div class="mailbody">
+      <label class="f">To<input type="email" id="mailTo" required placeholder="customer@example.com"></label>
+      <label class="f">Subject<input id="mailSubject" required></label>
+      <label class="f">Message<textarea id="mailBody" required></textarea></label>
+      <p class="hint">Attached: <b id="mailFile"></b>. Sent from the Layer by Layer Gmail.</p>
+      <p id="mailMsg" role="alert"></p>
+    </div>
+    <footer><button type="button" id="mailCancel">Cancel</button><button type="submit" class="primary" id="mailSend">Send email</button></footer>
+  </form>
+</dialog>
 
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -905,10 +926,16 @@ function render(){ renderForm(); renderReport(); }
 
 /* ---------- unsaved changes + save status ---------- */
 let dirty = false, lastSaved = "";
-// WhatsApp send is only for a report that matches what was saved.
-function syncSend(){ document.getElementById("btnWa").disabled = dirty || !lastSaved; }
+// Sending is only for a report that matches what was saved. The PDF is built right after the
+// save, because phones only open the share menu straight after a tap (no waiting in between).
+let sendFile = null;
+function syncSend(){ ["btnWa","btnMail"].forEach(id => document.getElementById(id).disabled = dirty || !lastSaved || !sendFile); }
+function prepareSend(){
+  sendFile = null; syncSend();
+  downloadPdf("file").then(f => { if(!dirty && lastSaved){ sendFile = f; syncSend(); } }).catch(console.error);
+}
 function markDirty(){
-  dirty = true; syncSend();
+  dirty = true; sendFile = null; syncSend();
   if(lastSaved) showStatus("stale", "Changes since the last save at " + lastSaved + ". Press Save job to update the Sheet.");
 }
 function showStatus(kind, msg){
@@ -1082,7 +1109,7 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
       dirty = false;
       lastSaved = new Date().toLocaleTimeString("en-SG", { hour:"2-digit", minute:"2-digit" });
       showStatus("ok", "Saved at " + lastSaved + ". " + msg);
-      render(); syncSend();
+      render(); prepareSend();
     }
   } finally {
     b.disabled = false; b.textContent = "Save job";
@@ -1342,27 +1369,88 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
   finally { b.disabled = false; b.textContent = t; }
 });
 
-// Phones: share sheet with the PDF attached, pick WhatsApp Business, then the customer.
-// Elsewhere: download the PDF and open the customer chat in WhatsApp to attach it.
-document.getElementById("btnWa").addEventListener("click", async e=>{
-  const b = e.currentTarget; const t = b.textContent;
-  if(!readyForCustomer()) return;
+// Phones: share menu with the PDF attached, pick WhatsApp Business, then the customer.
+// Computers: download the PDF and open the customer chat in WhatsApp to attach it.
+// Everything before navigator.share must stay synchronous, or the phone blocks the share.
+function sendText(){
   const s = state;
-  const text = "Hi " + (s.cust.name || "there") + ", here is your Layer by Layer service report " + (s.job.ref || "") + ". Thank you for choosing us!";
-  b.disabled = true; b.textContent = "Preparing...";
+  return "Hi " + (s.cust.name || "there") + ", here is your Layer by Layer service report" +
+    (s.job.quoteNo ? " for " + s.job.quoteNo : "") + " (" + (s.job.ref || "") + "). Thank you for choosing us!";
+}
+function saveFileLocally(file){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+document.getElementById("btnWa").addEventListener("click", ()=>{
+  if(!sendFile || !readyForCustomer()) return;
+  const text = sendText();
+  try{ navigator.clipboard.writeText(text); }catch(e){}
+  const touch = matchMedia("(pointer:coarse)").matches;
+  if(touch && navigator.canShare && navigator.canShare({ files:[sendFile] })){
+    // file only: WhatsApp on iPhone drops the PDF when text is shared with it
+    navigator.share({ files:[sendFile] })
+      .then(() => toast("Message copied. Paste it in the chat if you want a note with the PDF."))
+      .catch(err => { if(err.name !== "AbortError") toast("Share menu failed (" + err.name + "). Use Download PDF and attach it in WhatsApp."); });
+    return;
+  }
+  saveFileLocally(sendFile);
+  let num = String(state.cust.phone || "").replace(/\D/g, "");
+  if(num.length === 8) num = "65" + num; // Singapore number without country code
+  const link = document.createElement("a");
+  link.href = "https://wa.me/" + num + "?text=" + encodeURIComponent(text); link.target = "_blank"; link.rel = "noopener";
+  document.body.appendChild(link); link.click(); link.remove();
+  toast("PDF downloaded. Attach it in the WhatsApp chat.");
+});
+
+// Email template. {name} = customer, {quote} = quotation number (report number for custom jobs),
+// {machine} = printer and/or MFMS, {specialist} = MDR Specialist. Staff can edit it before sending.
+const EMAIL_SUBJECT = "Your service report for {quote} | Layer by Layer";
+const EMAIL_BODY = `Hi {name},
+
+Thank you for choosing Layer by Layer. Attached is the service report for your {machine} (reference: {quote}).
+
+It covers what we found, the work we did and our recommendations. If you have any questions, just reply to this email or WhatsApp us at +65 8986 7382.
+
+Best regards,
+{specialist}
+Layer by Layer`;
+function fillTemplate(t){
+  const s = state;
+  const machine = [hasPrinter(s) ? (s.machine.brand + " " + s.machine.model).trim() : "",
+                   hasMfms(s) ? s.machine.mfms : ""].filter(Boolean).join(" and ") || "3D printer";
+  const vals = { name: s.cust.name || "there", quote: s.job.quoteNo || s.job.ref, machine, specialist: s.shop.tech || "The Layer by Layer team" };
+  return t.replace(/\{(name|quote|machine|specialist)\}/g, (m, k) => vals[k]);
+}
+const mailDlg = document.getElementById("mailDlg");
+document.getElementById("btnMail").addEventListener("click", ()=>{
+  if(!sendFile || !readyForCustomer()) return;
+  document.getElementById("mailTo").value = state.cust.email || "";
+  document.getElementById("mailSubject").value = fillTemplate(EMAIL_SUBJECT);
+  document.getElementById("mailBody").value = fillTemplate(EMAIL_BODY);
+  document.getElementById("mailFile").textContent = sendFile.name;
+  document.getElementById("mailMsg").textContent = "";
+  mailDlg.showModal();
+});
+document.getElementById("mailCancel").addEventListener("click", ()=>mailDlg.close());
+document.getElementById("mailForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const b = document.getElementById("mailSend"), msg = document.getElementById("mailMsg");
+  const to = document.getElementById("mailTo").value.trim();
+  b.disabled = true; b.textContent = "Sending..."; msg.textContent = "";
   try{
-    const file = await downloadPdf("file");
-    if(file && navigator.canShare && navigator.canShare({ files:[file] })){
-      try{ await navigator.share({ files:[file], text }); return; }
-      catch(err){ if(err.name === "AbortError") return; } // cancelled; anything else falls through
+    const base64 = await new Promise((ok, fail) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.onerror = fail; fr.readAsDataURL(sendFile); });
+    const out = await callSheet({ action:"emailReport", to, reportNo: state.job.ref, quoteNo: state.job.quoteNo, tech: state.shop.tech,
+      subject: document.getElementById("mailSubject").value, body: document.getElementById("mailBody").value,
+      pdf: { name: sendFile.name, base64 } });
+    if(out.result !== "success"){
+      if(out.message === "Wrong password."){ mailDlg.close(); lock("Password changed. Log in again."); return; }
+      msg.textContent = "Not sent: " + out.message; return;
     }
-    await downloadPdf();
-    let num = String(s.cust.phone || "").replace(/\D/g, "");
-    if(num.length === 8) num = "65" + num; // Singapore number without country code
-    window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(text), "_blank", "noopener");
-    toast("PDF downloaded. Attach it in the WhatsApp chat.");
-  } catch(err){ console.error(err); toast("Could not prepare the PDF. Try Download PDF instead."); }
-  finally { b.textContent = t; syncSend(); }
+    mailDlg.close(); toast("Report emailed to " + to + ".");
+  }catch(err){ msg.textContent = "Not sent: no connection? Try again."; }
+  finally{ b.disabled = false; b.textContent = "Send email"; }
 });
 
 /* ---------- boot ---------- */
