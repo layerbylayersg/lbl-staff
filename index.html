@@ -1132,7 +1132,7 @@ function renderReport(){
 
       ${s.advice?`<div class="sec"><h3>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
 
-      <div class="terms">Warranty and service terms: this service is covered by our <a href="${TERMS_URL}" target="_blank" rel="noopener">Terms and Conditions</a>.</div>
+      <div class="terms">Warranty and service terms: This service is covered by our <a href="${TERMS_URL}" target="_blank" rel="noopener">Terms and Conditions</a>.</div>
     </div>`;
 }
 
@@ -1578,7 +1578,7 @@ async function downloadPdf(asData){
   ensure(12);
   doc.setFillColor.apply(doc, PANEL); doc.roundedRect(M, y, CW, 9, 2, 2, "F");
   set(8.4, "normal", MUTED);
-  const lead = "Warranty and service terms: this service is covered by our ";
+  const lead = "Warranty and service terms: This service is covered by our ";
   doc.text(lead, M+5, y+5.8);
   const leadW = doc.getTextWidth(lead); // measured in the regular font, before switching to bold
   set(8.4, "bold", G700);
@@ -1614,11 +1614,10 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
 // Phones: share menu with the PDF attached, pick WhatsApp Business, then the customer.
 // Computers: download the PDF and open the customer chat in WhatsApp to attach it.
 // Everything before navigator.share must stay synchronous, or the phone blocks the share.
-function sendText(){
-  const s = state;
-  return "Hi " + (s.cust.name || "there") + ", here is your Layer By Layer service report" +
-    (s.job.quoteNo ? " for " + s.job.quoteNo : "") + " (" + (s.job.ref || "") + "). Thank you for choosing us!";
-}
+// WhatsApp message templates: same placeholders as the emails, filled per customer.
+const WA_TEXT = "Hi {name}, thank you for choosing Layer By Layer. Attached is the service report for your {machine} (reference: {quote}). If you have any questions, just reply here.";
+const HO_WA_TEXT = "Hi {name}, thank you for entrusting your {machine} to Layer By Layer. Attached is the signed handover form (reference: {quote}). We will update you once the service is complete.";
+function sendText(){ return fillTemplate(WA_TEXT); }
 function saveFileLocally(file){
   const a = document.createElement("a");
   a.href = URL.createObjectURL(file); a.download = file.name;
@@ -1635,9 +1634,10 @@ function shareOrChat(file, text, phone, skipShare){
   const touch = matchMedia("(pointer:coarse)").matches;
   if(!skipShare && navigator.canShare && navigator.canShare({ files:[file] })){
     // Phone share menu, or the Windows share panel on a computer (WhatsApp shows there when its
-    // app is installed). File only: WhatsApp on iPhone drops the PDF when text is shared with it.
-    navigator.share({ files:[file] })
-      .then(() => toast("Message copied. Paste it in the chat if you want a note with the PDF."))
+    // app is installed). The message goes with the PDF; it is also copied in case an app drops it.
+    const data = navigator.canShare({ files:[file], text }) ? { files:[file], text } : { files:[file] };
+    navigator.share(data)
+      .then(() => toast("Check the message, then send. If it is missing, paste it: it is copied."))
       .catch(err => {
         if(err.name !== "AbortError") toast("Share failed (" + err.name + "). Use Download PDF and attach it in WhatsApp.");
         else if(!touch) toast("WhatsApp not in the list? Hold Shift and click Send on WhatsApp to open the chat instead.");
@@ -1654,7 +1654,7 @@ function shareOrChat(file, text, phone, skipShare){
 }
 
 // Email template. {name} = customer, {quote} = quotation number (report number for custom jobs),
-// {machine} = printer and/or MFMS, {specialist} = MDR Specialist. Staff can edit it before sending.
+// {machine} = printer and/or MFMS. Signed off as Layer By Layer. Staff can edit it before sending.
 const EMAIL_SUBJECT = "Your service report for {quote} | Layer By Layer";
 const EMAIL_BODY = `Hi {name},
 
@@ -1663,7 +1663,6 @@ Thank you for choosing Layer By Layer. Attached is the service report for your {
 It covers what we found, the work we did and our recommendations. If you have any questions, just reply to this email or WhatsApp us at +65 8986 7382.
 
 Best regards,
-{specialist}
 Layer By Layer`;
 function fillTemplate(t){
   const s = state;
@@ -2050,7 +2049,6 @@ Thank you for entrusting your {machine} to Layer By Layer. Attached is the signe
 Please keep it for your records. We will update you once the service is complete. If you have any questions, just reply to this email or WhatsApp us at +65 8986 7382.
 
 Best regards,
-{specialist}
 Layer By Layer`;
 function hoFill(t){
   const vals = { name: ho.custName || "there", quote: ho.quoteNo, specialist: ho.rep || "The Layer By Layer team",
@@ -2123,7 +2121,7 @@ hoPane.addEventListener("click", e => {
     hoPdf().then(saveFileLocally).catch(err => { console.error(err); toast("PDF could not be built."); }).finally(() => { t.disabled = false; });
     return;
   }
-  if(t.id === "hoWa"){ if(hoFile) shareOrChat(hoFile, hoFill("Hi {name}, here is your signed Layer By Layer handover form for {quote}. We will update you once the service is complete. Thank you!"), ho.custContact, e.shiftKey); return; }
+  if(t.id === "hoWa"){ if(hoFile) shareOrChat(hoFile, hoFill(HO_WA_TEXT), ho.custContact, e.shiftKey); return; }
   if(t.id === "hoMail"){
     if(!hoFile) return;
     openMail({ to: ho.custEmail, subject: hoFill(HO_EMAIL_SUBJECT), body: hoFill(HO_EMAIL_BODY), file: hoFile,
