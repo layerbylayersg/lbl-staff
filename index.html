@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="LBL Staff">
 <title>Layer By Layer · Staff Service Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -73,6 +81,7 @@
   body.mode-ho .layout,body.mode-ho .mobiletabs,body.mode-ho #saveStatus,body.locked #hoView{display:none!important}
   .howrap{max-width:680px;margin:0 auto;padding:20px 20px 60px}
   .sub2{margin-top:12px;padding:12px 14px;background:var(--green-wash);border:1px solid #CFE3B0;border-radius:10px}
+  .chip.confirm{margin-top:12px;border-radius:10px;align-items:flex-start;padding:8px 12px;line-height:1.4}
   .sub2 .lab{display:block;font-size:13px;font-weight:500;color:var(--ink-2);margin-bottom:8px}
   .notice{margin:0 0 14px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.5;color:var(--ink-2)}
   .sigbox{position:relative;border:1px solid var(--line-strong);border-radius:10px;background:#fff;overflow:hidden}
@@ -111,6 +120,10 @@
   #gate input{height:42px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--surface);font-size:15px}
   #gate input:focus{border-color:var(--green-600);box-shadow:0 0 0 3px rgba(94,138,42,.18);outline:none}
   #gate button{height:42px;width:100%;font-size:15px}
+  .pwrow{position:relative;display:block}
+  .pwrow input{width:100%;padding-right:72px}
+  #gate .peek,#gate .peek:hover{position:absolute;right:5px;top:5px;width:auto;height:32px;padding:0 12px;font-size:13px;font-weight:600;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);border-radius:7px}
   #gateMsg{color:var(--red-ink);min-height:1.2em;font-size:14px}
 
   /* ---------- top bar ---------- */
@@ -418,6 +431,9 @@
   }
   /* small phones: one field per row so quote numbers and serials are never cut off */
   @media (max-width:480px){ .grid{grid-template-columns:1fr} }
+  @media (max-width:700px){
+    label.f input,label.f select,label.f textarea,.addrow input,table.parts input,.accsearch,#gate input,#mailDlg input,#mailDlg textarea{font-size:16px}
+  }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
   /* ---------- print ---------- */
@@ -440,7 +456,8 @@
     <h1>Service reports</h1>
     <p>Layer By Layer staff only.</p>
     <label>Staff password
-      <input type="password" id="gatePw" autocomplete="current-password" required>
+      <span class="pwrow"><input type="password" id="gatePw" autocomplete="current-password" required>
+        <button type="button" class="peek" id="gatePeek" aria-pressed="false" aria-label="Show password">Show</button></span>
     </label>
     <button type="submit" id="gateBtn">Log in</button>
     <div id="gateMsg" role="alert"></div>
@@ -639,6 +656,7 @@ function lock(msg){
   if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; }
   try{ localStorage.removeItem(PIN_KEY); }catch(e){}
   document.body.classList.add("locked");
+  if(typeof setPeek === "function") setPeek(false); // never leave the password showing
   document.getElementById("gateMsg").textContent = msg || "";
 }
 // Fetches the latest jobs and staff names from the Sheet.
@@ -664,6 +682,15 @@ document.getElementById("gateForm").addEventListener("submit", async e=>{
   catch(err){ lock("Could not reach the server. Check the connection and try again."); }
   finally{ b.disabled = false; }
 });
+// Show / hide the password while typing it.
+const gatePeek = document.getElementById("gatePeek");
+function setPeek(show){
+  document.getElementById("gatePw").type = show ? "text" : "password";
+  gatePeek.textContent = show ? "Hide" : "Show";
+  gatePeek.setAttribute("aria-pressed", String(show));
+  gatePeek.setAttribute("aria-label", show ? "Hide password" : "Show password");
+}
+gatePeek.addEventListener("click", e => { e.preventDefault(); setPeek(document.getElementById("gatePw").type === "password"); document.getElementById("gatePw").focus(); });
 document.getElementById("btnLogout").addEventListener("click", ()=>{ lock(); document.getElementById("gatePw").value = ""; });
 
 // Copies the read-only job details from the Sheet into the report.
@@ -1709,13 +1736,14 @@ document.getElementById("mailForm").addEventListener("submit", async e=>{
 });
 
 /* ---------- handover: the printer we receive from the customer ---------- */
-// Staff fill this at drop-off or pick-up for a Confirmed job (based on Nigel's handover template).
+// Staff fill this at drop-off or pick-up for a Confirmed job (based on Nigel's handover template, titled "Handover Form").
 // Saving moves the job to In Progress; its date, nozzle, plate and filament then fill the service
 // report, read-only there. The customer signs on the staff device and gets the PDF.
 const HO_ITEMS = ["Printer power cable","PTFE tube","Build plate","SD card","Filament stand","MFMS cable","Filament"];
-const HO_NOTICE = "By signing below, the customer acknowledges the printer condition and included items as recorded on this form. " +
+const HO_NOTICE = "By signing below, {who} acknowledges the printer condition and included items as recorded on this form. " +
   "Layer By Layer is not liable for any additional damages, malfunction, or loss arising from improper care, handling, storage, " +
   "or use of the printer or its accessories after this handover.";
+const hoNotice = () => HO_NOTICE.replace("{who}", ho.handedBy === "Authorised person" ? "the person authorised by the customer" : "the customer");
 const HO_MAX_PHOTOS = 10; // photos and videos together
 const HO_MAX_VIDEO = 300 * 1024 * 1024; // same cap as the backend
 const NOZZLES = ["0.2 mm","0.4 mm","0.6 mm","0.8 mm"];
@@ -1724,7 +1752,9 @@ let ho = hoBlank(), hoPhotos = [], hoDirty = false, hoFile = null;
 function hoBlank(){
   return { quoteNo:"", date:today(), method:"", rep:"", custName:"", custContact:"", custEmail:"", printer:"", mfms:"",
     nozzle:"", nozzleOther:false, items:[], otherOn:false, plateType:"", plateTypeOther:false, cablePins:[], filamentDetail:"", otherItems:"", condition:"",
-    photoUrls:[], signature:"", saved:false };
+    photoUrls:[], signature:"", saved:false,
+    // When the customer cannot come, someone they authorise hands over and signs.
+    handedBy:"Customer", authName:"", authContact:"", authRelation:"", authConfirmed:false };
 }
 // Confirmed jobs wait for handover; In Progress jobs with a handover can be reopened to resend.
 const hoJobs = () => JOBS.filter(j => j.status === "Confirmed" || j.handover);
@@ -1783,7 +1813,7 @@ function renderHo(){
   const chipBox = (attr, val, on, label) => '<label class="chip"><input type="checkbox" '+attr+'="'+esc(val)+'"'+(on?" checked":"")+'>'+esc(label||val)+'</label>';
   const sigHtml = ho.signature
     ? '<div class="sigbox"><img src="'+ho.signature+'" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>'
-    : '<div class="sigbox"><canvas id="hoSig" aria-label="Customer signature pad"></canvas><span class="sighint">Customer signs here</span></div><div class="sigctl"><span>Draw with a finger, stylus or mouse</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>';
+    : '<div class="sigbox"><canvas id="hoSig" aria-label="Customer signature pad"></canvas><span class="sighint">'+(ho.handedBy === "Authorised person" ? "Authorised person signs here" : "Customer signs here")+'</span></div><div class="sigctl"><span>Draw with a finger, stylus or mouse</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>';
 
   p.innerHTML = `
     <div class="stage">
@@ -1836,8 +1866,19 @@ function renderHo(){
     </div>
 
     <div class="stage">
-      <h2><span class="n">4</span>Customer signature</h2>
-      <p class="notice">${esc(HO_NOTICE)}</p>
+      <h2><span class="n">4</span>Handed over by &amp; signature</h2>
+      <div class="chips" role="radiogroup" aria-label="Handed over by">
+        ${["Customer","Authorised person"].map(v=>'<label class="chip"><input type="radio" name="hoby" data-hoby="1" value="'+v+'"'+(ho.handedBy===v?" checked":"")+'>'+(v==="Customer"?"The customer":"Someone authorised by the customer")+'</label>').join("")}
+      </div>
+      ${ho.handedBy === "Authorised person" ? `<div class="sub2">
+        <div class="grid">
+          ${hoField("authName","Authorised person's name")}
+          ${hoField("authContact","Their contact number",{type:"tel",ph:"e.g. 9123 4567"})}
+          <div class="span2">${hoField("authRelation","Relationship to the customer",{ph:"e.g. family member, colleague, driver"})}</div>
+        </div>
+        <label class="chip confirm"><input type="checkbox" data-hoauthok="1"${ho.authConfirmed?" checked":""}>The customer has authorised this person to hand over the printer (e.g. by WhatsApp or call)</label>
+      </div>` : ""}
+      <p class="notice" style="margin-top:14px">${esc(hoNotice())}</p>
       ${sigHtml}
     </div>
 
@@ -1913,76 +1954,105 @@ function shrinkPhoto(file){
   });
 }
 
-// The signed form as a PDF, for the customer and for Drive.
+// The signed form as a PDF, for the customer and for Drive. Same look as the service report PDF.
 async function hoPdf(){
   const jsPDF = await loadJsPDF();
   const doc = new jsPDF({ unit:"mm", format:"a4" });
-  const M = 16, R = 194, CW = R - M, INK = [31,36,33], MUTED = [92,99,107], GREEN = [62,107,31];
-  let y = 16;
-  const set = (size, style, color) => { doc.setFont("helvetica", style); doc.setFontSize(size); doc.setTextColor.apply(doc, color); };
-  const need = h => { if(y + h > 280){ doc.addPage(); y = 16; } };
-  const head = t => { need(14); y += 4; set(9, "bold", GREEN); doc.text(t.toUpperCase(), M, y); y += 2;
-    doc.setDrawColor(226,229,224); doc.setLineWidth(0.3); doc.line(M, y, R, y); y += 5; };
-  const row = (k, v) => {
-    set(9.5, "normal", INK);
-    const lines = doc.splitTextToSize(String(v || "-"), CW - 48);
-    need(lines.length * 4.6 + 1.5);
-    set(9, "normal", MUTED); doc.text(k, M, y);
-    set(9.5, "normal", INK); doc.text(lines, M + 48, y);
-    y += lines.length * 4.6 + 1.5;
+  const M = 16, R = 210 - M, CW = R - M, BOT = 297 - 22;
+  const INK=[29,33,37], INK2=[71,78,85], MUTED=[92,99,107], LINE=[227,230,224], PANEL=[247,248,246];
+  const G700=[62,107,31], GTINT=[228,240,210];
+  let y = M;
+  const set = (size, style, color) => { doc.setFont("helvetica", style||"normal"); doc.setFontSize(size); doc.setTextColor.apply(doc, color||INK); };
+  const lh = pt => pt*0.3528*1.45;
+  const ensure = h => { if(y + h > BOT){ doc.addPage(); y = M; } };
+  const para = (text, color) => { set(10, "normal", color); for(const ln of doc.splitTextToSize(String(text||""), CW)){ ensure(lh(10)); doc.text(ln, M, y+lh(10)-1.4); y += lh(10); } };
+  const head = t => { ensure(18); y += 4; doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, y, R, y); y += 6; set(11.5, "bold", INK); doc.text(t, M, y); y += 4; };
+  const check = (x, cy) => { doc.setFillColor.apply(doc, GTINT); doc.circle(x, cy, 1.9, "F"); doc.setDrawColor.apply(doc, G700); doc.setLineWidth(0.45);
+    doc.line(x-0.85, cy+0.05, x-0.2, cy+0.7); doc.line(x-0.2, cy+0.7, x+0.95, cy-0.65); };
+  const bullets = items => {
+    if(!items.length){ para("None.", MUTED); return; }
+    for(const it of items) doc.splitTextToSize(String(it), CW-8).forEach((ln,i) => { ensure(5.2); if(!i) check(M+2, y+2.3); set(10, "normal", INK); doc.text(ln, M+6.5, y+3.4); y += 4.8; });
   };
-  const d = hoDerived(ho);
+  const kvH = (pairs, w) => pairs.reduce((h,[k,v]) => h + 5 + (doc.splitTextToSize(String(v||"–"), w-24).length-1)*4.3, 0);
+  const kv = (pairs, x, top, w) => { let yy = top; for(const [k,v] of pairs){ set(9, "normal", MUTED); doc.text(String(k), x, yy+3.4); set(9.6, "bold", INK);
+    const lines = doc.splitTextToSize(String(v||"–"), w-24); lines.forEach((ln,i) => doc.text(ln, x+22, yy+3.4+i*4.3)); yy += 5 + (lines.length-1)*4.3; } };
+  const d = hoDerived(ho), byAuth = ho.handedBy === "Authorised person";
+  const longDate = ho.date ? new Date(ho.date+"T00:00:00").toLocaleDateString("en-SG",{day:"numeric",month:"long",year:"numeric"}) : "–";
 
-  const lh = 15;
-  doc.addImage(LOGO, "PNG", M, y, lh * LOGO_RATIO, lh, "logo", "FAST");
-  const tx = M + lh * LOGO_RATIO + 5;
-  set(15, "bold", INK); doc.text("Handover & Takeover Form", tx, y + 6.5);
-  set(8.6, "normal", MUTED); doc.text(SHOP_NAME + " · " + SHOP_CONTACT, tx, y + 12);
-  set(8.6, "normal", MUTED); doc.text("Reference", R, y + 2.5, { align:"right" });
-  set(11, "bold", INK); doc.text(ho.quoteNo, R, y + 8, { align:"right" });
-  set(8.6, "normal", MUTED); doc.text(dmy(ho.date), R, y + 12.5, { align:"right" });
-  y += lh + 4;
-  doc.setDrawColor.apply(doc, INK); doc.setLineWidth(0.8); doc.line(M, y, R, y); y += 3;
+  /* header */
+  const logoH = 15;
+  doc.addImage(LOGO, "PNG", M, y, logoH*LOGO_RATIO, logoH, "logo", "FAST");
+  const tx = M + logoH*LOGO_RATIO + 5;
+  set(13, "bold", INK); doc.text(SHOP_NAME, tx, y+6.5);
+  set(8.8, "normal", MUTED); doc.splitTextToSize(SHOP_CONTACT, 80).slice(0,2).forEach((ln,i) => doc.text(ln, tx, y+11.5+i*4));
+  set(9, "normal", MUTED); doc.text("Handover form", R, y+5, {align:"right"});
+  set(14.5, "bold", INK); doc.text(ho.quoteNo || "", R, y+11.5, {align:"right"});
+  y += logoH + 6;
+  doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, y, R, y); y += 5;
 
-  head("Parties");
-  row("Customer", ho.custName); row("Contact number", ho.custContact);
-  row("Representative", ho.rep + ", " + SHOP_NAME);
-  row("Received by", ho.method === "Pick-up" ? "Pick-up by Layer By Layer" : "Drop-off by customer");
-  row("Date of handover", dmy(ho.date));
-  head("Printer details");
-  row("Printer", ho.printer); if(ho.mfms) row("MFMS", ho.mfms);
-  if(!/^No printer/.test(ho.printer)) row("Nozzle installed", ho.nozzle || "Not recorded");
+  /* summary strip */
+  const cells = [["Date of handover", longDate], ["Received by", ho.method === "Pick-up" ? "Pick-up by us" : "Drop-off"],
+                 ["Representative", ho.rep || "–"], ["Quotation", ho.quoteNo || "–"]];
+  const weights = [0.26, 0.2, 0.22, 0.32];
+  doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE); doc.roundedRect(M, y, CW, 16, 2.5, 2.5, "FD");
+  cells.forEach(([k,v], i) => {
+    const cx = M + CW*weights.slice(0,i).reduce((a,b)=>a+b,0) + 5;
+    set(8.4, "normal", MUTED); doc.text(k, cx, y+5.6);
+    set(9.8, "bold", INK); doc.text(doc.splitTextToSize(String(v), CW*weights[i]-8)[0], cx, y+12);
+  });
+  y += 20;
+
+  /* customer and machine panels */
+  const colW = (CW-6)/2;
+  const custRows = [["Name", ho.custName], ["Phone", ho.custContact], ["Email", ho.custEmail]];
+  const machRows = [["Printer", ho.printer]];
+  if(ho.mfms) machRows.push(["MFMS", ho.mfms]);
+  if(!/^No printer/.test(ho.printer)) machRows.push(["Nozzle", ho.nozzle || "Not recorded"]);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9.6);
+  const boxH = 13 + Math.max(kvH(custRows, colW-10), kvH(machRows, colW-10));
+  [["Customer", custRows, M], ["Machine", machRows, M+colW+6]].forEach(([title, rows, x]) => {
+    doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE); doc.roundedRect(x, y, colW, boxH, 2.5, 2.5, "FD");
+    set(9, "bold", MUTED); doc.text(title, x+5, y+6.5); kv(rows, x+5, y+8.5, colW-10);
+  });
+  y += boxH + 2;
+
+  /* sections */
+  head("Handed over by");
+  if(byAuth){
+    para(ho.authName + ", authorised by the customer" + (ho.authRelation ? " (" + ho.authRelation + ")" : ""));
+    if(ho.authContact) para("Contact: " + ho.authContact, INK2);
+  } else para("The customer, " + (ho.custName || ""));
   head("Items handed over");
-  row("Accessories", d.items.length ? d.items.join("\n") : "None");
+  bullets(d.items);
   head("Condition at handover");
-  row("Existing damage", ho.condition || "Not recorded");
+  para(ho.condition || "Not recorded.", ho.condition ? INK : MUTED);
   const nPh = ho.photoUrls.length + hoPhotos.length;
-  row("Photos / videos", nPh ? nPh + " taken at handover, kept on file by Layer By Layer" : "None taken");
+  y += 1; para(nPh ? "Photos / videos: " + nPh + " taken at handover, kept on file by Layer By Layer." : "Photos / videos: none taken.", INK2);
 
-  // acknowledgement + signature
-  set(8.6, "normal", INK);
-  const nl = doc.splitTextToSize(HO_NOTICE, CW - 10);
-  const nh = nl.length * 4 + 7;
-  need(nh + 60); y += 4;
-  doc.setFillColor(242,243,241); doc.setDrawColor(199,206,194); doc.setLineWidth(0.3);
-  doc.roundedRect(M, y, CW, nh, 2, 2, "FD");
-  doc.text(nl, M + 5, y + 5.5); y += nh + 8;
-  set(9, "bold", GREEN); doc.text("CUSTOMER SIGNATURE", M, y); y += 3;
+  /* acknowledgement + signature */
+  set(8.6, "normal", INK2);
+  const nl = doc.splitTextToSize(hoNotice(), CW-10), nh = nl.length*4 + 7;
+  ensure(nh + 58); y += 6;
+  doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.roundedRect(M, y, CW, nh, 2.5, 2.5, "FD");
+  doc.text(nl, M+5, y+5.6); y += nh;
+  head(byAuth ? "Signature of authorised person" : "Customer signature");
   if(ho.signature){
-    const fmt = ho.signature.indexOf("image/jpeg") > 0 ? "JPEG" : "PNG";
-    const props = doc.getImageProperties(ho.signature);
-    const w = 70, h = Math.min(30, w * props.height / props.width);
-    doc.addImage(ho.signature, fmt, M, y, w, h, "sig", "FAST"); y += h + 1;
+    const props = doc.getImageProperties(ho.signature), w = 70, h = Math.min(30, w*props.height/props.width);
+    doc.addImage(ho.signature, ho.signature.indexOf("image/jpeg") > 0 ? "JPEG" : "PNG", M, y, w, h, "sig", "FAST"); y += h + 1;
   } else y += 22;
-  doc.setDrawColor(150,156,150); doc.setLineWidth(0.3); doc.line(M, y, M + 80, y); y += 4.5;
-  set(9, "normal", INK); doc.text(ho.custName || "Customer", M, y);
-  set(8.6, "normal", MUTED); doc.text("Date: " + dmy(ho.date), M + 80, y, { align:"right" });
+  doc.setDrawColor(150,156,150); doc.setLineWidth(0.3); doc.line(M, y, M+90, y); y += 4.8;
+  set(9.6, "bold", INK); doc.text(byAuth ? ho.authName : (ho.custName || "Customer"), M, y);
+  set(8.6, "normal", MUTED); doc.text("Date: " + dmy(ho.date), M+90, y, {align:"right"});
+  if(byAuth){ y += 4.5; doc.text("On behalf of " + (ho.custName || "the customer"), M, y); }
 
-  const pages = doc.internal.getNumberOfPages();
+  /* footers */
+  const pages = doc.getNumberOfPages();
   for(let i = 1; i <= pages; i++){
-    doc.setPage(i); set(7.8, "normal", MUTED);
-    doc.text(SHOP_NAME + " · Handover / Takeover Form · " + ho.quoteNo + ". Retain a copy for your records.", M, 289);
-    doc.text("Page " + i + " of " + pages, R, 289, { align:"right" });
+    doc.setPage(i);
+    doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, 284, R, 284);
+    set(7.8, "normal", MUTED);
+    doc.text(SHOP_NAME + "  ·  Handover form  ·  " + (ho.quoteNo || "") + "  ·  Retain a copy for your records", M, 289);
+    doc.text("Page " + i + " of " + pages, R, 289, {align:"right"});
   }
   const safe = t => String(t||"").replace(/[^A-Za-z0-9-_]+/g,"-").replace(/^-|-$/g,"");
   return new File([doc.output("blob")], [safe(ho.quoteNo), "Handover", safe(ho.custName)].filter(Boolean).join("_") + ".pdf", { type:"application/pdf" });
@@ -2009,7 +2079,12 @@ async function saveHo(b){
   if(!ho.rep) missing.push("representative");
   if(!ho.date) missing.push("date of handover");
   if(!ho.method) missing.push("how we received it");
-  if(!ho.signature) missing.push("customer signature");
+  if(ho.handedBy === "Authorised person"){
+    if(!ho.authName.trim()) missing.push("authorised person's name");
+    if(!ho.authContact.trim()) missing.push("their contact number");
+    if(!ho.authConfirmed) missing.push("tick that the customer authorised them");
+  }
+  if(!ho.signature) missing.push("signature");
   if(missing.length){ hoStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
   b.disabled = true; b.textContent = "Saving...";
   try{
@@ -2079,6 +2154,8 @@ hoPane.addEventListener("change", async e => {
     return;
   }
   if(t.dataset.homethod){ ho.method = t.value; hoMark(); return; }
+  if(t.dataset.hoby){ ho.handedBy = t.value; hoMark(); renderHo(); return; }
+  if(t.dataset.hoauthok){ ho.authConfirmed = t.checked; hoMark(); return; }
   if(t.dataset.hoitem){ const i = ho.items.indexOf(t.dataset.hoitem); if(t.checked && i < 0) ho.items.push(t.dataset.hoitem); if(!t.checked && i >= 0) ho.items.splice(i, 1); hoMark(); renderHo(); return; }
   if(t.dataset.hoother){ ho.otherOn = t.checked; hoMark(); renderHo(); return; }
   if(t.dataset.hopin){ const i = ho.cablePins.indexOf(t.dataset.hopin); if(t.checked && i < 0) ho.cablePins.push(t.dataset.hopin); if(!t.checked && i >= 0) ho.cablePins.splice(i, 1); hoMark(); return; }
