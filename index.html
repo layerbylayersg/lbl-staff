@@ -1383,16 +1383,21 @@ function saveFileLocally(file){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
-document.getElementById("btnWa").addEventListener("click", ()=>{
+// Shift+click skips the share panel and opens the chat directly (PDF is downloaded to attach).
+document.getElementById("btnWa").addEventListener("click", e=>{
   if(!sendFile || !readyForCustomer()) return;
   const text = sendText();
-  try{ navigator.clipboard.writeText(text); }catch(e){}
+  try{ navigator.clipboard.writeText(text); }catch(err){}
   const touch = matchMedia("(pointer:coarse)").matches;
-  if(touch && navigator.canShare && navigator.canShare({ files:[sendFile] })){
-    // file only: WhatsApp on iPhone drops the PDF when text is shared with it
+  if(!e.shiftKey && navigator.canShare && navigator.canShare({ files:[sendFile] })){
+    // Phone share menu, or the Windows share panel on a computer (WhatsApp shows there when its
+    // app is installed). File only: WhatsApp on iPhone drops the PDF when text is shared with it.
     navigator.share({ files:[sendFile] })
       .then(() => toast("Message copied. Paste it in the chat if you want a note with the PDF."))
-      .catch(err => { if(err.name !== "AbortError") toast("Share menu failed (" + err.name + "). Use Download PDF and attach it in WhatsApp."); });
+      .catch(err => {
+        if(err.name !== "AbortError") toast("Share failed (" + err.name + "). Use Download PDF and attach it in WhatsApp.");
+        else if(!touch) toast("WhatsApp not in the list? Hold Shift and click Send on WhatsApp to open the chat instead.");
+      });
     return;
   }
   saveFileLocally(sendFile);
