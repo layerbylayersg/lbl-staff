@@ -51,14 +51,14 @@
   :focus-visible{outline:2px solid var(--green-600);outline-offset:2px}
 
   /* shared button styles */
-  .btn,.bar button,.mini,.addrow button,#gate button,.mobiletabs button{
+  .btn,.bar button,.finish button,.mini,.addrow button,#gate button,.mobiletabs button{
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
     height:36px;padding:0 14px;border-radius:var(--radius-sm);
     border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);
     font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;
     transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
   }
-  .bar button:hover,.mini:hover,.addrow button:hover{background:var(--surface-2);border-color:var(--line-strong)}
+  .bar button:hover,.finish button:hover,.mini:hover,.addrow button:hover{background:var(--surface-2);border-color:var(--line-strong)}
   button.primary,#gate button{background:var(--green-700);border-color:var(--green-700);color:#fff;font-weight:600}
   button.primary:hover,#gate button:hover{background:#335A19;border-color:#335A19}
   button:disabled{opacity:.55;cursor:wait}
@@ -111,8 +111,9 @@
   .finish{grid-column:1;grid-row:2;padding:0 20px 60px}
   .finish .stage{margin-bottom:0}
   .finish .hint{margin:0 0 14px}
-  .finish .actions{display:flex;flex-wrap:wrap;gap:8px}
-  .finish .actions button{flex:1;height:44px}
+  .finish .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .finish .actions button{height:40px}
+  .finish #btnWa:disabled{cursor:not-allowed}
   .stage{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
     box-shadow:var(--shadow);padding:18px 18px 20px;margin:0 0 14px}
   .stage > h2{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:650;margin:0 0 14px;letter-spacing:-.005em}
@@ -332,7 +333,7 @@
     .bar h1{font-size:15px}
     .pane{padding:14px 12px 0}
     .finish{padding:0 12px calc(24px + env(safe-area-inset-bottom))}
-    .finish .actions button{flex-basis:100%;height:46px;font-size:15px}
+    .finish .actions button{height:44px}
     .stage{padding:16px 14px 18px}
     .sheet .band{flex-wrap:wrap;padding:18px 18px 16px;gap:12px}
     .band img.logo{height:40px}
@@ -390,11 +391,12 @@
   <div class="finish" id="finish" hidden>
     <div class="stage">
       <h2><span class="n">9</span>Save &amp; send</h2>
-      <p class="hint">Check the report preview first, then save it and send it to the customer.</p>
+      <p class="hint">Check the report preview, save it, then send it to the customer.</p>
       <div class="actions">
         <button id="btnSave">Save job</button>
         <button id="btnPrint">Print</button>
-        <button id="btnPdf" class="primary">Download PDF</button>
+        <button id="btnPdf">Download PDF</button>
+        <button id="btnWa" class="primary" disabled title="Save the report first">Send on WhatsApp</button>
       </div>
     </div>
   </div>
@@ -894,8 +896,10 @@ function render(){ renderForm(); renderReport(); }
 
 /* ---------- unsaved changes + save status ---------- */
 let dirty = false, lastSaved = "";
+// WhatsApp send is only for a report that matches what was saved.
+function syncSend(){ document.getElementById("btnWa").disabled = dirty || !lastSaved; }
 function markDirty(){
-  dirty = true;
+  dirty = true; syncSend();
   if(lastSaved) showStatus("stale", "Changes since the last save at " + lastSaved + ". Press Save job to update the Sheet.");
 }
 function showStatus(kind, msg){
@@ -905,7 +909,7 @@ function showStatus(kind, msg){
   el.firstChild.textContent = msg;
   el.hidden = false;
 }
-function clearStatus(){ document.getElementById("saveStatus").hidden = true; lastSaved = ""; }
+function clearStatus(){ document.getElementById("saveStatus").hidden = true; lastSaved = ""; syncSend(); }
 document.getElementById("saveStatus").addEventListener("click", e=>{ if(e.target.dataset.dismiss) document.getElementById("saveStatus").hidden = true; });
 
 /* ---------- events ---------- */
@@ -1050,7 +1054,7 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
       dirty = false;
       lastSaved = new Date().toLocaleTimeString("en-SG", { hour:"2-digit", minute:"2-digit" });
       showStatus("ok", "Saved at " + lastSaved + ". " + msg);
-      render();
+      render(); syncSend();
     }
   } finally {
     b.disabled = false; b.textContent = "Save job";
@@ -1296,6 +1300,7 @@ async function downloadPdf(asData){
 
   const safe = t => String(t||"").replace(/[^A-Za-z0-9-_]+/g,"-").replace(/^-|-$/g,"");
   const fileName = [safe(s.job.ref)||"MDR-report", safe(s.cust.name)].filter(Boolean).join("_")+".pdf";
+  if(asData === "file") return new File([doc.output("blob")], fileName, { type:"application/pdf" });
   if(asData) return { name: fileName, base64: doc.output("datauristring").split(",")[1] };
   doc.save(fileName);
 }
@@ -1307,6 +1312,29 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
   try{ await downloadPdf(); }
   catch(err){ console.error(err); toast("PDF could not be built. Opening the print dialog instead."); setTimeout(()=>window.print(), 1200); }
   finally { b.disabled = false; b.textContent = t; }
+});
+
+// Phones: share sheet with the PDF attached, pick WhatsApp Business, then the customer.
+// Elsewhere: download the PDF and open the customer chat in WhatsApp to attach it.
+document.getElementById("btnWa").addEventListener("click", async e=>{
+  const b = e.currentTarget; const t = b.textContent;
+  if(!readyForCustomer()) return;
+  const s = state;
+  const text = "Hi " + (s.cust.name || "there") + ", here is your Layer by Layer service report " + (s.job.ref || "") + ". Thank you for choosing us!";
+  b.disabled = true; b.textContent = "Preparing...";
+  try{
+    const file = await downloadPdf("file");
+    if(file && navigator.canShare && navigator.canShare({ files:[file] })){
+      try{ await navigator.share({ files:[file], text }); return; }
+      catch(err){ if(err.name === "AbortError") return; } // cancelled; anything else falls through
+    }
+    await downloadPdf();
+    let num = String(s.cust.phone || "").replace(/\D/g, "");
+    if(num.length === 8) num = "65" + num; // Singapore number without country code
+    window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(text), "_blank", "noopener");
+    toast("PDF downloaded. Attach it in the WhatsApp chat.");
+  } catch(err){ console.error(err); toast("Could not prepare the PDF. Try Download PDF instead."); }
+  finally { b.textContent = t; syncSend(); }
 });
 
 /* ---------- boot ---------- */
