@@ -5,287 +5,344 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Layer by Layer · Staff Service Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
 <style>
-  /* ---------- staff login gate ---------- */
-  #gate{display:none;min-height:100vh;align-items:center;justify-content:center;padding:16px}
-  body.locked #gate{display:flex}
-  body.locked .bar, body.locked .mobiletabs, body.locked .layout{display:none}
-  /* the same paper and shadow as the report sheet; the logo and brand button carry the identity */
-  #gate form{background:var(--paper);border-radius:3px;
-    padding:26px 24px 22px;width:100%;max-width:340px;display:grid;gap:12px;
-    box-shadow:0 1px 2px rgba(43,46,49,.14),0 10px 30px rgba(43,46,49,.09)}
-  #gate img{height:56px;width:auto;justify-self:start}
-  #gate h1{margin:4px 0 0;font-family:var(--cond);font-size:19px;letter-spacing:.06em;text-transform:uppercase}
-  #gate p{margin:0;color:var(--ink-2);font-size:14px}
-  #gate label{display:grid;gap:4px;font-size:12px;color:var(--ink-2)}
-  #gate input{padding:10px;border:1px solid var(--rule);border-radius:3px;background:var(--paper);font-size:15px}
-  #gate button{padding:11px;border:1px solid var(--green-deep);border-radius:3px;background:var(--green);color:#20260F;font-weight:600;cursor:pointer}
-  #gate button:hover{background:#b3d97b}
-  #gate button:focus-visible,#gate input:focus-visible{outline:2px solid var(--green-deep);outline-offset:2px}
-  #gate button:disabled{opacity:.6;cursor:wait}
-  #gateMsg{color:#8C1D18;min-height:1.2em;font-size:14px}
-  .jobpick{margin-bottom:4px}
-  .jobpick select{border-color:var(--green-deep)!important;background:var(--green-wash)!important;font-weight:600}
-  label.f input[readonly]{background:var(--bench-2);color:var(--ink-2)}
+  /* =====================================================================
+     Clean modern look: Manrope, neutral workshop-grey canvas, white cards,
+     brand green as the accent. Dark green carries white text (6.9:1).
+     ===================================================================== */
   :root{
-    --green:#A5CD67;
-    --green-deep:#6E9B33;
+    --bg:#F4F5F2;
+    --surface:#FFFFFF;
+    --surface-2:#F7F8F6;      /* panels inside cards and on the report */
+    --line:#E3E6E0;
+    --line-strong:#CDD3C8;
+    --ink:#1D2125;
+    --ink-2:#474E55;
+    --muted:#5C636B;          /* 5.6:1 on white, 5.1:1 on --bg */
+    --green:#A5CD67;          /* brand light green, decoration only */
+    --green-600:#5E8A2A;
+    --green-700:#3E6B1F;      /* buttons and small green text */
+    --green-ink:#3E6B1F;
     --green-wash:#F1F7E8;
-    --ink:#2B2E31;
-    --ink-2:#54595F;
-    --muted:#656B72;      /* 4.8:1 on bench, 5.4:1 on white */
-    --bench:#F2F3F0;
-    --bench-2:#E7E9E3;
-    --rule:#D9DCD6;
-    --paper:#ffffff;
-    --ok:#4A6E22;         /* stamp text, 5.9:1 on white */
-    --green-ink:#4A6E22;  /* brand green for small text; --green-deep stays for rules and markers */
-    --warn:#8A5A00;       /* amber: follow-up or parts on order, needs attention */
-    --bad:#2B2E31;
-    --ui:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    --doc:Georgia,"Iowan Old Style","Times New Roman",serif;
-    --cond:"Arial Narrow","Helvetica Neue Condensed",Impact,var(--ui);
+    --green-tint:#E4F0D2;
+    --amber-ink:#8A5A00;
+    --amber-wash:#FFF4DB;
+    --red-ink:#9B1C1C;
+    --red-wash:#FDECEC;
+    --radius:12px;
+    --radius-sm:8px;
+    --shadow:0 1px 2px rgba(20,24,20,.05),0 2px 8px rgba(20,24,20,.04);
+    --shadow-lg:0 2px 6px rgba(20,24,20,.06),0 16px 40px rgba(20,24,20,.08);
+    --ui:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
-    font-family:var(--ui);
-    color:var(--ink);
-    background:var(--bench);
-    font-size:15px;
-    line-height:1.45;
-    -webkit-font-smoothing:antialiased;
+    font-family:var(--ui);color:var(--ink);background:var(--bg);
+    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+
   }
   button{font:inherit}
   input,select,textarea{font:inherit;color:inherit}
+  ::selection{background:var(--green-tint);color:var(--ink)}
+  :focus-visible{outline:2px solid var(--green-600);outline-offset:2px}
 
-  /* ---------- app chrome ---------- */
+  /* shared button styles */
+  .btn,.bar button,.mini,.addrow button,#gate button,.mobiletabs button{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    height:36px;padding:0 14px;border-radius:var(--radius-sm);
+    border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);
+    font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;
+    transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
+  }
+  .bar button:hover,.mini:hover,.addrow button:hover{background:var(--surface-2);border-color:var(--line-strong)}
+  .bar button.primary,#gate button{background:var(--green-700);border-color:var(--green-700);color:#fff;font-weight:600}
+  .bar button.primary:hover,#gate button:hover{background:#335A19;border-color:#335A19}
+  button:disabled{opacity:.55;cursor:wait}
+
+  /* ---------- staff login gate ---------- */
+  #gate{display:none;min-height:100vh;align-items:center;justify-content:center;padding:16px}
+  body.locked #gate{display:flex}
+  body.locked .bar, body.locked .mobiletabs, body.locked .layout{display:none}
+  #gate form{background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:28px 26px 24px;width:100%;max-width:360px;display:grid;gap:14px;box-shadow:var(--shadow-lg)}
+  #gate img{height:48px;width:auto;justify-self:start}
+  #gate h1{margin:6px 0 0;font-size:20px;font-weight:650;letter-spacing:-.01em}
+  #gate p{margin:-6px 0 0;color:var(--muted);font-size:14px}
+  #gate label{display:grid;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
+  #gate input{height:42px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--surface);font-size:15px}
+  #gate input:focus{border-color:var(--green-600);box-shadow:0 0 0 3px rgba(94,138,42,.18);outline:none}
+  #gate button{height:42px;width:100%;font-size:15px}
+  #gateMsg{color:var(--red-ink);min-height:1.2em;font-size:14px}
+
+  /* ---------- top bar ---------- */
   .bar{
     position:sticky;top:0;z-index:40;
-    display:flex;align-items:center;gap:14px;
-    background:#fff;color:var(--ink);
-    padding:9px 18px;
-    border-bottom:3px solid var(--green);
-    box-shadow:0 1px 6px rgba(43,46,49,.06);
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+    background:rgba(255,255,255,.92);backdrop-filter:saturate(1.4) blur(8px);
+    padding:10px 20px;border-bottom:1px solid var(--line);
   }
-  .bar img{height:30px;width:auto;flex:none}
-  .bar h1{
-    font-family:var(--cond);
-    font-size:19px;letter-spacing:.06em;font-weight:700;
-    margin:0;text-transform:uppercase;
-  }
-  .bar .sub{color:var(--muted);font-size:13px;margin-right:auto}
-  .bar button{
-    background:#fff;color:var(--ink);
-    border:1px solid var(--rule);border-radius:3px;
-    padding:7px 12px;cursor:pointer;
-  }
-  .bar button:hover{background:var(--bench)}
-  .bar button.primary{background:var(--green);color:#20260F;border-color:var(--green-deep);font-weight:600}
-  .bar button.primary:hover{background:#b3d97b}
-  .bar button:disabled{opacity:.6;cursor:wait}
-  .bar{flex-wrap:wrap}
+  .bar img{height:28px;width:auto;flex:none}
+  .bar h1{margin:0;font-size:16px;font-weight:650;letter-spacing:-.01em}
+  .bar .sub{color:var(--muted);font-size:13px;margin-right:auto;padding-left:4px}
   .bar .more{display:contents}
   .bar .more-toggle{display:none}
   .bar .actions{display:flex;gap:8px;margin-left:6px}
-  .bar #btnLogout{border-color:transparent;color:var(--ink-2)}
-  @media (max-width:1180px){ .bar .sub{display:none} .bar h1{margin-right:auto} }
+  .bar #btnLogout{border-color:transparent;background:transparent;color:var(--muted)}
+  .bar #btnLogout:hover{color:var(--ink);background:var(--surface-2)}
+  @media (max-width:1320px){ .bar .sub{display:none} .bar h1{margin-right:auto} }
 
-  /* save result: stays in the sticky bar until the next save or dismiss */
+  /* save result: stays in the bar until the next save or dismiss */
   .savestatus{flex-basis:100%;order:10;display:flex;align-items:center;gap:10px;
-    font-size:13px;line-height:1.4;padding:7px 10px;border-radius:3px;border:1px solid}
+    font-size:13.5px;line-height:1.4;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid}
   .savestatus[hidden]{display:none}
-  .savestatus.ok{background:var(--green-wash);color:#2F4A12;border-color:var(--green)}
-  .savestatus.err{background:#FDECEA;color:#8C1D18;border-color:#E8A29C}
-  .savestatus.stale{background:#FFF7E0;color:#5C4300;border-color:#E9CF7A}
-  .savestatus.busy{background:#fff;color:var(--ink-2);border-color:var(--rule)}
+  .savestatus.ok{background:var(--green-wash);color:#2F5016;border-color:#CFE3B0}
+  .savestatus.err{background:var(--red-wash);color:var(--red-ink);border-color:#F2C4C4}
+  .savestatus.stale{background:var(--amber-wash);color:#6B4700;border-color:#F0D9A0}
+  .savestatus.busy{background:var(--surface);color:var(--ink-2);border-color:var(--line)}
   .savestatus span{flex:1}
-  .savestatus button{background:none;border:0;color:inherit;font-size:13px;text-decoration:underline;padding:4px 2px;cursor:pointer}
-  .stdbtn{margin:2px 0 4px}
-  .bar button:focus-visible,.pane button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.chip:focus-within{outline:2px solid var(--green-deep);outline-offset:2px}
+  .savestatus button{height:auto;padding:4px 2px;border:0;background:none;color:inherit;font-size:13px;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 
-  .layout{display:grid;grid-template-columns:minmax(380px,460px) 1fr;gap:0;align-items:start}
+  .layout{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:0;align-items:start}
 
   /* ---------- form pane ---------- */
-  .pane{padding:18px 20px 80px;background:var(--bench);border-right:1px solid var(--rule)}
-  .stage{margin:0 0 22px}
-  .stage > h2{
-    display:flex;align-items:baseline;gap:9px;
-    font-size:14px;font-weight:700;margin:0 0 9px;
-    padding-bottom:6px;border-bottom:1px solid var(--rule);
-  }
+  .pane{padding:20px 20px 80px}
+  .stage{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:18px 18px 20px;margin:0 0 14px}
+  .stage > h2{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:650;margin:0 0 14px;letter-spacing:-.005em}
   .stage > h2 .n{
-    font-family:var(--cond);font-size:13px;color:#20260F;background:var(--green);
-    width:19px;height:19px;border-radius:2px;
+    width:24px;height:24px;border-radius:999px;flex:none;
     display:inline-flex;align-items:center;justify-content:center;
-    flex:none;transform:translateY(-1px);
+    background:var(--green-tint);color:var(--green-ink);font-size:12.5px;font-weight:700;
   }
-  .stage > h2 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:auto}
+  .stage > h2 small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:auto}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid.one{grid-template-columns:1fr}
-  label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink-2)}
-  label.f input,label.f select,label.f textarea{
-    background:#fff;border:1px solid var(--rule);border-radius:3px;
-    padding:7px 8px;font-size:14px;color:var(--ink);width:100%;
-  }
-  label.f textarea{min-height:64px;resize:vertical;line-height:1.4}
   .span2{grid-column:1/-1}
+  label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
+  label.f input,label.f select,label.f textarea,.addrow input,table.parts input{
+    width:100%;background:var(--surface);color:var(--ink);
+    border:1px solid var(--line-strong);border-radius:var(--radius-sm);
+    font-size:14.5px;font-weight:400;
+    transition:border-color .15s ease,box-shadow .15s ease;
+  }
+  label.f input,label.f select{height:40px;padding:0 12px}
+  label.f textarea{min-height:76px;padding:10px 12px;resize:vertical;line-height:1.45}
+  label.f input:focus,label.f select:focus,label.f textarea:focus,.addrow input:focus,table.parts input:focus{
+    border-color:var(--green-600);box-shadow:0 0 0 3px rgba(94,138,42,.18);outline:none}
+  label.f input::placeholder,label.f textarea::placeholder,.addrow input::placeholder,table.parts input::placeholder{color:#8A9097}
+  label.f input[readonly]{background:var(--surface-2);color:var(--muted)}
+  .jobpick select{border-color:var(--green-600);background:var(--green-wash);font-weight:600}
 
-  .group{margin:10px 0 4px}
-  .group h3{font-size:12px;color:var(--ink-2);font-weight:600;margin:0 0 6px}
-  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .group{margin:14px 0 4px}
+  .group h3{font-size:12.5px;color:var(--muted);font-weight:600;margin:0 0 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
   .chip{
-    display:inline-flex;align-items:center;gap:6px;
-    background:#fff;border:1px solid var(--rule);border-radius:14px;
-    padding:4px 11px 4px 8px;font-size:13px;cursor:pointer;user-select:none;
+    position:relative;display:inline-flex;align-items:center;gap:6px;
+    min-height:32px;padding:4px 12px;border-radius:999px;
+    background:var(--surface);border:1px solid var(--line-strong);
+    font-size:13.5px;cursor:pointer;user-select:none;
+    transition:background-color .15s ease,border-color .15s ease,color .15s ease;
   }
-  .chip:hover{border-color:var(--green-deep)}
-  .chip input{accent-color:var(--green-deep);margin:0}
-  .chip:has(input:checked){background:var(--green);color:#20260F;border-color:var(--green-deep)}
-  .chip.custom:has(input:checked){background:var(--green-wash);color:var(--ink);border-color:var(--green)}
-  .chip .x{color:var(--ink-2);padding-left:2px}
-  .chip .x:hover{color:var(--bad)}
-  .addrow{display:flex;gap:6px;margin-top:8px}
-  .addrow input{flex:1;background:#fff;border:1px solid var(--rule);border-radius:3px;padding:6px 8px;font-size:13px}
-  .addrow button,.mini{
-    background:#fff;border:1px solid var(--rule);border-radius:3px;
-    padding:6px 11px;cursor:pointer;font-size:13px;
+  .chip:hover{border-color:var(--green-600)}
+  /* the real checkbox stays focusable for keyboards, the pill shows its state */
+  .chip input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+  .chip:focus-within{outline:2px solid var(--green-600);outline-offset:2px}
+  .chip:has(input:checked){background:var(--green-tint);border-color:var(--green-600);color:var(--green-ink);font-weight:550}
+  .chip:has(input:checked)::before{
+    content:"";width:12px;height:12px;flex:none;margin-left:-2px;
+    background:var(--green-700);
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 4.8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+            mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 4.8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
   }
-  .addrow button:hover,.mini:hover{background:var(--bench-2)}
+  .chip.custom:has(input:checked){background:var(--green-wash)}
+  .chip .x{color:var(--muted);padding-left:2px;font-size:15px;line-height:1}
+  .chip .x:hover{color:var(--red-ink)}
+  .addrow{display:flex;gap:8px;margin-top:10px}
+  .addrow input{flex:1;height:36px;padding:0 12px;font-size:14px}
+  .mini,.addrow button{height:36px;font-size:13.5px}
+  .stdbtn{margin:0 0 6px}
 
-  table.parts{width:100%;border-collapse:collapse;font-size:13px}
-  table.parts th{text-align:left;font-size:11px;color:var(--ink-2);font-weight:600;padding:0 4px 4px}
-  table.parts td{padding:2px}
-  table.parts input{width:100%;background:#fff;border:1px solid var(--rule);border-radius:3px;padding:6px}
-  table.parts td.k{width:52px}
-  table.parts td.p{width:78px}
-  table.parts td.d{width:26px}
-  table.parts button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px}
-  table.parts button:hover{color:var(--bad)}
+  table.parts{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:14px}
+  table.parts th{text-align:left;font-size:12.5px;color:var(--muted);font-weight:600;padding:0 4px}
+  table.parts td{padding:0 3px}
+  table.parts input{height:38px;padding:0 10px}
+  table.parts td.k{width:72px}
+  table.parts td.d{width:36px}
+  table.parts button{width:32px;height:32px;border:0;border-radius:var(--radius-sm);background:none;color:var(--muted);cursor:pointer;font-size:18px}
+  table.parts button:hover{background:var(--red-wash);color:var(--red-ink)}
 
+  /* ---------- job, read-only details, checklists ---------- */
+  .pickrow{display:flex;gap:8px}
+  .pickrow select{flex:1;min-width:0}
+  .hint{margin:12px 0 0;font-size:13px;color:var(--muted)}
+  .refs{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:14px;font-size:13px;color:var(--muted)}
+  .refs b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .info{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:6px 14px}
+  .info .ir{display:flex;align-items:center;gap:12px;min-height:38px;border-bottom:1px solid var(--line);font-size:14px}
+  .info .ir:last-child{border-bottom:0}
+  .info .ir span{width:96px;flex:none;color:var(--muted);font-size:13px}
+  .info .ir b{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
+  .info .ir .na{height:30px;padding:0 10px;font-size:12.5px}
+  .info.reported{margin-top:10px;padding:12px 14px}
+  .info.reported span{display:block;color:var(--muted);font-size:13px;margin-bottom:4px}
+  .info.reported p{margin:0;font-size:14px;line-height:1.5}
+  h3.sub{display:flex;align-items:baseline;gap:8px;font-size:13.5px;font-weight:650;margin:18px 0 10px}
+  h3.sub small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:auto}
+  .stage > h3.sub:first-of-type{margin-top:4px}
 
-  .toggle{display:flex;align-items:center;gap:7px;font-size:13px;margin-top:10px;cursor:pointer}
+  .accsearch{width:100%;height:38px;padding:0 12px 0 36px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);font-size:14px;
+    background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='8.5' cy='8.5' r='5.5' fill='none' stroke='%235C636B' stroke-width='1.8'/%3E%3Cpath d='M13 13l4 4' stroke='%235C636B' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") 11px center/16px no-repeat}
+  .accsearch:focus{border-color:var(--green-600);box-shadow:0 0 0 3px rgba(94,138,42,.18);outline:none}
+  .accg{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:var(--surface)}
+  .accg summary{list-style:none;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;cursor:pointer;font-size:14px;font-weight:600;border-radius:10px}
+  .accg summary::-webkit-details-marker{display:none}
+  .accg summary::before{content:"";width:8px;height:8px;flex:none;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s ease;margin-right:2px}
+  .accg[open] summary::before{transform:rotate(45deg)}
+  .accg summary:hover{background:var(--surface-2)}
+  .accg[open] summary{border-bottom:1px solid var(--line);border-radius:10px 10px 0 0}
+  .accg .chips{padding:12px 14px 14px}
+  .accg .cnt{margin-left:auto;font-size:12px;font-weight:600;color:var(--green-ink);background:var(--green-tint);border-radius:999px;padding:2px 9px}
+  .nomatch{margin:10px 2px 0;font-size:13px;color:var(--muted)}
+  .chip .x{border:0;background:none;padding:0 0 0 2px;cursor:pointer}
 
-  /* ---------- report ---------- */
-  .preview{padding:22px;position:sticky;top:56px;max-height:calc(100vh - 56px);overflow:auto}
+  .std{display:grid;gap:6px}
+  .stdrow{border:1px solid #CFE3B0;background:var(--green-wash);border-radius:10px;padding:10px 12px}
+  .stdrow label{display:flex;flex-wrap:wrap;align-items:flex-start;column-gap:10px;row-gap:1px;cursor:pointer}
+  .stdrow input[type=checkbox]{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--green-700)}
+  .stdrow .t{font-weight:600;font-size:14px}
+  .stdrow .d{color:var(--muted);font-size:13px;flex-basis:100%;margin-left:28px}
+  .stdrow.off{background:var(--amber-wash);border-color:#F0D9A0}
+  .stdrow.off .t{color:#6B4700}
+  .stdrow .reason{display:block;width:100%;margin-top:8px;height:38px;padding:0 12px;border:1px solid #E2C27A;border-radius:var(--radius-sm);background:#fff;font-size:14px}
+  .stdrow .reason:focus{border-color:var(--amber-ink);box-shadow:0 0 0 3px rgba(138,90,0,.15);outline:none}
+
+  /* ---------- report preview ---------- */
+  .preview{padding:20px 24px;position:sticky;top:57px;max-height:calc(100vh - 57px);overflow:auto}
   .sheet{
-    background:var(--paper);color:var(--ink);
-    width:100%;max-width:760px;margin:0 auto;
-    box-shadow:0 1px 2px rgba(43,46,49,.14),0 10px 30px rgba(43,46,49,.09);
-    font-family:var(--doc);font-size:13.5px;line-height:1.55;
-  }
-  .sheet .band{
-    padding:26px 26px 14px;
-    display:flex;gap:22px;align-items:flex-start;
-  }
-  .band img.logo{height:78px;width:auto;flex:none}
-  .band .shop{flex:1;min-width:0;padding-top:6px}
-  .band .shop .name{font-family:var(--ui);font-size:15px;font-weight:600;letter-spacing:.01em}
-  .band .shop .meta{font-size:11.5px;color:var(--ink-2);margin-top:4px;font-family:var(--ui);line-height:1.5}
-  .band .ref{text-align:right;font-family:var(--ui);flex:none}
-  .band .ref .t{font-size:11px;letter-spacing:.1em;color:var(--green-ink);font-weight:700}
-  .band .ref .no{font-family:var(--cond);font-size:21px;font-weight:700;letter-spacing:.04em;line-height:1.2}
-  .band .ref .dt{font-size:11.5px;color:var(--ink-2)}
+    background:var(--surface);color:var(--ink);
+    width:100%;max-width:780px;margin:0 auto;
+    border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-lg);
 
-  /* three stacked rules — the layers of the mark */
-  .layers{margin:0 26px}
-  .layers i{display:block}
-  .layers i:nth-child(1){height:4px;background:var(--green)}
-  .layers i:nth-child(2){height:2px;background:var(--rule);margin-top:2px}
-  .layers i:nth-child(3){height:1px;background:var(--bench-2);margin-top:2px}
-
-  .stampwrap{padding:12px 26px 0;display:flex;justify-content:flex-end}
-  .stamp{
-    font-family:var(--cond);text-transform:uppercase;letter-spacing:.09em;
-    font-size:15px;font-weight:700;padding:5px 14px;
-    border:2.5px solid currentColor;border-radius:3px;transform:rotate(-2.5deg);
+    font-size:13.5px;line-height:1.55;overflow:hidden;
   }
-  .stamp.ok{color:var(--ok)} .stamp.warn{color:var(--warn)} .stamp.bad{color:var(--bad)}
+  .sheet .band{padding:26px 30px 20px;display:flex;gap:16px;align-items:center;border-bottom:1px solid var(--line)}
+  .band img.logo{height:48px;width:auto;flex:none}
+  .band .shop{flex:1;min-width:0}
+  .band .shop .name{font-size:16px;font-weight:650;letter-spacing:-.01em}
+  .band .shop .meta{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .band .ref{text-align:right;flex:none}
+  .band .ref .t{font-size:12.5px;color:var(--muted);font-weight:500}
+  .band .ref .no{font-size:19px;font-weight:650;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.25}
+  .band .ref .dt{font-size:12.5px;color:var(--muted)}
 
-  .sheet .body{padding:6px 26px 26px}
-  .facts{display:grid;grid-template-columns:1fr 1fr;gap:0 26px;margin:10px 0 6px}
-  .facts .box{border-top:2px solid var(--ink);padding-top:7px}
-  .facts .box h4{font-family:var(--ui);font-size:11px;letter-spacing:.1em;color:var(--ink-2);margin:0 0 5px;font-weight:700}
-  .facts dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-size:12.5px}
-  .facts dt{color:var(--muted);font-family:var(--ui);font-size:11.5px}
-  .facts dd{margin:0}
+  /* cells size to their content and wrap as a whole, so IDs and dates never break mid-value */
+  .summary{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .summary > div{flex:1 1 auto;padding:12px 22px 14px;border-right:1px solid var(--line);margin-bottom:-1px;border-bottom:1px solid var(--line)}
+  .summary > div:last-child{border-right:0}
+  .summary .k{font-size:12px;color:var(--muted);font-weight:500}
+  .summary .v{font-size:14px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border-radius:999px;font-size:13px;font-weight:600}
+  .badge::before{content:"";width:7px;height:7px;border-radius:999px;background:currentColor}
+  .badge.ok{background:var(--green-wash);color:var(--green-ink)}
+  .badge.warn{background:var(--amber-wash);color:var(--amber-ink)}
+  .badge.bad{background:#F0F1F2;color:var(--ink)}
+  .badge.none{background:#F0F1F2;color:var(--muted);font-weight:500}
 
-  .sec{margin-top:16px;page-break-inside:avoid}
-  .sec h3{
-    font-family:var(--ui);font-size:12px;font-weight:700;margin:0 0 6px;
-    padding-bottom:3px;border-bottom:1px solid var(--rule);
-    display:flex;gap:8px;align-items:baseline;
+  .sheet .body{padding:22px 30px 28px}
+  .facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 6px}
+  .facts .box{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .facts .box h4{font-size:12.5px;color:var(--muted);margin:0 0 8px;font-weight:600}
+  .facts dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px}
+  .facts dt{color:var(--muted)}
+  .facts dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+
+  .sec{margin-top:22px;page-break-inside:avoid}
+  .sec h3{font-size:14.5px;font-weight:650;margin:0 0 8px;letter-spacing:-.005em}
+  .sec ul{margin:0;padding:0;list-style:none;display:grid;gap:5px}
+  .sec li{position:relative;padding-left:22px}
+  .sec li::before{
+    content:"";position:absolute;left:0;top:.28em;width:14px;height:14px;border-radius:999px;
+    background:var(--green-tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3L11.6 5.6' fill='none' stroke='%233E6B1F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/11px no-repeat;
   }
-  .sec h3 .n{color:var(--green-ink);font-family:var(--cond);font-size:13px}
-  .sec ul{margin:0;padding-left:17px}
-  .sec li{margin:1px 0}
-  .sec li::marker{color:var(--green-deep)}
+  .sec h4{font-size:12.5px;font-weight:600;color:var(--muted);margin:10px 0 6px}
+  .sec .desc{color:var(--muted)}
+  .sec li.notdone{color:#6B4700}
+  .sec li.notdone::before{
+    background:var(--amber-wash) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8h7' stroke='%238A5A00' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/11px no-repeat;
+  }
   .sec p{margin:6px 0 0}
   .sec p.note{color:var(--ink-2)}
-  .empty{color:var(--muted);font-style:italic}
+  .empty{color:var(--muted)}
 
-  table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
-  table.tbl th{font-family:var(--ui);font-size:10.5px;letter-spacing:.06em;color:var(--ink-2);text-align:left;border-bottom:1px solid var(--rule);padding:4px 6px}
-  table.tbl td{padding:4px 6px;border-bottom:1px solid var(--bench-2)}
-  table.tbl .r{text-align:right;white-space:nowrap}
-  table.tbl tr.total td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700;padding-top:6px}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  table.tbl th{font-size:12px;color:var(--muted);text-align:left;font-weight:600;background:var(--surface-2);border-bottom:1px solid var(--line);padding:8px 12px}
+  table.tbl td{padding:8px 12px;border-bottom:1px solid var(--line)}
+  table.tbl tr:last-child td{border-bottom:0}
+  table.tbl .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 
-  .signrow{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:26px;page-break-inside:avoid}
-  .signrow .sig{border-top:1px solid var(--ink);padding-top:5px;font-size:11.5px;font-family:var(--ui);color:var(--ink-2)}
-  .signrow .sig b{display:block;color:var(--ink);font-size:13px;font-family:var(--doc);font-weight:400;min-height:18px}
-  .terms{margin-top:20px;border-top:1px solid var(--rule);padding-top:8px;font-size:10.5px;color:var(--ink-2);font-family:var(--ui);line-height:1.5}
+  .signrow{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:60px;page-break-inside:avoid}
+  .signrow .sig{border-top:1px solid var(--line-strong);padding-top:8px;font-size:12.5px;color:var(--muted)}
+  .signrow .sig b{display:block;color:var(--ink);font-size:14px;font-weight:600;min-height:20px;margin-top:-30px;margin-bottom:10px}
+  .terms{margin-top:24px;background:var(--surface-2);border-radius:10px;padding:12px 14px;font-size:11.5px;color:var(--muted);line-height:1.55}
 
   /* ---------- saved jobs ---------- */
-  dialog{border:1px solid var(--rule);border-radius:4px;padding:0;max-width:520px;width:92vw;background:#fff}
-  dialog::backdrop{background:rgba(43,46,49,.42)}
-  dialog header{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--rule)}
-  dialog header h2{margin:0;font-size:15px;flex:1}
+  dialog{border:1px solid var(--line);border-radius:14px;padding:0;max-width:540px;width:92vw;background:var(--surface);box-shadow:var(--shadow-lg)}
+  dialog::backdrop{background:rgba(20,24,20,.38)}
+  dialog header{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+  dialog header h2{margin:0;font-size:16px;font-weight:650;flex:1}
   dialog .list{max-height:52vh;overflow:auto;padding:6px 0}
-  dialog .row{display:flex;gap:10px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--bench)}
-  dialog .row .t{flex:1;min-width:0;font-size:13px}
-  dialog .row .t span{display:block;color:var(--muted);font-size:11.5px}
-  dialog footer{padding:10px 16px;font-size:12px;color:var(--ink-2);border-top:1px solid var(--rule)}
+  dialog .row{display:flex;gap:10px;align-items:center;padding:10px 18px;border-bottom:1px solid var(--surface-2)}
+  dialog .row .t{flex:1;min-width:0;font-size:14px;font-weight:500}
+  dialog .row .t span{display:block;color:var(--muted);font-size:12.5px;font-weight:400}
+  dialog footer{padding:12px 18px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line)}
   .toast{
-    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
-    background:var(--ink);color:#fff;padding:9px 16px;border-radius:3px;font-size:13px;
-    opacity:0;pointer-events:none;transition:opacity .18s;z-index:60;
+    position:fixed;left:50%;bottom:24px;transform:translate(-50%,8px);
+    background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--radius-sm);font-size:13.5px;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;
+    transition:opacity .2s ease,transform .2s cubic-bezier(.16,1,.3,1);z-index:60;
   }
-  .toast.show{opacity:1}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
   .mobiletabs{display:none}
 
   @media (max-width:960px){
     .layout{grid-template-columns:1fr}
-    .pane{border-right:0;border-bottom:1px solid var(--rule)}
     .preview{position:static;max-height:none;padding:14px}
-    .mobiletabs{display:flex;gap:6px;padding:10px 20px 0}
-    .mobiletabs button{flex:1;padding:8px;border:1px solid var(--rule);background:#fff;border-radius:3px;cursor:pointer}
-    .mobiletabs button[aria-pressed="true"]{background:var(--green);color:#20260F;border-color:var(--green-deep)}
+    .mobiletabs{display:flex;gap:4px;margin:14px 20px 0;padding:4px;background:#E9EBE6;border-radius:10px}
+    .mobiletabs button{flex:1;height:34px;border:0;background:transparent;color:var(--ink-2)}
+    .mobiletabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:var(--shadow)}
     body.show-preview .pane{display:none}
     body.show-form .preview{display:none}
     .facts,.signrow{grid-template-columns:1fr;gap:12px}
+    .signrow{gap:40px}
     .bar .sub{display:none}
   }
   /* phones: Save + Download PDF in a thumb-reach bottom bar, everything else under More */
   @media (max-width:700px){
-    .bar{padding:8px 12px;gap:10px}
-    .bar h1{font-size:16px;margin-right:auto}
-    .bar .more-toggle{display:inline-block}
+    /* no blur here: backdrop-filter would trap the fixed bottom bar inside the top bar */
+    .bar{padding:8px 12px;gap:10px;backdrop-filter:none;background:var(--surface)}
+    .bar h1{font-size:15px;margin-right:auto}
+    .bar .more-toggle{display:inline-flex}
     .bar .more{display:none;position:absolute;top:100%;right:12px;z-index:50;flex-direction:column;
-      background:#fff;border-radius:3px;box-shadow:0 6px 18px rgba(43,46,49,.18);padding:6px;min-width:170px}
+      background:var(--surface);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;min-width:180px}
     .bar .more.open{display:flex}
-    .bar .more button{text-align:left;border-color:transparent;padding:11px 12px}
-    .bar .actions{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:45;background:#fff;
-      border-top:1px solid var(--rule);padding:8px 12px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -2px 10px rgba(43,46,49,.08)}
-    .bar .actions button{flex:1;min-height:46px;font-size:15px}
-    .pane,.preview{padding-bottom:96px}
-    .toast{bottom:84px}
-    .sheet .band{flex-wrap:wrap;padding:18px 16px 12px;gap:12px}
-    .band img.logo{height:56px}
+    .bar .more button{justify-content:flex-start;border-color:transparent;height:44px}
+    .bar .actions{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:45;background:var(--surface);
+      border-top:1px solid var(--line);padding:8px 12px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(20,24,20,.06)}
+    .bar .actions button{flex:1;height:46px;font-size:15px}
+    .pane{padding:14px 12px 104px}
+    .preview{padding-bottom:104px}
+    .stage{padding:16px 14px 18px}
+    .toast{bottom:86px}
+    .sheet .band{flex-wrap:wrap;padding:18px 18px 16px;gap:12px}
+    .band img.logo{height:40px}
     .band .ref{text-align:left;flex-basis:100%}
-    .layers{margin:0 16px}
-    .sheet .body{padding:6px 16px 20px}
-    .stampwrap{padding:12px 16px 0}
+    .summary > div{padding:10px 18px 12px}
+    .sheet .body{padding:18px 18px 22px}
   }
   /* small phones: one field per row so quote numbers and serials are never cut off */
   @media (max-width:480px){ .grid{grid-template-columns:1fr} }
@@ -298,10 +355,8 @@
     .bar,.pane,.mobiletabs,.toast,dialog{display:none!important}
     .layout{display:block}
     .preview{position:static;padding:0;max-height:none;overflow:visible}
-    .sheet{box-shadow:none;max-width:none;font-size:11.5pt}
-    .sheet .band{padding:0 0 10px}
-    .layers{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .sheet .body,.stampwrap{padding-left:0;padding-right:0}
+    .sheet{box-shadow:none;border:0;border-radius:0;max-width:none;font-size:10.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .sheet .band,.summary > div,.sheet .body{padding-left:0;padding-right:0}
   }
 </style>
 </head>
@@ -326,8 +381,6 @@
   <span class="sub">Maintenance, diagnosis &amp; repair</span>
   <button class="more-toggle" id="btnMore" aria-expanded="false" aria-controls="moreMenu">More</button>
   <div class="more" id="moreMenu">
-    <button id="btnNew">New job</button>
-    <button id="btnSaved">Saved jobs</button>
     <button id="btnPrint">Print</button>
     <button id="btnLogout">Log out</button>
   </div>
@@ -348,11 +401,6 @@
   <section class="preview"><div class="sheet" id="sheet"></div></section>
 </div>
 
-<dialog id="dlg">
-  <header><h2>Saved jobs</h2><button class="mini" id="dlgClose">Close</button></header>
-  <div class="list" id="dlgList"></div>
-  <footer>Saved jobs are kept on this device only; the Sheet holds the permanent copy. Opening one replaces the report in the form.</footer>
-</dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -365,45 +413,57 @@
 const LOGO = "data:image/png;base64,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";
 const LOGO_RATIO = 239/260; // width / height, as supplied
 
-/* Fixed business identity — appears on every report. */
+/* Fixed business identity, on every report. */
 const SHOP_NAME    = "Layer by Layer";
-const SHOP_CONTACT = "+65 8986 7382 \u00b7 layerbylayer.sg@gmail.com";
+const SHOP_CONTACT = "+65 8986 7382 · layerbylayer.sg@gmail.com";
 
 // Saves each report to the MDR Sheet (Service Reports, Service Log, Summary tabs).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrLDNaBETrJsihetOMJS6GY-dvE87tCzOIW4kJJ5P1DyPC-LY8uaxCXsj7a5ex3Kd4wA/exec";
 
-// Bambu Lab and Creality names match the intake form, so the Summary tab groups them together.
-const PRINTERS = {
-  "Bambu Lab": ["A1 Mini","A1","A2L","P1P","P1S","P2S","X1C","X1E","X2D","H2S","H2D","H2D Pro","H2C"],
-  "Creality":  ["Ender-3 V3 SE","Ender-3 V3 KE","Ender-3 V3 Plus","Ender-3 V3","Ender-3 V4","SPARKX i7","Creality Hi","K1 SE","K1","K1C","K2 SE","K2","Ender-5 Max","K1 Max","K2 Plus","K2 Pro","Other Creality"],
-  "Prusa":     ["MINI+","MK3S+","MK4","MK4S","CORE One","XL"],
-  "Elegoo":    ["Neptune 3 Pro","Neptune 4","Neptune 4 Pro","Centauri Carbon"],
-  "Anycubic":  ["Kobra 2","Kobra 2 Pro","Kobra 3","Kobra S1"],
-  "Sovol":     ["SV06","SV06 Plus","SV07","SV08"],
-  "Other":     ["Other / custom build"]
+/* ---------- checklists ----------
+   Standard service = what every service job includes (from the First Layer Care Plans). It is
+   pre-ticked for the job's service type; unticking asks for a reason that prints as "Not done". */
+const STD = {
+  printer: [
+    ["Nozzle care", "cleaned and inspected for wear"],
+    ["Extruder tune-up", "cleaned, lubricated and greased"],
+    ["Full cleaning", "build plate, fans and exterior, interior for enclosed printers"],
+    ["Smooth motion", "rails and bearings lubricated, threaded rods greased"],
+    ["Belt check", "tensioned and inspected"],
+    ["Firmware check", "updated to the latest release"],
+    ["Test print", "printer confirmed working"]
+  ],
+  mfms: [
+    ["MFMS full cleaning", "interior, exterior and filament slots"],
+    ["MFMS blockage inspection", "filament slots, PTFE tubes and couplers"],
+    ["MFMS smooth motion", "spool holder and rotary mechanism"],
+    ["MFMS firmware check", "updated to the latest release"]
+  ]
 };
-const MFMS = ["None","AMS Lite","AMS 1","AMS 2","CFS","CFS-C"];
+const STD_DESC = Object.fromEntries(STD.printer.concat(STD.mfms));
 
-const SYMPTOMS = {
-  "Extrusion & filament": ["Partial clog","Full clog","Under-extrusion","Filament not feeding","Filament grinding / stripped","Filament snapping","AMS / feeder jam","Nozzle leaking or blobbing","Heat creep"],
-  "Motion & mechanical":  ["Loose belt tension","Layer shifting","Binding / rough motion","Excessive noise","Loose wheels or eccentric nuts","Z banding / wobble","Lead screw fault","Toolhead play"],
-  "Bed & first layer":    ["Poor bed adhesion","Bed out of tramming","Z-offset incorrect","Warped or damaged plate","Inconsistent first layer"],
-  "Thermal & electrical": ["Thermistor fault","Heater cartridge fault","Thermal runaway error","Hotend fan failure","Part cooling fan failure","Wiring or connector fault","Toolhead (TH) board fault","Stepper motor or driver fault"],
-  "Print quality":        ["Stringing","Ringing / ghosting","Poor overhangs","Dimensional inaccuracy","Layer separation","Surface blemishes"]
-};
-
-const WORK = {
-  "Standard maintenance package": ["General cleaning","Clearing of nozzle","Cleaning of build plate","General lubrication","Belt tensioning","Full calibration"],
-  "Cleaning & servicing": ["Cleaned nozzle","Cold pull performed","Cleared clog","Cleaned extruder gears","Cleaned hotend assembly","Cleaned build plate","Removed debris from motion system","Cleaned fans and ducts"],
-  "Lubrication":          ["Lubricated linear rails","Lubricated smooth rods","Lubricated lead screws","Greased Z bearings"],
-  "Adjustment & calibration": ["Bed tramming / levelling","Z-offset calibration","Eccentric nut adjustment","Extruder tension adjustment","Flow rate calibration","Pressure advance / K-factor","Vibration compensation run","E-steps calibration","Squared gantry"],
-  "Parts replaced":       ["Replaced nozzle","Replaced hotend","Replaced heatbreak","Replaced thermistor","Replaced heater cartridge","Replaced TH board","Replaced hotend fan","Replaced part cooling fan","Replaced extruder gears","Replaced extruder assembly","Replaced PTFE tube","Replaced belt","Replaced build plate","Replaced stepper motor","Repaired / re-terminated wiring"]
-};
-
-// Ticked by the "Tick the standard maintenance package" button, never by default.
-const DEFAULT_WORK   = ["General cleaning","Clearing of nozzle","Cleaning of build plate","General lubrication","Belt tensioning","Full calibration"];
-
-const VERIFY = ["Benchmark test print completed","Temperature tower run","Cold and hot function test","Extended soak test","First layer test passed","Motion system checked by hand","Visual inspection passed","Customer walkthrough given"];
+// Option groups. Groups marked mfms only show when the job includes an MFMS; printer groups
+// are hidden for MFMS-only jobs.
+const SYMPTOMS = [
+  ["Extrusion & filament", ["Partial clog","Full clog","Under-extrusion","Filament not feeding","Filament grinding / stripped","Filament snapping","Nozzle leaking or blobbing","Heat creep"]],
+  ["Motion & mechanical", ["Loose belt tension","Layer shifting","Binding / rough motion","Excessive noise","Loose wheels or eccentric nuts","Z banding / wobble","Lead screw fault","Toolhead play"]],
+  ["Bed & first layer", ["Poor bed adhesion","Bed out of tramming","Z-offset incorrect","Warped or damaged plate","Inconsistent first layer"]],
+  ["Thermal & electrical", ["Thermistor fault","Heater cartridge fault","Thermal runaway error","Hotend fan failure","Part cooling fan failure","Wiring or connector fault","Toolhead (TH) board fault","Stepper motor or driver fault"]],
+  ["Print quality", ["Stringing","Ringing / ghosting","Poor overhangs","Dimensional inaccuracy","Layer separation","Surface blemishes"]],
+  ["MFMS (AMS / CFS)", ["Filament not loading","Filament stuck in feeder or hub","Slot not detecting filament","False filament runout","Spool not rotating or dragging","Grinding or clicking noise","RFID not reading spool","Filament cutter not cutting","High humidity reading"], "mfms"]
+];
+const EXTRA = [
+  ["Cleaning", ["Cold pull performed","Cleared clog","Cleaned hotend assembly","Removed debris from motion system"]],
+  ["Adjustment & calibration", ["Bed tramming / levelling","Z-offset calibration","Eccentric nut adjustment","Extruder tension adjustment","Flow rate calibration","Pressure advance / K-factor","Vibration compensation run","E-steps calibration","Squared gantry"]],
+  ["Parts replaced", ["Replaced nozzle","Replaced hotend","Replaced heatbreak","Replaced thermistor","Replaced heater cartridge","Replaced TH board","Replaced hotend fan","Replaced part cooling fan","Replaced extruder gears","Replaced extruder assembly","Replaced PTFE tube","Replaced belt","Replaced build plate","Replaced stepper motor","Repaired / re-terminated wiring"]],
+  ["MFMS repairs", ["Cleared filament jam in MFMS","Replaced PTFE tube (MFMS)","Replaced feeder unit","Replaced hub or buffer","Replaced filament cutter","Recalibrated MFMS"], "mfms"]
+];
+const VERIFY = [
+  ["Print tests", ["Benchmark test print completed","First layer test passed","Temperature tower run","Extended soak test"]],
+  ["Function checks", ["Cold and hot function test","Motion system checked by hand","Homing and bed levelling check","Fans and sensors checked"]],
+  ["MFMS checks", ["All slots load and unload","Filament switching test passed","RFID reads spools"], "mfms"],
+  ["Handover", ["Visual inspection passed","Customer walkthrough given"]]
+];
 
 const STATUS = [
   ["Resolved","ok"],
@@ -420,23 +480,22 @@ const DEFAULT_TERMS =
   "Scope of this service is mechanical and hardware only.";
 
 /* ---------- state ---------- */
-const STORE_KEY = "mdr-data-v1";
-let store = { shop:{}, jobs:[], seq:1 };
+// Customer and machine details come from the MDR Sheet and are read-only here; staff edit them in
+// the Sheet and pick the job again to refresh. Service date and parts handed over will come from
+// the handover form (job.handover) once it exists; until then the specialist enters them.
 let state = blank();
-let mem = null; // in-memory fallback if storage is unavailable
+const SPECIALIST_KEY = "mdr-specialist"; // remembered on this device, not sensitive
 
 function blank(){
   return {
-    id:null,
     shop:{ name:SHOP_NAME, contact:SHOP_CONTACT, tech:"" },
-    // No default outcome and nothing pre-ticked: the report only claims what staff actually chose.
-    // Charges are not on the report; pricing and invoicing live in Xero.
     job:{ ref:"", quoteNo:"", serviceType:"", date:today(), status:"", terms:DEFAULT_TERMS },
     cust:{ name:"", phone:"", email:"", intake:"" },
-    machine:{ brand:"Bambu Lab", model:"A1", serial:"", mfms:"None", mfmsSerial:"", nozzle:"", plate:"", filament:"", usage:"" },
+    machine:{ brand:"", model:"", serial:"", mfms:"None", mfmsSerial:"", nozzle:"", plate:"", filament:"",
+              serialCorrected:false, mfmsSerialCorrected:false },
     symptoms:[], symptomsCustom:[], symptomNotes:"",
     findings:"",
-    work:[], workCustom:[], workNotes:"",
+    std:[], extra:[], extraCustom:[], workNotes:"",
     parts:[],
     verify:[], verifyCustom:[], verifyNotes:"",
     advice:""
@@ -447,25 +506,13 @@ function pad(n){ return String(n).padStart(2,"0"); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function nl2br(s){ return esc(s).replace(/\n/g,"<br>"); }
 
-/* ---------- storage ---------- */
-async function loadStore(){
-  try{
-    const v = localStorage.getItem(STORE_KEY);
-    if(v) store = JSON.parse(v);
-  }catch(e){
-    // no saved data yet, or storage unavailable in this environment
-    if(mem) store = mem;
-  }
-  if(!store.jobs) store.jobs = [];
-  if(!store.shop) store.shop = {};
+const hasPrinter = s => s.job.serviceType !== "MFMS only";
+const hasMfms = s => s.job.serviceType === "MFMS only" || s.job.serviceType === "Printer + MFMS" || (s.machine.mfms && s.machine.mfms !== "None");
+function stdFor(s){
+  return (hasPrinter(s) ? STD.printer : []).concat(hasMfms(s) ? STD.mfms : [])
+    .map(([item]) => ({ item, done:true, reason:"" }));
 }
-async function saveStore(){
-  mem = store;
-  try{
-    localStorage.setItem(STORE_KEY, JSON.stringify(store));
-    return true;
-  }catch(e){ return false; }
-}
+const groupsFor = (groups, s) => groups.filter(g => g[2] === "mfms" ? hasMfms(s) : hasPrinter(s));
 
 /* ---------- staff login + Sheet ---------- */
 // The password is checked by the Apps Script backend (Script Property REPORT_PIN) before any
@@ -473,7 +520,7 @@ async function saveStore(){
 // closed tab logs out. PIN_KEY is only used to wipe what older versions stored on the device.
 const PIN_KEY = "mdr-staff-pin";
 let STAFF_PIN = "";
-let JOBS = [];
+let JOBS = [], STAFF = [];
 
 async function callSheet(body){
   const res = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(Object.assign({ pin: STAFF_PIN }, body)) });
@@ -485,11 +532,17 @@ function lock(msg){
   document.body.classList.add("locked");
   document.getElementById("gateMsg").textContent = msg || "";
 }
-async function login(pw){
-  STAFF_PIN = pw;
+// Fetches the latest jobs and staff names from the Sheet.
+async function loadJobs(){
   const out = await callSheet({ action:"staffJobs" });
   if(out.result !== "success"){ lock(out.message); return false; }
-  JOBS = out.jobs || [];
+  JOBS = out.jobs || []; STAFF = out.staff || [];
+  if(!state.shop.tech){ try{ state.shop.tech = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){} }
+  return true;
+}
+async function login(pw){
+  STAFF_PIN = pw;
+  if(!await loadJobs()) return false;
   document.body.classList.remove("locked");
   render();
   return true;
@@ -504,17 +557,47 @@ document.getElementById("gateForm").addEventListener("submit", async e=>{
 });
 document.getElementById("btnLogout").addEventListener("click", ()=>{ lock(); document.getElementById("gatePw").value = ""; });
 
-// Fills the form from a confirmed job on the job tab.
-function fillFromJob(j){
+// Copies the read-only job details from the Sheet into the report.
+function applyJob(j){
   state.job.quoteNo = j.quoteNo;
-  state.cust.name = j.name || ""; state.cust.phone = j.contact || ""; state.cust.email = j.email || "";
-  state.cust.intake = j.issue || "";
-  state.job.serviceType = j.serviceType || "";
-  state.machine.brand = PRINTERS[j.brand] ? j.brand : (j.brand ? "Other" : "");
-  state.machine.model = j.model || "";
-  state.machine.serial = j.serialNo || "";
-  state.machine.mfms = MFMS.includes(j.mfms) ? j.mfms : "None";
-  state.machine.mfmsSerial = j.mfmsSerialNo || "";
+  state.job.serviceType = j.serviceType || "Printer only";
+  state.cust = { name:j.name || "", phone:j.contact || "", email:j.email || "", intake:j.issue || "" };
+  Object.assign(state.machine, {
+    brand:j.brand || "", model:j.model || "", serial:j.serialNo || "",
+    mfms: j.mfms && j.mfms !== "No" ? j.mfms : "None", mfmsSerial:j.mfmsSerialNo || "",
+    serialCorrected:false, mfmsSerialCorrected:false
+  });
+  // Handover form, when it exists, supplies the service date and the parts handed over.
+  if(j.handover){
+    if(j.handover.date) state.job.date = j.handover.date;
+    ["nozzle","plate","filament"].forEach(k => { if(j.handover[k]) state.machine[k] = j.handover[k]; });
+  }
+}
+// Opens a job: its saved report if it has one, otherwise a fresh report with the standard checklist.
+function openJob(j){
+  const tech = state.shop.tech;
+  if(j.savedReport){
+    state = Object.assign(blank(), JSON.parse(JSON.stringify(j.savedReport)));
+    state.machine = Object.assign(blank().machine, state.machine);
+    if(!state.std || !state.std.length){ state.std = []; state.extra = state.work || []; state.extraCustom = state.workCustom || []; }
+    delete state.work; delete state.workCustom; delete state.notDone;
+    applyJob(j); // Sheet details always win: they may have been edited since
+    if(!state.std.length) state.std = stdFor(state);
+    if(!state.shop.tech) state.shop.tech = tech;
+  } else {
+    state = blank(); state.shop.tech = tech;
+    applyJob(j);
+    state.std = stdFor(state);
+  }
+  dirty = false; clearStatus();
+}
+// What gets saved: the standard checklist is folded into Work Performed and Not done for the Sheet.
+function reportPayload(){
+  const r = JSON.parse(JSON.stringify(state));
+  r.work = r.std.filter(x => x.done).map(x => x.item).concat(r.extra);
+  r.workCustom = r.extraCustom;
+  r.notDone = r.std.filter(x => !x.done).map(x => x.item + (x.reason ? " (" + x.reason + ")" : ""));
+  return r;
 }
 
 async function saveToSheet(report){
@@ -527,48 +610,45 @@ async function saveToSheet(report){
       return "NOT saved to the Sheet: " + out.message;
     }
     const j = JOBS.find(x=>x.quoteNo===report.job.quoteNo);
-    if(j && out.tagged) j.report = report.job.ref;
-    return "Saved to the Sheet" + (report.job.quoteNo ? (out.tagged ? " and tagged to job " + report.job.quoteNo + "." : ", but no job has Quotation No " + report.job.quoteNo + ".") : ".") +
+    if(j){ j.savedReport = report; if(out.tagged) j.report = report.job.ref; }
+    state.machine.serialCorrected = state.machine.mfmsSerialCorrected = false; // now fixed in the Sheet
+    return "Saved to the Sheet" + (out.tagged ? " and tagged to job " + report.job.quoteNo + "." : ".") +
       (out.pdfUrl ? " PDF saved to Drive." : " (PDF copy NOT saved to Drive.)");
   }catch(e){
     return "NOT saved to the Sheet (no connection?). Try Save job again.";
   }
 }
 
-/* ---------- form ---------- */
-function chipGroup(dict, key, customKey){
-  let h = "";
-  for(const [heading, items] of Object.entries(dict)){
-    h += '<div class="group"><h3>'+esc(heading)+'</h3><div class="chips">';
-    for(const it of items){
-      const on = state[key].includes(it);
-      h += '<label class="chip"><input type="checkbox" data-multi="'+key+'" value="'+esc(it)+'"'+(on?" checked":"")+'>'+esc(it)+'</label>';
-    }
-    h += '</div></div>';
-  }
-  h += customList(key, customKey);
-  return h;
+/* ---------- form building blocks ---------- */
+const OPEN = new Set(); // which option groups are open, kept across re-renders
+function chip(key, item){
+  const on = state[key].includes(item);
+  return '<label class="chip"><input type="checkbox" data-multi="'+key+'" value="'+esc(item)+'"'+(on?" checked":"")+'>'+esc(item)+'</label>';
 }
-function flatChips(items, key, customKey){
-  let h = '<div class="chips">';
-  for(const it of items){
-    const on = state[key].includes(it);
-    h += '<label class="chip"><input type="checkbox" data-multi="'+key+'" value="'+esc(it)+'"'+(on?" checked":"")+'>'+esc(it)+'</label>';
+// Collapsible option groups with a search box and an "Other" field.
+function optionGroups(key, customKey, groups, searchLabel){
+  let h = '<div class="acc" data-acc="'+key+'">';
+  h += '<input type="search" class="accsearch" data-search="'+key+'" placeholder="'+esc(searchLabel)+'" aria-label="'+esc(searchLabel)+'">';
+  for(const [name, items] of groupsFor(groups, state)){
+    const n = items.filter(i => state[key].includes(i)).length, id = key + "|" + name;
+    h += '<details class="accg" data-g="'+esc(id)+'"'+(OPEN.has(id)?" open":"")+'><summary><span>'+esc(name)+'</span>'+
+         '<span class="cnt"'+(n?"":" hidden")+'>'+n+' ticked</span></summary>'+
+         '<div class="chips">'+items.map(i => chip(key, i)).join("")+'</div></details>';
   }
-  h += '</div>' + customList(key, customKey);
-  return h;
+  h += '<p class="nomatch" hidden>No matches. Add it under Other below.</p></div>';
+  return h + customList(customKey);
 }
-function customList(key, customKey){
+function customList(customKey){
   let h = "";
   if(state[customKey].length){
-    h += '<div class="chips" style="margin-top:8px">';
+    h += '<div class="chips" style="margin-top:10px">';
     state[customKey].forEach((it,i)=>{
       h += '<label class="chip custom"><input type="checkbox" checked disabled>'+esc(it)+
-           '<span class="x" data-delcustom="'+customKey+'" data-i="'+i+'" role="button" tabindex="0" title="Remove">&times;</span></label>';
+           '<button type="button" class="x" data-delcustom="'+customKey+'" data-i="'+i+'" aria-label="Remove '+esc(it)+'">&times;</button></label>';
     });
     h += '</div>';
   }
-  h += '<div class="addrow"><input type="text" placeholder="Add your own item" data-addinput="'+customKey+'">'+
+  h += '<div class="addrow"><input type="text" placeholder="Other: type anything not listed" data-addinput="'+customKey+'" aria-label="Add other item">'+
        '<button type="button" data-addbtn="'+customKey+'">Add</button></div>';
   return h;
 }
@@ -578,78 +658,81 @@ function field(path, label, opts){
   const cls = opts.span ? " span2" : "";
   if(opts.type === "textarea")
     return '<label class="f'+cls+'">'+esc(label)+'<textarea data-f="'+path+'" placeholder="'+esc(opts.ph||"")+'">'+esc(v)+'</textarea></label>';
-  if(opts.options){
-    let o = "";
-    for(const x of opts.options){
-      const val = Array.isArray(x)?x[0]:x;
-      o += '<option'+(val===v?" selected":"")+'>'+esc(val)+'</option>';
-    }
-    return '<label class="f'+cls+'">'+esc(label)+'<select data-f="'+path+'">'+o+'</select></label>';
-  }
-  return '<label class="f'+cls+'">'+esc(label)+'<input type="'+(opts.type||"text")+'" data-f="'+path+'" placeholder="'+esc(opts.ph||"")+'" value="'+esc(v)+'"'+(opts.readonly?" readonly":"")+'></label>';
+  return '<label class="f'+cls+'">'+esc(label)+'<input type="'+(opts.type||"text")+'" data-f="'+path+'" placeholder="'+esc(opts.ph||"")+'" value="'+esc(v)+'"></label>';
 }
 function get(path){ return path.split(".").reduce((o,k)=>(o||{})[k], state); }
 function set(path,val){
   const ks = path.split("."); const last = ks.pop();
   ks.reduce((o,k)=>o[k], state)[last] = val;
 }
+const infoRow = (k, v, extra) => '<div class="ir"><span>'+esc(k)+'</span><b>'+esc(v || "–")+'</b>'+(extra||"")+'</div>';
+const naButton = (key, v) => String(v).toUpperCase() === "NA" ? "" :
+  '<button type="button" class="mini na" data-setna="'+key+'">Set to NA</button>';
 
 function renderForm(){
-  let models = PRINTERS[state.machine.brand] || [];
-  if(state.machine.model && !models.includes(state.machine.model)) models = [state.machine.model].concat(models);
-  const pick = '<label class="f span2 jobpick">Confirmed job<select data-pickjob="1"><option value="">'+
+  const s = state, picked = !!s.job.quoteNo;
+  const pick = '<label class="f span2 jobpick">Confirmed job<span class="pickrow"><select data-pickjob="1"><option value="">'+
     (JOBS.length ? "Pick the job you are reporting on..." : "No jobs are In Progress on the job sheet") + '</option>' +
-    JOBS.map((j,i)=>'<option value="'+i+'"'+(j.quoteNo===state.job.quoteNo?" selected":"")+'>'+
-      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.report?" · has report":""))+'</option>').join("") +
-    '</select></label>';
-  // Once a job is picked its quote number is the link to the job sheet, so it is not typed by hand.
-  const fromJob = JOBS.some(j=>j.quoteNo===state.job.quoteNo);
-  const mfmsOnly = state.job.serviceType === "MFMS only";
+    JOBS.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===s.job.quoteNo?" selected":"")+'>'+
+      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.savedReport?" · has report":""))+'</option>').join("") +
+    '</select><button type="button" class="mini" data-refresh="1" title="Reload jobs from the Sheet">Refresh</button></span></label>';
+  const names = STAFF.slice(); if(s.shop.tech && !names.includes(s.shop.tech)) names.unshift(s.shop.tech);
+  const specialist = STAFF.length
+    ? '<label class="f">MDR Specialist<select data-f="shop.tech"><option value="">Choose...</option>'+
+        names.map(n=>'<option'+(n===s.shop.tech?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select></label>'
+    : field("shop.tech","MDR Specialist",{ph:"Your name"});
   const p = document.getElementById("pane");
+
+  if(!picked){
+    p.innerHTML = `
+    <div class="stage">
+      <h2><span class="n">1</span>Job</h2>
+      <div class="grid">${pick}</div>
+      <p class="hint">Pick a job to start. Customer and machine details fill in from the MDR Sheet.</p>
+    </div>`;
+    return;
+  }
+
   p.innerHTML = `
     <div class="stage">
       <h2><span class="n">1</span>Job</h2>
       <div class="grid">
         ${pick}
-        ${field("job.quoteNo", fromJob ? "Quotation No (from the picked job)" : "Quotation No", {ph:"LBL-QT-MDR-20260928-01", readonly:fromJob})}
-        ${field("job.ref","Report No",{ph:"Given when first saved", readonly:true})}
-        ${field("job.date","Service date",{type:"date"})}
-        ${field("shop.tech","Technician")}
+        ${specialist}
+        ${field("job.date","Service date (handover)",{type:"date"})}
       </div>
+      <div class="refs"><span>Quotation <b>${esc(s.job.quoteNo)}</b></span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
     </div>
 
     <div class="stage">
       <h2><span class="n">2</span>Customer</h2>
-      <div class="grid">
-        ${field("cust.name","Name")}
-        ${field("cust.phone","Phone")}
-        ${field("cust.email","Email",{span:true})}
-        ${field("cust.intake","What the customer reported",{type:"textarea",span:true,ph:"In their words. Helps them recognise the problem in the report."})}
+      <div class="info">
+        ${infoRow("Name", s.cust.name)}${infoRow("Phone", s.cust.phone)}${infoRow("Email", s.cust.email)}
       </div>
+      <div class="info reported"><span>Customer reported</span><p>${s.cust.intake ? nl2br(s.cust.intake) : "–"}</p></div>
+      <p class="hint">To change these, edit the job in the MDR Sheet, then press Refresh.</p>
     </div>
 
     <div class="stage">
-      <h2><span class="n">3</span>${mfmsOnly ? "MFMS" : "Machine"}</h2>
+      <h2><span class="n">3</span>Machine</h2>
+      <div class="info">
+        ${hasPrinter(s) ? infoRow("Printer", (s.machine.brand+" "+s.machine.model).trim()) + infoRow("Serial", s.machine.serial, naButton("serial", s.machine.serial)) : ""}
+        ${hasMfms(s) ? infoRow("MFMS", s.machine.mfms) + infoRow("MFMS serial", s.machine.mfmsSerial, naButton("mfmsSerial", s.machine.mfmsSerial)) : ""}
+      </div>
+      ${hasPrinter(s) ? `
+      <h3 class="sub">Parts handed over</h3>
       <div class="grid">
-        ${mfmsOnly ? "" : `
-        <label class="f">Brand<select data-f="machine.brand" data-rerender="1">${Object.keys(PRINTERS).map(b=>'<option'+(b===state.machine.brand?" selected":"")+'>'+esc(b)+'</option>').join("")}</select></label>
-        ${field("machine.model","Model",{options:models})}
-        ${field("machine.serial","Serial number",{span:true})}`}
-        ${field("machine.mfms","MFMS",{options:MFMS})}
-        ${field("machine.mfmsSerial","MFMS serial number")}
-        ${mfmsOnly ? "" : `
         ${field("machine.nozzle","Nozzle",{ph:"0.4 mm hardened"})}
         ${field("machine.plate","Build plate",{ph:"Textured PEI"})}
-        ${field("machine.filament","Filament in use",{span:true,ph:"PLA / PETG / ABS"})}`}
-        ${field("machine.usage","Approx. usage",{span:true,ph:"e.g. 600 print hours, first service"})}
-      </div>
+        ${field("machine.filament","Filament",{span:true,ph:"PLA / PETG / ABS"})}
+      </div>` : ""}
     </div>
 
     <div class="stage">
-      <h2><span class="n">4</span>Symptoms found<small>${state.symptoms.length+state.symptomsCustom.length} selected</small></h2>
-      ${chipGroup(SYMPTOMS,"symptoms","symptomsCustom")}
-      <div class="grid one" style="margin-top:10px">
-        ${field("symptomNotes","Symptom notes",{type:"textarea",ph:"Anything the checkboxes don't cover."})}
+      <h2><span class="n">4</span>Symptoms found<small>${s.symptoms.length+s.symptomsCustom.length} selected</small></h2>
+      ${optionGroups("symptoms","symptomsCustom",SYMPTOMS,"Search symptoms...")}
+      <div class="grid one" style="margin-top:12px">
+        ${field("symptomNotes","Symptom notes",{type:"textarea",ph:"Anything the options don't cover."})}
       </div>
     </div>
 
@@ -661,29 +744,35 @@ function renderForm(){
     </div>
 
     <div class="stage">
-      <h2><span class="n">6</span>Work performed<small>${state.work.length+state.workCustom.length} selected</small></h2>
-      <button type="button" class="mini stdbtn" id="applyStd">Tick the standard maintenance package</button>
-      ${chipGroup(WORK,"work","workCustom")}
-      <div class="grid one" style="margin-top:10px">
+      <h2><span class="n">6</span>Work performed</h2>
+      <h3 class="sub">Standard service<small>Untick anything not done and say why</small></h3>
+      <div class="std">
+        ${s.std.map((x,i)=>`
+          <div class="stdrow${x.done?"":" off"}">
+            <label><input type="checkbox" data-std="${i}"${x.done?" checked":""}><span class="t">${esc(x.item)}</span><span class="d">${esc(STD_DESC[x.item]||"")}</span></label>
+            ${x.done?"":`<input type="text" class="reason" data-stdreason="${i}" value="${esc(x.reason)}" placeholder="Why not done? e.g. nozzle damaged, customer will replace it" aria-label="Reason ${esc(x.item)} was not done">`}
+          </div>`).join("")}
+      </div>
+      <h3 class="sub">Additional work<small>${s.extra.length+s.extraCustom.length} selected</small></h3>
+      ${optionGroups("extra","extraCustom",EXTRA,"Search repairs and adjustments...")}
+      <div class="grid one" style="margin-top:12px">
         ${field("workNotes","Work notes",{type:"textarea"})}
       </div>
-      <div class="group">
-        <h3>Parts fitted</h3>
-        <table class="parts"><thead><tr><th>Part</th><th>Qty</th><th></th></tr></thead>
-        <tbody>${state.parts.map((pt,i)=>`
-          <tr>
-            <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
-            <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="decimal" aria-label="Part ${i+1} quantity"></td>
-            <td class="d"><button type="button" data-delpart="${i}" title="Remove part" aria-label="Remove part ${i+1}">&times;</button></td>
-          </tr>`).join("")}</tbody></table>
-        <div class="addrow"><button type="button" id="addPart">Add part</button></div>
-      </div>
+      <h3 class="sub">Parts fitted</h3>
+      <table class="parts"><thead><tr><th>Part</th><th>Qty</th><th></th></tr></thead>
+      <tbody>${s.parts.map((pt,i)=>`
+        <tr>
+          <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
+          <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="decimal" aria-label="Part ${i+1} quantity"></td>
+          <td class="d"><button type="button" data-delpart="${i}" title="Remove part" aria-label="Remove part ${i+1}">&times;</button></td>
+        </tr>`).join("")}</tbody></table>
+      <div class="addrow"><button type="button" id="addPart">Add part</button></div>
     </div>
 
     <div class="stage">
-      <h2><span class="n">7</span>Verification</h2>
-      ${flatChips(VERIFY,"verify","verifyCustom")}
-      <div class="grid one" style="margin-top:10px">
+      <h2><span class="n">7</span>Verification<small>${s.verify.length+s.verifyCustom.length} selected</small></h2>
+      ${optionGroups("verify","verifyCustom",VERIFY,"Search checks...")}
+      <div class="grid one" style="margin-top:12px">
         ${field("verifyNotes","Test results",{type:"textarea",ph:"e.g. 3 h benchmark print completed with no under-extrusion; first layer even across the plate."})}
       </div>
     </div>
@@ -693,10 +782,10 @@ function renderForm(){
       <div class="grid one">
         ${field("advice","Recommendations for the customer",{type:"textarea",ph:"Preventive maintenance, settings to keep, what to watch for."})}
       </div>
-      <div class="grid" style="margin-top:9px">
-        <label class="f span2">Outcome (printed as the stamp on the report)<select data-f="job.status">
+      <div class="grid" style="margin-top:12px">
+        <label class="f span2">Outcome (shown as the badge on the report)<select data-f="job.status">
           <option value="">Choose the outcome...</option>
-          ${STATUS.map(s=>'<option'+(s[0]===state.job.status?" selected":"")+'>'+esc(s[0])+'</option>').join("")}
+          ${STATUS.map(st=>'<option'+(st[0]===s.job.status?" selected":"")+'>'+esc(st[0])+'</option>').join("")}
         </select></label>
         ${field("job.terms","Warranty & terms",{type:"textarea",span:true})}
       </div>
@@ -705,28 +794,25 @@ function renderForm(){
 }
 
 /* ---------- report ---------- */
-function list(items, custom){
-  const all = items.concat(custom||[]);
-  if(!all.length) return '<p class="empty">None recorded.</p>';
-  return "<ul>"+all.map(i=>"<li>"+esc(i)+"</li>").join("")+"</ul>";
+function list(items){
+  if(!items.length) return '<p class="empty">None recorded.</p>';
+  return "<ul>"+items.map(i=>"<li>"+esc(i)+"</li>").join("")+"</ul>";
 }
-// Machine facts for the report and PDF. MFMS-only jobs show just the MFMS, no empty printer rows.
+// Machine facts for the report and PDF: only what applies to this job (printer, MFMS or both).
 function machineRows(s){
-  const m = s.machine, hasMfms = m.mfms && m.mfms !== "None";
-  const mfmsRow = ["MFMS", hasMfms ? m.mfms + (m.mfmsSerial ? " (SN " + m.mfmsSerial + ")" : "") : ""];
-  const rows = s.job.serviceType === "MFMS only"
-    ? [mfmsRow]
-    : [["Printer", ((m.brand||"") + " " + (m.model||"")).trim()], ["Serial", m.serial]]
-        .concat(hasMfms ? [mfmsRow] : [])
-        .concat([["Nozzle", m.nozzle], ["Plate", m.plate], ["Filament", m.filament]]);
-  if(m.usage) rows.push(["Usage", m.usage]);
+  const m = s.machine, rows = [];
+  if(hasPrinter(s)) rows.push(["Printer", ((m.brand||"") + " " + (m.model||"")).trim()], ["Serial", m.serial]);
+  if(hasMfms(s)) rows.push(["MFMS", m.mfms !== "None" ? m.mfms : ""], ["MFMS serial", m.mfmsSerial]);
+  if(hasPrinter(s)) rows.push(["Nozzle", m.nozzle], ["Plate", m.plate], ["Filament", m.filament]);
   return rows;
 }
 function renderReport(){
   const s = state;
-  const st = STATUS.find(x=>x[0]===s.job.status); // no stamp until an outcome is chosen
+  const st = STATUS.find(x=>x[0]===s.job.status); // no badge until an outcome is chosen
   const partRows = s.parts.filter(p=>p.name);
-  const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}) : "";
+  const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString("en-SG",{day:"numeric",month:"long",year:"numeric"}) : "";
+  const done = s.std.filter(x=>x.done), notDone = s.std.filter(x=>!x.done);
+  const extra = s.extra.concat(s.extraCustom);
 
   let partsSec = "";
   if(partRows.length){
@@ -739,59 +825,65 @@ function renderReport(){
     <div class="band">
       <img class="logo" src="${LOGO}" alt="">
       <div class="shop">
-        <div class="name">${esc(s.shop.name||"Layer by Layer")}</div>
-        <div class="meta">${esc(s.shop.contact||"Add your phone, email or address in step 1")}</div>
+        <div class="name">${esc(s.shop.name)}</div>
+        <div class="meta">${esc(s.shop.contact)}</div>
       </div>
       <div class="ref">
-        <div class="t">Maintenance, diagnosis &amp; repair</div>
-        <div class="no">${esc(s.job.ref||"–")}</div>
-        <div class="dt">${esc(dateStr)}</div>
+        <div class="t">Service report</div>
+        <div class="no">${esc(s.job.ref||"Not saved yet")}</div>
       </div>
     </div>
-    <div class="layers"><i></i><i></i><i></i></div>
 
-    ${st?`<div class="stampwrap"><div class="stamp ${st[1]}">${esc(st[0])}</div></div>`:""}
+    <div class="summary">
+      <div><div class="k">Outcome</div><div class="v">${st?`<span class="badge ${st[1]}">${esc(st[0])}</span>`:'<span class="badge none">Not set</span>'}</div></div>
+      <div><div class="k">Service date</div><div class="v">${esc(dateStr||"–")}</div></div>
+      <div><div class="k">MDR Specialist</div><div class="v">${esc(s.shop.tech||"–")}</div></div>
+      ${s.job.quoteNo?`<div><div class="k">Quotation</div><div class="v">${esc(s.job.quoteNo)}</div></div>`:""}
+    </div>
 
     <div class="body">
       <div class="facts">
-        <div class="box"><h4>CUSTOMER</h4><dl>
+        <div class="box"><h4>Customer</h4><dl>
           <dt>Name</dt><dd>${esc(s.cust.name||"–")}</dd>
           <dt>Phone</dt><dd>${esc(s.cust.phone||"–")}</dd>
           <dt>Email</dt><dd>${esc(s.cust.email||"–")}</dd>
         </dl></div>
-        <div class="box"><h4>MACHINE</h4><dl>
+        <div class="box"><h4>Machine</h4><dl>
           ${machineRows(s).map(r=>`<dt>${esc(r[0])}</dt><dd>${esc(r[1]||"–")}</dd>`).join("")}
         </dl></div>
       </div>
 
-      ${s.cust.intake?`<div class="sec"><h3><span class="n">1</span>Reported by customer</h3><p class="note">${nl2br(s.cust.intake)}</p></div>`:""}
+      ${s.cust.intake?`<div class="sec"><h3>Reported by customer</h3><p class="note">${nl2br(s.cust.intake)}</p></div>`:""}
 
-      <div class="sec"><h3><span class="n">2</span>Symptoms observed</h3>
-        ${list(s.symptoms,s.symptomsCustom)}
+      <div class="sec"><h3>Symptoms observed</h3>
+        ${list(s.symptoms.concat(s.symptomsCustom))}
         ${s.symptomNotes?`<p class="note">${nl2br(s.symptomNotes)}</p>`:""}
       </div>
 
-      <div class="sec"><h3><span class="n">3</span>Diagnosis</h3>
+      <div class="sec"><h3>Diagnosis</h3>
         ${s.findings?`<p>${nl2br(s.findings)}</p>`:'<p class="empty">Not recorded.</p>'}
       </div>
 
-      <div class="sec"><h3><span class="n">4</span>Work performed</h3>
-        ${list(s.work,s.workCustom)}
+      <div class="sec"><h3>Work performed</h3>
+        ${s.std.length?`<h4>Standard service</h4><ul>
+          ${done.map(x=>`<li>${esc(x.item)}<span class="desc"> · ${esc(STD_DESC[x.item]||"")}</span></li>`).join("")}
+          ${notDone.map(x=>`<li class="notdone"><b>Not done:</b> ${esc(x.item)}${x.reason?` (${esc(x.reason)})`:""}</li>`).join("")}
+        </ul>`:""}
+        ${extra.length?`<h4>Additional work</h4>${list(extra)}`:""}
         ${s.workNotes?`<p class="note">${nl2br(s.workNotes)}</p>`:""}
         ${partsSec}
       </div>
 
-      <div class="sec"><h3><span class="n">5</span>Verification</h3>
-        ${list(s.verify,s.verifyCustom)}
+      <div class="sec"><h3>Verification</h3>
+        ${list(s.verify.concat(s.verifyCustom))}
         ${s.verifyNotes?`<p class="note">${nl2br(s.verifyNotes)}</p>`:""}
       </div>
 
-      ${s.advice?`<div class="sec"><h3><span class="n">6</span>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
-
+      ${s.advice?`<div class="sec"><h3>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
 
       <div class="signrow">
-        <div class="sig"><b>${esc(s.shop.tech||"")}</b>Technician, ${esc(s.shop.name||"")}</div>
-        <div class="sig"><b>${esc(s.cust.name||"")}</b>Received in working order: signature and date</div>
+        <div class="sig"><b>${esc(s.shop.tech||"")}</b>MDR Specialist, ${esc(s.shop.name)}</div>
+        <div class="sig"><b>${esc(s.cust.name||"")}</b>Received: signature and date</div>
       </div>
 
       ${s.job.terms?`<div class="terms">${nl2br(s.job.terms)}</div>`:""}
@@ -816,74 +908,103 @@ function showStatus(kind, msg){
 function clearStatus(){ document.getElementById("saveStatus").hidden = true; lastSaved = ""; }
 document.getElementById("saveStatus").addEventListener("click", e=>{ if(e.target.dataset.dismiss) document.getElementById("saveStatus").hidden = true; });
 
-// A fresh report, keeping who is working and the standard terms.
-function newReport(){
-  const tech = state.shop.tech, terms = state.job.terms;
-  state = blank();
-  state.shop.tech = tech; state.job.terms = terms; // report number comes from the Sheet on first save
-  dirty = false; clearStatus();
+/* ---------- events ---------- */
+const pane = document.getElementById("pane");
+
+// Picking (or refreshing) a job always reloads it from the Sheet, so Sheet edits show up.
+async function pickJob(quoteNo){
+  if(dirty && quoteNo !== state.job.quoteNo &&
+     !confirm("Open " + quoteNo + "? Unsaved changes to the current report will be lost.")){ render(); return; }
+  showStatus("busy", "Loading " + quoteNo + " from the Sheet...");
+  try{
+    if(!await loadJobs()) return;
+    const j = JOBS.find(x => x.quoteNo === quoteNo);
+    if(!j){ showStatus("err", quoteNo + " is no longer In Progress on the job sheet."); render(); return; }
+    openJob(j);
+    render();
+    toast(j.savedReport ? "Opened the saved report for " + quoteNo + "." : "New report for " + quoteNo + ".");
+  }catch(e){ showStatus("err", "Could not reach the Sheet. Check the connection and try again."); }
 }
 
-/* ---------- events ---------- */
-document.getElementById("pane").addEventListener("input", e=>{
+pane.addEventListener("change", e=>{
   const t = e.target;
-  if(t.dataset.pickjob){
-    const j = JOBS[+t.value];
-    if(t.value === "" || !j || j.quoteNo === state.job.quoteNo){ render(); return; }
-    if(dirty && !confirm("Start a new report for " + j.quoteNo + " (" + j.name + ")? Unsaved changes to the current report will be lost.")){ render(); return; }
-    newReport(); fillFromJob(j); render(); return;
+  if(t.dataset.pickjob !== undefined){ if(t.value) pickJob(t.value); return; }
+  if(t.dataset.std !== undefined){
+    const x = state.std[+t.dataset.std]; x.done = t.checked; markDirty(); render();
+    if(!x.done){ const r = pane.querySelector('[data-stdreason="'+t.dataset.std+'"]'); if(r) r.focus(); }
+    return;
   }
-  markDirty();
-  if(t.dataset.f){
-    set(t.dataset.f, t.type==="checkbox" ? t.checked : t.value);
-    if(t.dataset.rerender){ state.machine.model = (PRINTERS[state.machine.brand]||[""])[0]; render(); return; }
-    renderReport();
-  }
-  if(t.dataset.part){
-    state.parts[+t.dataset.i][t.dataset.part] = t.value;
-    renderReport();
-  }
-});
-document.getElementById("pane").addEventListener("change", e=>{
-  const t = e.target;
   if(t.dataset.multi){
     markDirty();
-    const arr = state[t.dataset.multi];
-    const i = arr.indexOf(t.value);
+    const key = t.dataset.multi, arr = state[key], i = arr.indexOf(t.value);
     if(t.checked && i<0) arr.push(t.value);
     if(!t.checked && i>=0) arr.splice(i,1);
-    // update the counter in place so the pane keeps its scroll position
-    const h = t.closest(".stage").querySelector("small");
-    if(h){
-      const custom = t.dataset.multi === "symptoms" ? state.symptomsCustom
-                   : t.dataset.multi === "work" ? state.workCustom : state.verifyCustom;
-      h.textContent = (arr.length + custom.length) + " selected";
-    }
+    // update counters in place so the pane keeps its scroll position and open groups
+    const g = t.closest(".accg"), cnt = g && g.querySelector(".cnt");
+    if(cnt){ const n = g.querySelectorAll("input:checked").length; cnt.textContent = n + " ticked"; cnt.hidden = !n; }
+    const custom = state[{symptoms:"symptomsCustom", extra:"extraCustom", verify:"verifyCustom"}[key]];
+    const small = key === "extra" ? t.closest(".stage").querySelectorAll("h3.sub small")[1] : t.closest(".stage").querySelector("h2 small");
+    if(small) small.textContent = (arr.length + custom.length) + " selected";
     renderReport();
+    return;
   }
+  if(t.dataset.f === "shop.tech"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
 });
-document.getElementById("pane").addEventListener("click", e=>{
+pane.addEventListener("input", e=>{
   const t = e.target;
-  if(t.id === "applyStd"){
-    DEFAULT_WORK.forEach(w=>{ if(!state.work.includes(w)) state.work.push(w); });
-    markDirty(); render(); return;
+  if(t.dataset.search !== undefined){ filterGroups(t); return; }
+  if(t.dataset.f){ markDirty(); set(t.dataset.f, t.value); renderReport(); return; }
+  if(t.dataset.stdreason !== undefined){ markDirty(); state.std[+t.dataset.stdreason].reason = t.value; renderReport(); return; }
+  if(t.dataset.part){ markDirty(); state.parts[+t.dataset.i][t.dataset.part] = t.value; renderReport(); }
+});
+// Remember which groups are open (toggle does not bubble, so listen in the capture phase)
+pane.addEventListener("toggle", e=>{
+  const d = e.target;
+  if(!d.classList || !d.classList.contains("accg") || d.dataset.searching) return;
+  d.open ? OPEN.add(d.dataset.g) : OPEN.delete(d.dataset.g);
+}, true);
+// Search: show only matching options, open the groups that have them
+function filterGroups(input){
+  const q = input.value.trim().toLowerCase(), acc = input.closest(".acc");
+  let any = false;
+  acc.querySelectorAll(".accg").forEach(g=>{
+    let hits = 0;
+    g.querySelectorAll(".chip").forEach(c=>{
+      const show = !q || c.textContent.toLowerCase().includes(q);
+      c.hidden = !show; if(show) hits++;
+    });
+    g.hidden = q && !hits;
+    g.dataset.searching = "1";
+    g.open = q ? hits > 0 : OPEN.has(g.dataset.g);
+    setTimeout(()=>{ delete g.dataset.searching; });
+    if(hits) any = true;
+  });
+  acc.querySelector(".nomatch").hidden = !q || any;
+}
+pane.addEventListener("click", e=>{
+  const t = e.target.closest("button");
+  if(!t) return;
+  if(t.dataset.refresh){ if(state.job.quoteNo) pickJob(state.job.quoteNo); else loadJobs().then(render); return; }
+  if(t.dataset.setna){
+    const k = t.dataset.setna; state.machine[k] = "NA"; state.machine[k + "Corrected"] = true;
+    markDirty(); render(); toast("Set to NA. It updates in the MDR Sheet when you save."); return;
   }
   if(t.id === "addPart"){ markDirty(); state.parts.push({name:"",qty:"1"}); render(); return; }
   if(t.dataset.delpart !== undefined){ markDirty(); state.parts.splice(+t.dataset.delpart,1); render(); return; }
   if(t.dataset.addbtn){ addCustom(t.dataset.addbtn); return; }
   if(t.dataset.delcustom){ markDirty(); state[t.dataset.delcustom].splice(+t.dataset.i,1); render(); return; }
 });
-document.getElementById("pane").addEventListener("keydown", e=>{
+pane.addEventListener("keydown", e=>{
   if(e.key === "Enter" && e.target.dataset.addinput){ e.preventDefault(); addCustom(e.target.dataset.addinput); }
 });
 function addCustom(key){
-  const input = document.querySelector('[data-addinput="'+key+'"]');
+  const input = pane.querySelector('[data-addinput="'+key+'"]');
   const v = input && input.value.trim();
   if(!v) return;
   state[key].push(v);
   markDirty();
   render();
-  const again = document.querySelector('[data-addinput="'+key+'"]');
+  const again = pane.querySelector('[data-addinput="'+key+'"]');
   if(again) again.focus();
 }
 
@@ -892,26 +1013,24 @@ function readyForCustomer(){
   const missing = [];
   if(!state.job.status) missing.push("Outcome");
   if(!String(state.findings||"").trim()) missing.push("Diagnosis");
-  if(!String(state.shop.tech||"").trim()) missing.push("Technician");
+  if(!String(state.shop.tech||"").trim()) missing.push("MDR Specialist");
+  if(state.std.some(x => !x.done && !x.reason.trim())) missing.push("reason for each unticked standard item");
   const warn = [];
   if(missing.length) warn.push("Not filled in yet: " + missing.join(", ") + ".");
   if(dirty || !lastSaved) warn.push("This report has not been saved to the Sheet yet.");
   return !warn.length || confirm(warn.join("\n") + "\n\nContinue anyway?");
 }
 document.getElementById("btnPrint").addEventListener("click", ()=>{ if(readyForCustomer()) window.print(); });
-document.getElementById("btnNew").addEventListener("click", ()=>{
-  if(dirty && !confirm("Start a new report? Unsaved changes to the current report will be lost.")) return;
-  newReport(); render();
-});
 
 document.getElementById("btnSave").addEventListener("click", async e=>{
   const b = e.currentTarget;
   if(b.disabled) return;
+  if(!state.job.quoteNo){ showStatus("err", "Pick a confirmed job first."); return; }
   b.disabled = true; b.textContent = "Saving...";
   showStatus("busy", "Saving " + (state.job.ref || "report") + " to the Sheet and Drive...");
   try{
     // The Sheet hands out the report number on the first save, so numbers never repeat across
-    // devices. Re-saves keep it. Older reports numbered on a device get a proper number here.
+    // devices. Re-saves keep it.
     if(!/^LBL-SR-MDR-/.test(state.job.ref || "")){
       let out;
       try{ out = await callSheet({ action:"reserveReportNo" }); }
@@ -924,19 +1043,14 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
       state.job.ref = out.reportNo;
       render();
     }
-    store.shop = state.shop;
-    if(!state.id) state.id = "j"+Date.now(); // this device's saved-jobs key only
-    const idx = store.jobs.findIndex(j=>j.id===state.id);
-    const copy = JSON.parse(JSON.stringify(state));
-    if(idx>=0) store.jobs[idx] = copy; else store.jobs.unshift(copy);
-    const onDevice = await saveStore();
-    const msg = await saveToSheet(copy);
+    const msg = await saveToSheet(reportPayload());
     if(msg.indexOf("NOT saved") === 0){
-      showStatus("err", msg.replace(/\.?$/, ".") + (onDevice ? " A copy is kept on this device." : ""));
+      showStatus("err", msg.replace(/\.?$/, "."));
     } else {
       dirty = false;
       lastSaved = new Date().toLocaleTimeString("en-SG", { hour:"2-digit", minute:"2-digit" });
       showStatus("ok", "Saved at " + lastSaved + ". " + msg);
+      render();
     }
   } finally {
     b.disabled = false; b.textContent = "Save job";
@@ -955,36 +1069,6 @@ moreMenu.addEventListener("click", closeMore);
 document.addEventListener("click", e=>{ if(!moreMenu.contains(e.target)) closeMore(); });
 document.addEventListener("keydown", e=>{ if(e.key === "Escape" && moreMenu.classList.contains("open")){ closeMore(); moreBtn.focus(); } });
 
-const dlg = document.getElementById("dlg");
-document.getElementById("btnSaved").addEventListener("click", ()=>{ renderSaved(); dlg.showModal(); });
-document.getElementById("dlgClose").addEventListener("click", ()=>dlg.close());
-function renderSaved(){
-  const l = document.getElementById("dlgList");
-  if(!store.jobs.length){ l.innerHTML = '<div class="row"><div class="t">No saved jobs yet. Fill in a job and choose “Save job”.</div></div>'; return; }
-  l.innerHTML = store.jobs.map(j=>`
-    <div class="row">
-      <div class="t">${esc(j.job.ref||"(no ref)")} · ${esc(j.cust.name||"unnamed customer")}
-        <span>${esc(j.machine.brand)} ${esc(j.machine.model)} · ${esc(j.job.date)} · ${esc(j.job.status)}</span></div>
-      <button class="mini" data-load="${j.id}">Open</button>
-      <button class="mini" data-del="${j.id}">Delete</button>
-    </div>`).join("");
-}
-document.getElementById("dlgList").addEventListener("click", async e=>{
-  const id = e.target.dataset.load || e.target.dataset.del;
-  if(!id) return;
-  if(e.target.dataset.load){
-    if(dirty && !confirm("Open this saved job? Unsaved changes to the current report will be lost.")) return;
-    state = JSON.parse(JSON.stringify(store.jobs.find(j=>j.id===id)));
-    state.shop.name = SHOP_NAME; state.shop.contact = SHOP_CONTACT;
-    dirty = false; clearStatus();
-    render(); dlg.close(); toast("Job opened. Save job again after changes to update the Sheet.");
-  } else {
-    if(!confirm("Delete this saved job from this device? The copy in the Sheet stays.")) return;
-    store.jobs = store.jobs.filter(j=>j.id!==id);
-    await saveStore(); renderSaved();
-  }
-});
-
 document.getElementById("tabForm").addEventListener("click", ()=>switchTab(true));
 document.getElementById("tabPrev").addEventListener("click", ()=>switchTab(false));
 function switchTab(form){
@@ -1000,7 +1084,6 @@ function toast(msg){
   el.textContent = msg; el.classList.add("show");
   clearTimeout(toastT); toastT = setTimeout(()=>el.classList.remove("show"), 2600);
 }
-
 
 /* ---------- PDF export ---------- */
 const PDF_LIB = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
@@ -1029,165 +1112,198 @@ async function downloadPdf(asData){
   const s = state;
   const st = STATUS.find(x=>x[0]===s.job.status); // no stamp until an outcome is chosen
   const partRows = s.parts.filter(p=>p.name);
-  const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}) : "";
+  const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString("en-SG",{day:"numeric",month:"long",year:"numeric"}) : "";
 
   const doc = new jsPDF({unit:"mm", format:"a4"});
-  const M=15, W=210, R=W-M, CW=W-2*M, BOT=297-20;
-  const GREEN=[165,205,103], GDEEP=[74,110,34], INK=[43,46,49], MID=[84,89,95], MUTED=[101,107,114], AMBER=[138,90,0], RULE=[217,220,214];
+  const M=16, W=210, R=W-M, CW=W-2*M, BOT=297-22;
+  // Same palette as the screen design
+  const INK=[29,33,37], INK2=[71,78,85], MUTED=[92,99,107], LINE=[227,230,224], PANEL=[247,248,246];
+  const GREEN=[165,205,103], G700=[62,107,31], GTINT=[228,240,210], GWASH=[241,247,232];
+  const AMBER=[138,90,0], AMBERW=[255,244,219], GREYW=[240,241,242];
+  const F = "helvetica";
   let y = M;
 
-  const lh = pt => pt*0.3528*1.34;
+  const set = (size, style, color) => { doc.setFont(F, style||"normal"); doc.setFontSize(size); doc.setTextColor.apply(doc, color||INK); };
+  const lh = pt => pt*0.3528*1.45;
   function ensure(h){ if(y+h > BOT){ doc.addPage(); y = M; } }
   function para(text, o){
     o = o||{};
-    const size = o.size||10.5, w = o.w||CW, x = o.x||M;
-    doc.setFont(o.font||"times", o.style||"normal");
-    doc.setFontSize(size);
-    doc.setTextColor.apply(doc, o.color||INK);
+    const size = o.size||10, w = o.w||CW, x = o.x||M;
+    set(size, o.style, o.color);
     for(const ln of doc.splitTextToSize(String(text||""), w)){
-      ensure(lh(size)); doc.text(ln, x, y+lh(size)-1.3); y += lh(size);
+      ensure(lh(size)); doc.text(ln, x, y+lh(size)-1.4); y += lh(size);
     }
   }
-  function head(n, title){
-    ensure(12); y += 4;
-    doc.setFont("helvetica","bold"); doc.setFontSize(8.6);
-    doc.setTextColor.apply(doc, GDEEP); doc.text(String(n), M, y);
-    doc.setTextColor.apply(doc, INK);   doc.text(title, M+5, y);
-    y += 1.8;
-    doc.setDrawColor.apply(doc, RULE); doc.setLineWidth(0.2); doc.line(M, y, R, y);
-    y += 3.4;
+  function head(title){
+    ensure(14); y += 5;
+    set(11.5, "bold", INK); doc.text(title, M, y);
+    y += 4;
+  }
+  // Green check-in-circle bullets, like the screen
+  function check(x, cy){
+    doc.setFillColor.apply(doc, GTINT); doc.circle(x, cy, 1.9, "F");
+    doc.setDrawColor.apply(doc, G700); doc.setLineWidth(0.45);
+    doc.line(x-0.85, cy+0.05, x-0.2, cy+0.7); doc.line(x-0.2, cy+0.7, x+0.95, cy-0.65);
   }
   function bullets(items){
-    if(!items.length){ para("None recorded.", {style:"italic", color:MUTED, size:10}); return; }
+    if(!items.length){ para("None recorded.", {color:MUTED}); return; }
     for(const it of items){
-      doc.setFont("times","normal"); doc.setFontSize(10.5); doc.setTextColor.apply(doc, INK);
-      const lines = doc.splitTextToSize(String(it), CW-6);
+      set(10, "normal", INK);
+      const lines = doc.splitTextToSize(String(it), CW-8);
       lines.forEach((ln,i)=>{
-        ensure(5);
-        if(i===0){ doc.setFillColor.apply(doc, GREEN); doc.circle(M+1.5, y+1.6, 1, "F"); }
-        doc.setFont("times","normal"); doc.setFontSize(10.5); doc.setTextColor.apply(doc, INK);
-        doc.text(ln, M+5.5, y+2.7); y += 4.7;
+        ensure(5.2);
+        if(i===0) check(M+2, y+2.3);
+        set(10, "normal", INK); doc.text(ln, M+6.5, y+3.4); y += 4.8;
       });
     }
   }
-  function kv(pairs, x, w){
+  // Label / value rows; returns the height they need, draws only when draw is true
+  function kvHeight(pairs, w){ return pairs.reduce((h,[k,v])=> h + 5 + (doc.splitTextToSize(String(v||"–"), w-24).length-1)*4.3, 0); }
+  function kv(pairs, x, top, w){
+    let yy = top;
     for(const [k,v] of pairs){
-      const lines = doc.splitTextToSize(String(v||"–"), w-26);
-      ensure(4.6*lines.length);
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.4); doc.setTextColor.apply(doc, MUTED);
-      doc.text(k, x, y+3.1);
-      doc.setFont("times","normal"); doc.setFontSize(10); doc.setTextColor.apply(doc, INK);
-      lines.forEach((ln,i)=> doc.text(ln, x+24, y+3.1+i*4.2));
-      y += 4.4 + (lines.length-1)*4.2;
+      set(9, "normal", MUTED); doc.text(String(k), x, yy+3.4);
+      set(9.6, "bold", INK);
+      const lines = doc.splitTextToSize(String(v||"–"), w-24);
+      lines.forEach((ln,i)=> doc.text(ln, x+22, yy+3.4+i*4.3));
+      yy += 5 + (lines.length-1)*4.3;
     }
   }
 
   /* header */
-  const logoH = 23;
+  const logoH = 15;
   doc.addImage(LOGO, "PNG", M, y, logoH*LOGO_RATIO, logoH);
-  const tx = M + logoH*LOGO_RATIO + 6;
-  doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor.apply(doc, INK);
-  doc.text(s.shop.name||"Layer by Layer", tx, y+7);
-  doc.setFont("helvetica","normal"); doc.setFontSize(8.6); doc.setTextColor.apply(doc, MID);
-  doc.splitTextToSize(s.shop.contact||"", 70).slice(0,4).forEach((ln,i)=> doc.text(ln, tx, y+12+i*4));
+  const tx = M + logoH*LOGO_RATIO + 5;
+  set(13, "bold", INK); doc.text(s.shop.name||"Layer by Layer", tx, y+6.5);
+  set(8.8, "normal", MUTED);
+  doc.splitTextToSize(s.shop.contact||"", 80).slice(0,2).forEach((ln,i)=> doc.text(ln, tx, y+11.5+i*4));
+  set(9, "normal", MUTED); doc.text("Service report", R, y+5, {align:"right"});
+  set(14.5, "bold", INK); doc.text(s.job.ref||"Not saved yet", R, y+11.5, {align:"right"});
+  y += logoH + 6;
+  doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, y, R, y);
+  y += 5;
 
-  doc.setFont("helvetica","bold"); doc.setFontSize(8.4); doc.setTextColor.apply(doc, GDEEP);
-  doc.text("Maintenance, diagnosis & repair", R, y+6, {align:"right"});
-  doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor.apply(doc, INK);
-  doc.text(s.job.ref||"–", R, y+13, {align:"right"});
-  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor.apply(doc, MID);
-  doc.text(dateStr, R, y+18, {align:"right"});
+  /* summary strip: outcome badge, date, technician, quotation */
+  const cells = [["Outcome", null], ["Service date", dateStr||"–"], ["MDR Specialist", s.shop.tech||"–"]];
+  if(s.job.quoteNo) cells.push(["Quotation", s.job.quoteNo]);
+  // Column widths follow the content: the quotation number needs the most room
+  const weights = cells.length === 4 ? [0.2, 0.22, 0.22, 0.36] : [0.3, 0.35, 0.35];
+  const lefts = weights.map((w, i)=> M + CW * weights.slice(0, i).reduce((a,b)=>a+b, 0));
+  doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE);
+  doc.roundedRect(M, y, CW, 16, 2.5, 2.5, "FD");
+  cells.forEach(([k,v], i)=>{
+    const cx = lefts[i] + 5, cw = CW * weights[i];
+    set(8.4, "normal", MUTED); doc.text(k, cx, y+5.6);
+    if(v === null){
+      const label = st ? st[0] : "Not set";
+      const [bg, fg] = !st ? [GREYW, MUTED] : st[1]==="ok" ? [GWASH, G700] : st[1]==="warn" ? [AMBERW, AMBER] : [GREYW, INK];
+      set(9.2, "bold", fg);
+      const bw = doc.getTextWidth(label) + 8;
+      doc.setFillColor.apply(doc, bg); doc.roundedRect(cx-0.5, y+7.6, bw, 6, 3, 3, "F");
+      doc.setFillColor.apply(doc, fg); doc.circle(cx+2.2, y+10.6, 0.9, "F");
+      doc.text(label, cx+4.2, y+11.9);
+    } else {
+      set(9.8, "bold", INK);
+      doc.text(doc.splitTextToSize(String(v), cw-8)[0], cx, y+12);
+    }
+  });
+  y += 20;
 
-  y += logoH + 4;
-  doc.setFillColor.apply(doc, GREEN); doc.rect(M, y, CW, 1.4, "F");
-  doc.setFillColor.apply(doc, RULE);  doc.rect(M, y+2.1, CW, 0.7, "F");
-  doc.setFillColor(231,233,227);      doc.rect(M, y+3.7, CW, 0.4, "F");
-  y += 9;
-
-  /* status stamp */
-  if(st){
-    const stampColor = st[1]==="ok" ? GDEEP : st[1]==="bad" ? INK : AMBER;
-    doc.setFont("helvetica","bold"); doc.setFontSize(10);
-    const label = st[0].toUpperCase();
-    const sw = doc.getTextWidth(label) + 9;
-    doc.setDrawColor.apply(doc, stampColor); doc.setLineWidth(0.7);
-    doc.roundedRect(R-sw, y, sw, 8, 1, 1);
-    doc.setTextColor.apply(doc, stampColor);
-    doc.text(label, R-sw/2, y+5.4, {align:"center"});
-  }
-  y += 13;
-
-  /* facts, two columns */
-  const colW = (CW-10)/2, yStart = y;
-  doc.setDrawColor.apply(doc, INK); doc.setLineWidth(0.5);
-  doc.line(M, y, M+colW, y); doc.line(M+colW+10, y, R, y);
-  y += 4;
-  doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor.apply(doc, MID);
-  doc.text("CUSTOMER", M, y); doc.text("MACHINE", M+colW+10, y);
-  y += 3;
-  const factTop = y;
-  kv([["Name",s.cust.name],["Phone",s.cust.phone],["Email",s.cust.email]], M, colW);
-  const leftEnd = y; y = factTop;
-  kv(machineRows(s), M+colW+10, colW);
-  y = Math.max(leftEnd, y) + 2;
+  /* customer and machine panels */
+  const colW = (CW-6)/2;
+  const custRows = [["Name",s.cust.name],["Phone",s.cust.phone],["Email",s.cust.email]];
+  const machRows = machineRows(s);
+  doc.setFont(F, "bold"); doc.setFontSize(9.6);
+  const boxH = 13 + Math.max(kvHeight(custRows, colW-10), kvHeight(machRows, colW-10));
+  ensure(boxH + 4);
+  [["Customer", custRows, M], ["Machine", machRows, M+colW+6]].forEach(([title, rows, x])=>{
+    doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE);
+    doc.roundedRect(x, y, colW, boxH, 2.5, 2.5, "FD");
+    set(9, "bold", MUTED); doc.text(title, x+5, y+6.5);
+    kv(rows, x+5, y+8.5, colW-10);
+  });
+  y += boxH + 2;
 
   /* sections */
-  let n = 1;
-  if(s.cust.intake){ head(n++, "Reported by customer"); para(s.cust.intake, {color:MID}); }
-  head(n++, "Symptoms observed");
+  if(s.cust.intake){ head("Reported by customer"); para(s.cust.intake, {color:INK2}); }
+  head("Symptoms observed");
   bullets(s.symptoms.concat(s.symptomsCustom));
-  if(s.symptomNotes) para(s.symptomNotes, {color:MID});
-  head(n++, "Diagnosis");
-  s.findings ? para(s.findings) : para("Not recorded.", {style:"italic", color:MUTED, size:10});
-  head(n++, "Work performed");
-  bullets(s.work.concat(s.workCustom));
-  if(s.workNotes) para(s.workNotes, {color:MID});
-  if(partRows.length){
-    y += 2;
-    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor.apply(doc, MID);
-    ensure(6); doc.text("PARTS FITTED", M, y+3); doc.text("QTY", R, y+3, {align:"right"}); y += 5;
-    doc.setDrawColor.apply(doc, RULE); doc.setLineWidth(0.2); doc.line(M, y, R, y); y += 1;
-    for(const p of partRows){
-      ensure(5.4);
-      doc.setFont("times","normal"); doc.setFontSize(10); doc.setTextColor.apply(doc, INK);
-      doc.text(String(p.name), M, y+3.6);
-      doc.text(String(p.qty||1), R, y+3.6, {align:"right"});
-      y += 5.2;
-      doc.setDrawColor(231,233,227); doc.line(M, y-1, R, y-1);
+  if(s.symptomNotes){ y += 1; para(s.symptomNotes, {color:INK2}); }
+  head("Diagnosis");
+  s.findings ? para(s.findings) : para("Not recorded.", {color:MUTED});
+  head("Work performed");
+  const sub = t => { ensure(8); y += 1; set(9, "bold", MUTED); doc.text(t, M, y+3); y += 5; };
+  if(s.std.length){
+    sub("Standard service");
+    bullets(s.std.filter(x=>x.done).map(x => x.item + (STD_DESC[x.item] ? "  ·  " + STD_DESC[x.item] : "")));
+    // Not done items: amber marker so the customer sees exactly what was left out and why
+    for(const x of s.std.filter(x=>!x.done)){
+      set(10, "normal", INK);
+      const lines = doc.splitTextToSize("Not done: " + x.item + (x.reason ? " (" + x.reason + ")" : ""), CW-8);
+      lines.forEach((ln,i)=>{
+        ensure(5.2);
+        if(i===0){ doc.setFillColor.apply(doc, AMBERW); doc.circle(M+2, y+2.3, 1.9, "F");
+          doc.setDrawColor.apply(doc, AMBER); doc.setLineWidth(0.5); doc.line(M+1.1, y+2.3, M+2.9, y+2.3); }
+        set(10, i===0 ? "bold" : "normal", AMBER); doc.text(ln, M+6.5, y+3.4); y += 4.8;
+      });
     }
   }
-  head(n++, "Verification");
+  const extra = s.extra.concat(s.extraCustom);
+  if(extra.length){ sub("Additional work"); bullets(extra); }
+  if(s.workNotes){ y += 1; para(s.workNotes, {color:INK2}); }
+  if(partRows.length){
+    y += 3; ensure(8 + partRows.length*6.5);
+    const top = y, rowH = 6.5, tableH = 7 + partRows.length*rowH;
+    doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3);
+    doc.setFillColor.apply(doc, PANEL); doc.roundedRect(M, top, CW, tableH, 2, 2, "FD");
+    doc.setFillColor(255,255,255); doc.rect(M+0.2, top+7, CW-0.4, tableH-7.2, "F");
+    set(8.6, "bold", MUTED); doc.text("Parts fitted", M+4, top+4.8); doc.text("Qty", R-4, top+4.8, {align:"right"});
+    y = top + 7;
+    partRows.forEach((p, i)=>{
+      if(i) { doc.setDrawColor.apply(doc, LINE); doc.line(M+0.2, y, R-0.2, y); }
+      set(9.8, "normal", INK); doc.text(String(p.name), M+4, y+4.4);
+      doc.text(String(p.qty||1), R-4, y+4.4, {align:"right"});
+      y += rowH;
+    });
+    y += 1;
+  }
+  head("Verification");
   bullets(s.verify.concat(s.verifyCustom));
-  if(s.verifyNotes) para(s.verifyNotes, {color:MID});
-  if(s.advice){ head(n++, "Recommendations"); para(s.advice); }
+  if(s.verifyNotes){ y += 1; para(s.verifyNotes, {color:INK2}); }
+  if(s.advice){ head("Recommendations"); para(s.advice); }
 
   /* sign-off */
-  ensure(24); y += 10;
+  ensure(24); y += 13;
   const sw2 = (CW-14)/2;
-  doc.setDrawColor.apply(doc, INK); doc.setLineWidth(0.3);
+  set(10.5, "bold", INK);
+  if(s.shop.tech) doc.text(s.shop.tech, M, y-2.5);
+  if(s.cust.name) doc.text(s.cust.name, M+sw2+14, y-2.5);
+  doc.setDrawColor.apply(doc, [205,211,200]); doc.setLineWidth(0.3);
   doc.line(M, y, M+sw2, y); doc.line(M+sw2+14, y, R, y);
-  doc.setFont("times","normal"); doc.setFontSize(10.5); doc.setTextColor.apply(doc, INK);
-  if(s.shop.tech) doc.text(s.shop.tech, M, y-2);
-  if(s.cust.name) doc.text(s.cust.name, M+sw2+14, y-2);
-  doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor.apply(doc, MID);
-  doc.text("Technician, "+(s.shop.name||"Layer by Layer"), M, y+3.6);
-  doc.text("Received in working order: signature and date", M+sw2+14, y+3.6);
-  y += 10;
+  set(8.6, "normal", MUTED);
+  doc.text("MDR Specialist, "+(s.shop.name||"Layer by Layer"), M, y+4.5);
+  doc.text("Received: signature and date", M+sw2+14, y+4.5);
+  y += 11;
 
   if(s.job.terms){
-    ensure(14);
-    doc.setDrawColor.apply(doc, RULE); doc.setLineWidth(0.2); doc.line(M, y, R, y); y += 3;
-    para(s.job.terms, {font:"helvetica", size:7.6, color:MID});
+    set(7.8, "normal", MUTED);
+    const lines = doc.splitTextToSize(String(s.job.terms), CW-10);
+    const th = 6 + lines.length*lh(7.8);
+    ensure(th + 2);
+    doc.setFillColor.apply(doc, PANEL); doc.roundedRect(M, y, CW, th, 2, 2, "F");
+    set(7.8, "normal", MUTED);
+    lines.forEach((ln,i)=> doc.text(ln, M+5, y+4.6+i*lh(7.8)));
+    y += th;
   }
 
   /* footers */
   const pages = doc.getNumberOfPages();
   for(let i=1; i<=pages; i++){
     doc.setPage(i);
-    doc.setFillColor.apply(doc, GREEN); doc.rect(M, 285, CW, 0.8, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.6); doc.setTextColor.apply(doc, MUTED);
-    doc.text((s.shop.name||"Layer by Layer")+" · "+(s.job.ref||""), M, 290);
-    doc.text("Page "+i+" of "+pages, R, 290, {align:"right"});
+    doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, 284, R, 284);
+    set(7.8, "normal", MUTED);
+    doc.text((s.shop.name||"Layer by Layer")+"  ·  "+(s.job.ref||"Service report"), M, 289);
+    doc.text("Page "+i+" of "+pages, R, 289, {align:"right"});
   }
 
   const safe = t => String(t||"").replace(/[^A-Za-z0-9-_]+/g,"-").replace(/^-|-$/g,"");
@@ -1209,8 +1325,6 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
 (async function(){
   document.getElementById("barLogo").src = LOGO;
   document.getElementById("gateLogo").src = LOGO;
-  await loadStore();
-  state.shop.tech = (store.shop||{}).tech || "";
   render();
   try{ localStorage.removeItem(PIN_KEY); }catch(e){} // forget passwords older versions remembered
   // A refresh logs out, so warn before throwing away an unsaved report.
