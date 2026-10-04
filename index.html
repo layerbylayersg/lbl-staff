@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Layer by Layer · Staff Service Report</title>
+<title>Layer By Layer · Staff Service Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
@@ -220,6 +220,39 @@
   .nomatch{margin:10px 2px 0;font-size:13px;color:var(--muted)}
   .chip .x{border:0;background:none;padding:0 0 0 2px;cursor:pointer}
 
+  /* step bar: where you are, what is done, what still needs filling in */
+  .steps{position:sticky;top:57px;z-index:20;display:flex;gap:4px;margin:0 0 14px;padding:6px;
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .steps button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;
+    border:0;background:none;border-radius:8px;font:inherit;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+  .steps button:hover{background:var(--surface-2);color:var(--ink)}
+  .steps .n{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+    background:var(--surface-2);border:1px solid var(--line-strong);font-size:11.5px;font-weight:700;color:var(--ink-2)}
+  .steps .done{color:var(--green-ink)}
+  .steps .done .n{background:var(--green-700);border-color:var(--green-700);color:#fff}
+  .steps .needs .n{border-color:var(--red-ink);background:var(--red-wash);color:var(--red-ink)}
+  .stage{scroll-margin-top:130px}
+  .stage > h2 small.need{color:var(--red-ink);font-weight:600}
+  .stage > h2 small.need:empty{display:none}
+  .addnote{display:inline-flex;margin-top:10px;padding:6px 2px;border:0;background:none;font:inherit;font-size:13.5px;font-weight:600;color:var(--green-ink);cursor:pointer}
+  .addnote:hover{text-decoration:underline;text-underline-offset:3px}
+  .hint.inline{display:inline;margin:0}
+  .summarycard{margin-top:14px}
+  .info .ir.rep{align-items:flex-start;padding:9px 0}
+  .info .ir.rep p{margin:0;flex:1;min-width:0;font-size:14px;line-height:1.5}
+  .aitools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+  .aitools .mini{height:32px;font-size:13px}
+  .aihint{font-size:12.5px;color:var(--muted)}
+  .aisuggest{margin-top:10px;padding:12px 14px;border:1px solid #CFE3B0;background:var(--green-wash);border-radius:10px}
+  .aisuggest p{margin:0;font-size:14px;line-height:1.5}
+  .aisuggest .ailabel{display:block;font-size:12px;font-weight:700;color:var(--green-ink);margin-bottom:4px}
+  .aisuggest .aiload{color:var(--muted)}
+  .aisuggest .aierr{color:var(--red-ink)}
+  .aibtns{display:flex;gap:8px;margin-top:10px}
+  .quick{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .quick .sugg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex-basis:100%;font-size:12.5px;color:var(--muted)}
+  .quick .sug{height:30px;font-size:12.5px;border-style:dashed}
+  .outcome{margin-bottom:4px}
   .std{display:grid;gap:6px}
   .stdrow{border:1px solid #CFE3B0;background:var(--green-wash);border-radius:10px;padding:10px 12px}
   .stdrow label{display:flex;flex-wrap:wrap;align-items:flex-start;column-gap:10px;row-gap:1px;cursor:pointer}
@@ -295,9 +328,6 @@
   table.tbl tr:last-child td{border-bottom:0}
   table.tbl .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 
-  .signrow{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:60px;page-break-inside:avoid}
-  .signrow .sig{border-top:1px solid var(--line-strong);padding-top:8px;font-size:12.5px;color:var(--muted)}
-  .signrow .sig b{display:block;color:var(--ink);font-size:14px;font-weight:600;min-height:20px;margin-top:-30px;margin-bottom:10px}
   .terms{margin-top:24px;background:var(--surface-2);border-radius:10px;padding:12px 14px;font-size:11.5px;color:var(--muted);line-height:1.55}
 
   /* ---------- saved jobs ---------- */
@@ -328,8 +358,7 @@
     .mobiletabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:var(--shadow)}
     body.show-preview .pane{display:none}
     body.show-form .preview{display:none}
-    .facts,.signrow{grid-template-columns:1fr;gap:12px}
-    .signrow{gap:40px}
+    .facts{grid-template-columns:1fr;gap:12px}
     .bar .sub{display:none}
   }
   /* phones */
@@ -337,6 +366,7 @@
     /* no blur here: backdrop-filter would trap the fixed bottom bar inside the top bar */
     .bar{padding:8px 12px;gap:10px;backdrop-filter:none;background:var(--surface)}
     .bar h1{font-size:15px}
+    .steps{top:53px}
     .pane{padding:14px 12px 0}
     .finish{padding:0 12px calc(24px + env(safe-area-inset-bottom))}
     .finish .actions button{height:44px}
@@ -367,9 +397,9 @@
 
 <div id="gate">
   <form id="gateForm">
-    <img id="gateLogo" alt="Layer by Layer">
+    <img id="gateLogo" alt="Layer By Layer">
     <h1>Service reports</h1>
-    <p>Layer by Layer staff only.</p>
+    <p>Layer By Layer staff only.</p>
     <label>Staff password
       <input type="password" id="gatePw" autocomplete="current-password" required>
     </label>
@@ -379,7 +409,7 @@
 </div>
 
 <div class="bar">
-  <img id="barLogo" alt="Layer by Layer">
+  <img id="barLogo" alt="Layer By Layer">
   <h1>Service report</h1>
   <span class="sub">Maintenance, diagnosis &amp; repair</span>
   <button id="btnLogout">Log out</button>
@@ -396,7 +426,7 @@
   <section class="preview"><div class="sheet" id="sheet"></div></section>
   <div class="finish" id="finish" hidden>
     <div class="stage">
-      <h2><span class="n">9</span>Save &amp; send</h2>
+      <h2><span class="n">6</span>Save &amp; send</h2>
       <p class="hint">Check the report preview, save it, then send it to the customer.</p>
       <div class="actions">
         <button id="btnSave" class="primary">Save job</button>
@@ -416,7 +446,7 @@
       <label class="f">To<input type="email" id="mailTo" required placeholder="customer@example.com"></label>
       <label class="f">Subject<input id="mailSubject" required></label>
       <label class="f">Message<textarea id="mailBody" required></textarea></label>
-      <p class="hint">Attached: <b id="mailFile"></b>. Sent from the Layer by Layer Gmail.</p>
+      <p class="hint">Attached: <b id="mailFile"></b>. Sent from the Layer By Layer Gmail.</p>
       <p id="mailMsg" role="alert"></p>
     </div>
     <footer><button type="button" id="mailCancel">Cancel</button><button type="submit" class="primary" id="mailSend">Send email</button></footer>
@@ -436,7 +466,7 @@ const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANwAAAEECAYAAABDQFp3
 const LOGO_RATIO = 220/260; // width / height, as supplied
 
 /* Fixed business identity, on every report. */
-const SHOP_NAME    = "Layer by Layer";
+const SHOP_NAME    = "Layer By Layer";
 const SHOP_CONTACT = "+65 8986 7382 · layerbylayer.sg@gmail.com";
 
 // Saves each report to the MDR Sheet (Service Reports, Service Log, Summary tabs).
@@ -528,6 +558,25 @@ function pad(n){ return String(n).padStart(2,"0"); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function nl2br(s){ return esc(s).replace(/\n/g,"<br>"); }
 
+// Same lists as the MDR intake form (site/index.html PRINTER_DATA and Which MFMS?). Keep in sync.
+const MODELS = {
+  "Bambu Lab": ["A1 Mini","A1","A2L","P1P","P1S","P2S","X1C","X1E","X2D","H2S","H2D","H2D Pro","H2C"],
+  "Creality": ["Ender-3 V3 SE","Ender-3 V3 KE","Ender-3 V3 Plus","Ender-3 V3","Ender-3 V4","SPARKX i7","Creality Hi",
+               "K1 SE","K1","K1C","K2 SE","K2","Ender-5 Max","K1 Max","K2 Plus","K2 Pro"]
+};
+const MFMS_LIST = ["AMS Lite","AMS 1","AMS 2","CFS","CFS-C"];
+// Dropdown + "Other / not listed" (then a text box), like the intake form. machine.<key>Other marks the text box.
+function pickField(key, label, options, opts){
+  opts = opts || {};
+  const m = state.machine, v = m[key], other = !!m[key+"Other"];
+  const sel = options.includes(v) ? v : (other ? "Other" : "");
+  let h = '<label class="f'+(opts.span?" span2":"")+'">'+esc(label)+'<select data-msel="'+key+'"'+(opts.disabled?" disabled":"")+'>'+
+    '<option value="">'+esc(opts.disabled ? "Select brand first" : "Select...")+'</option>'+
+    options.map(o=>'<option'+(o===sel?" selected":"")+'>'+esc(o)+'</option>').join("")+
+    '<option value="Other"'+(sel==="Other"?" selected":"")+'>Other / not listed</option></select></label>';
+  if(sel === "Other") h += field("machine."+key, "Please specify "+(label === label.toUpperCase() ? label : label.toLowerCase()), {ph:opts.ph||""});
+  return h;
+}
 const hasPrinter = s => s.job.serviceType !== "MFMS only";
 const hasMfms = s => s.job.serviceType === "MFMS only" || s.job.serviceType === "Printer + MFMS" || (s.machine.mfms && s.machine.mfms !== "None");
 function stdFor(s){
@@ -611,6 +660,7 @@ function openJob(j){
     applyJob(j);
     state.std = stdFor(state);
   }
+  NOTES_OPEN.clear(); AI = null;
   dirty = false; clearStatus();
 }
 // What gets saved: the standard checklist is folded into Work Performed and Not done for the Sheet.
@@ -717,9 +767,44 @@ function renderForm(){
     return;
   }
 
+  const m = s.machine;
+  const summary = custom ? `
+      <h3 class="sub">Customer</h3>
+      <div class="grid">
+        ${field("cust.name","Name")}${field("cust.phone","Phone",{type:"tel",ph:"For WhatsApp, e.g. 9123 4567"})}
+        ${field("cust.email","Email",{type:"email",span:true})}
+        ${field("cust.intake","Customer reported",{type:"textarea",span:true,ph:"The problem in the customer's words."})}
+      </div>
+      <h3 class="sub">Machine</h3>
+      <div class="grid">
+        ${hasPrinter(s) ? pickField("brand","Printer brand",Object.keys(MODELS),{ph:"e.g. Prusa, Anycubic"}) +
+            (m.brandOther ? field("machine.model","Printer model",{ph:"e.g. MK4"})
+              : pickField("model","Printer model",MODELS[m.brand]||[],{disabled:!MODELS[m.brand],ph:"e.g. Kobra 2"})) +
+            field("machine.serial","Printer serial",{span:true,ph:"NA if unreadable"}) : ""}
+        ${hasMfms(s) ? pickField("mfms","MFMS",MFMS_LIST,{ph:"e.g. other brand's system"}) + field("machine.mfmsSerial","MFMS serial",{ph:"NA if unreadable"}) : ""}
+      </div>` : `
+      <div class="info summarycard">
+        ${infoRow("Customer", s.cust.name)}
+        ${infoRow("Contact", [s.cust.phone, s.cust.email].filter(Boolean).join(" · "))}
+        ${hasPrinter(s) ? infoRow("Printer", (m.brand+" "+m.model).trim()) + infoRow("Serial", m.serial, naButton("serial", m.serial)) : ""}
+        ${hasMfms(s) ? infoRow("MFMS", m.mfms) + infoRow("MFMS serial", m.mfmsSerial, naButton("mfmsSerial", m.mfmsSerial)) : ""}
+        <div class="ir rep"><span>Reported</span><p>${s.cust.intake ? nl2br(s.cust.intake) : "–"}</p></div>
+      </div>
+      <p class="hint">Details come from the MDR Sheet. To change them, edit the Sheet, then press Refresh.</p>`;
+
+  const handedOver = !hasPrinter(s) ? "" : (NOTES_OPEN.has("handed") || m.nozzle || m.plate || m.filament) ? `
+      <h3 class="sub">Parts handed over</h3>
+      <div class="grid">
+        ${field("machine.nozzle","Nozzle",{ph:"0.4 mm hardened"})}
+        ${field("machine.plate","Build plate",{ph:"Textured PEI"})}
+        ${field("machine.filament","Filament",{span:true,ph:"PLA / PETG / ABS"})}
+      </div>` : '<button type="button" class="addnote" data-note="handed">+ Parts handed over (nozzle, plate, filament)</button>';
+
   p.innerHTML = `
-    <div class="stage">
-      <h2><span class="n">1</span>Job</h2>
+    <nav class="steps" id="steps" aria-label="Report steps"></nav>
+
+    <div class="stage" id="st-job">
+      <h2><span class="n">1</span>Job<small class="need" data-need="job"></small></h2>
       <div class="grid">
         ${pick}
         ${specialist}
@@ -727,56 +812,24 @@ function renderForm(){
         ${custom ? '<label class="f">Service type<select data-stype="1">'+["Printer only","Printer + MFMS","MFMS only"].map(t=>'<option'+(t===s.job.serviceType?" selected":"")+'>'+t+'</option>').join("")+'</select></label>' : ""}
       </div>
       <div class="refs"><span>${custom ? "<b>Custom job</b>" : "Quotation <b>"+esc(s.job.quoteNo)+"</b>"}</span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
+      ${summary}
+      ${handedOver}
     </div>
 
-    <div class="stage">
-      <h2><span class="n">2</span>Customer</h2>
-      ${custom ? `<div class="grid">
-        ${field("cust.name","Name")}${field("cust.phone","Phone",{type:"tel",ph:"For WhatsApp, e.g. 9123 4567"})}
-        ${field("cust.email","Email",{type:"email",span:true})}
-        ${field("cust.intake","Customer reported",{type:"textarea",span:true,ph:"The problem in the customer's words."})}
-      </div>` : `<div class="info">
-        ${infoRow("Name", s.cust.name)}${infoRow("Phone", s.cust.phone)}${infoRow("Email", s.cust.email)}
-      </div>
-      <div class="info reported"><span>Customer reported</span><p>${s.cust.intake ? nl2br(s.cust.intake) : "–"}</p></div>
-      <p class="hint">To change these, edit the job in the MDR Sheet, then press Refresh.</p>`}
-    </div>
-
-    <div class="stage">
-      <h2><span class="n">3</span>Machine</h2>
-      ${custom ? `<div class="grid">
-        ${hasPrinter(s) ? field("machine.brand","Printer brand",{ph:"Bambu Lab"}) + field("machine.model","Printer model",{ph:"P1S"}) + field("machine.serial","Printer serial",{span:true,ph:"NA if unreadable"}) : ""}
-        ${hasMfms(s) ? field("machine.mfms","MFMS",{ph:"AMS"}) + field("machine.mfmsSerial","MFMS serial",{ph:"NA if unreadable"}) : ""}
-      </div>` : `<div class="info">
-        ${hasPrinter(s) ? infoRow("Printer", (s.machine.brand+" "+s.machine.model).trim()) + infoRow("Serial", s.machine.serial, naButton("serial", s.machine.serial)) : ""}
-        ${hasMfms(s) ? infoRow("MFMS", s.machine.mfms) + infoRow("MFMS serial", s.machine.mfmsSerial, naButton("mfmsSerial", s.machine.mfmsSerial)) : ""}
-      </div>`}
-      ${hasPrinter(s) ? `
-      <h3 class="sub">Parts handed over</h3>
-      <div class="grid">
-        ${field("machine.nozzle","Nozzle",{ph:"0.4 mm hardened"})}
-        ${field("machine.plate","Build plate",{ph:"Textured PEI"})}
-        ${field("machine.filament","Filament",{span:true,ph:"PLA / PETG / ABS"})}
-      </div>` : ""}
-    </div>
-
-    <div class="stage">
-      <h2><span class="n">4</span>Symptoms found<small>${s.symptoms.length+s.symptomsCustom.length} selected</small></h2>
+    <div class="stage" id="st-inspect">
+      <h2><span class="n">2</span>Inspect<small class="need" data-need="inspect"></small></h2>
+      <h3 class="sub">Symptoms found<small data-count="symptoms">${s.symptoms.length+s.symptomsCustom.length} selected</small></h3>
       ${optionGroups("symptoms","symptomsCustom",SYMPTOMS,"Search symptoms...")}
-      <div class="grid one" style="margin-top:12px">
-        ${field("symptomNotes","Symptom notes",{type:"textarea",ph:"Anything the options don't cover."})}
-      </div>
-    </div>
-
-    <div class="stage">
-      <h2><span class="n">5</span>Diagnosis</h2>
+      ${noteToggle("symptomNotes","Symptom note","Anything the options don't cover.")}
+      <h3 class="sub">Diagnosis</h3>
       <div class="grid one">
-        ${field("findings","What was actually wrong, and why",{type:"textarea",ph:"e.g. Heat creep from a failing hotend fan caused repeated partial clogs; fan measured 40% of rated speed and stalled when warm."})}
+        ${field("findings","What was actually wrong, and why",{type:"textarea",ph:"Type it rough, then press Polish. e.g. nozzle jam bcos heat creep, hotend fan weak"})}
       </div>
+      ${aiTools("findings", true)}
     </div>
 
-    <div class="stage">
-      <h2><span class="n">6</span>Work performed</h2>
+    <div class="stage" id="st-fix">
+      <h2><span class="n">3</span>Fix<small class="need" data-need="fix"></small></h2>
       <h3 class="sub">Standard service<small>Untick anything not done and say why</small></h3>
       <div class="std">
         ${s.std.map((x,i)=>`
@@ -785,44 +838,162 @@ function renderForm(){
             ${x.done?"":`<input type="text" class="reason" data-stdreason="${i}" value="${esc(x.reason)}" placeholder="Why not done? e.g. nozzle damaged, customer will replace it" aria-label="Reason ${esc(x.item)} was not done">`}
           </div>`).join("")}
       </div>
-      <h3 class="sub">Additional work<small>${s.extra.length+s.extraCustom.length} selected</small></h3>
+      <h3 class="sub">Additional work<small data-count="extra">${s.extra.length+s.extraCustom.length} selected</small></h3>
       ${optionGroups("extra","extraCustom",EXTRA,"Search repairs and adjustments...")}
-      <div class="grid one" style="margin-top:12px">
-        ${field("workNotes","Work notes",{type:"textarea"})}
-      </div>
-      <h3 class="sub">Parts fitted</h3>
+      ${noteToggle("workNotes","Work note","Anything else about the work done.")}
+      <h3 class="sub">Parts fitted<small>"Replaced ..." items add themselves</small></h3>
       <table class="parts"><thead><tr><th>Part</th><th>Qty</th><th></th></tr></thead>
-      <tbody>${s.parts.map((pt,i)=>`
+      <tbody id="partsBody">${partsRows()}</tbody></table>
+      <div class="addrow"><button type="button" id="addPart">Add part</button></div>
+    </div>
+
+    <div class="stage" id="st-test">
+      <h2><span class="n">4</span>Test<small class="need" data-need="test"></small></h2>
+      <div class="quick" id="quickTests">${quickRow(s)}</div>
+      <h3 class="sub">Checks done<small data-count="verify">${s.verify.length+s.verifyCustom.length} selected</small></h3>
+      ${optionGroups("verify","verifyCustom",VERIFY,"Search checks...")}
+      ${noteToggle("verifyNotes","Test results","e.g. 3 h benchmark print completed with no under-extrusion; first layer even across the plate.")}
+    </div>
+
+    <div class="stage" id="st-handover">
+      <h2><span class="n">5</span>Handover<small class="need" data-need="handover"></small></h2>
+      <h3 class="sub">Outcome<small>Shown as the badge on the report</small></h3>
+      <div class="chips outcome" role="radiogroup" aria-label="Outcome">
+        ${STATUS.map(st=>'<label class="chip"><input type="radio" name="outcome" data-outcome="1" value="'+esc(st[0])+'"'+(st[0]===s.job.status?" checked":"")+'>'+esc(st[0])+'</label>').join("")}
+      </div>
+      <div class="grid one" style="margin-top:16px">
+        ${field("advice","Recommendations for the customer",{type:"textarea",ph:"Preventive maintenance, settings to keep, what to watch for. Or press Draft for me."})}
+      </div>
+      ${aiTools("advice", true)}
+      ${NOTES_OPEN.has("terms") ? '<div class="grid one" style="margin-top:14px">'+field("job.terms","Warranty & terms",{type:"textarea"})+'</div>'
+        : '<button type="button" class="addnote" data-note="terms">Edit warranty &amp; terms</button><span class="hint inline"> Standard terms are printed on the report.</span>'}
+    </div>
+  `;
+  updateSteps();
+}
+
+/* ---------- form helpers: steps, notes, AI, auto parts ---------- */
+const STEPS = [["job","Job"],["inspect","Inspect"],["fix","Fix"],["test","Test"],["handover","Handover"]];
+// What each step still needs, and whether it counts as done.
+function stepStatus(s){
+  const need = { job:[], inspect:[], fix:[], test:[], handover:[] };
+  if(!String(s.shop.tech||"").trim()) need.job.push("MDR Specialist");
+  if(s.job.custom && !String(s.cust.name||"").trim()) need.job.push("customer name");
+  if(!String(s.findings||"").trim()) need.inspect.push("Diagnosis");
+  if(s.std.some(x => !x.done && !String(x.reason||"").trim())) need.fix.push("reason for each unticked item");
+  if(!s.job.status) need.handover.push("Outcome");
+  const done = {
+    job: !need.job.length, inspect: !need.inspect.length, fix: !need.fix.length,
+    test: !!(s.verify.length || s.verifyCustom.length || String(s.verifyNotes||"").trim()),
+    handover: !need.handover.length
+  };
+  return { need, done };
+}
+function updateSteps(){
+  const bar = document.getElementById("steps");
+  if(!bar) return;
+  const { need, done } = stepStatus(state);
+  bar.innerHTML = STEPS.map(([id,label],i) =>
+    '<button type="button" data-step="'+id+'" class="'+(done[id]?"done":"")+(need[id].length?" needs":"")+'"'+
+    (need[id].length ? ' title="Needs: '+esc(need[id].join(", "))+'"' : "")+'><span class="n">'+(done[id]?"✓":i+1)+'</span>'+label+'</button>').join("");
+  pane.querySelectorAll("[data-need]").forEach(el => {
+    const n = need[el.dataset.need] || [];
+    el.textContent = n.length ? "Needs: " + n.join(", ") : "";
+  });
+}
+// Optional notes stay a one-line link until opened or filled in.
+const NOTES_OPEN = new Set();
+function noteToggle(path, label, ph){
+  if(!NOTES_OPEN.has(path) && !String(get(path)||"").trim())
+    return '<button type="button" class="addnote" data-note="'+path+'">+ Add '+esc(label.toLowerCase())+'</button>';
+  return '<div class="grid one" style="margin-top:12px">'+field(path,label,{type:"textarea",ph})+'</div>'+aiTools(path, false);
+}
+// "Polish" / "Draft for me" under a writing box, plus the suggestion panel when one is showing.
+let AI = null; // { path, loading, text, error }
+function aiTools(path, canDraft){
+  let h = '<div class="aitools">'+
+    '<button type="button" class="mini" data-ai="polish" data-path="'+path+'">Polish</button>'+
+    (canDraft ? '<button type="button" class="mini" data-ai="draft" data-path="'+path+'">Draft for me</button>' : "")+
+    '<span class="aihint">AI fixes grammar and wording; you choose whether to use it.</span></div>';
+  if(AI && AI.path === path){
+    h += '<div class="aisuggest" role="status">' + (AI.loading ? '<p class="aiload">Writing...</p>'
+      : AI.error ? '<p class="aierr">'+esc(AI.error)+'</p><div class="aibtns"><button type="button" class="mini" data-aikeep="1">Close</button></div>'
+      : '<span class="ailabel">Suggested</span><p>'+nl2br(AI.text)+'</p><div class="aibtns">'+
+        '<button type="button" class="mini primary" data-aiuse="1">Use this</button><button type="button" class="mini" data-aikeep="1">Keep mine</button></div>') + '</div>';
+  }
+  return h;
+}
+// Facts the AI may use. No customer name, phone or email is ever sent.
+function aiContext(s){
+  const machine = [hasPrinter(s) ? (s.machine.brand+" "+s.machine.model).trim() : "", hasMfms(s) ? s.machine.mfms : ""].filter(Boolean).join(" + ");
+  const r = reportPayload();
+  return { machine, serviceType: s.job.serviceType, customerReported: s.cust.intake || "",
+    symptoms: s.symptoms.concat(s.symptomsCustom), symptomNotes: s.symptomNotes || "", diagnosis: s.findings || "",
+    workDone: r.work.concat(r.workCustom), notDone: r.notDone, partsFitted: s.parts.filter(p=>p.name).map(p=>p.name+" x"+(p.qty||1)),
+    checks: s.verify.concat(s.verifyCustom), testResults: s.verifyNotes || "", outcome: s.job.status || "" };
+}
+async function runAi(mode, path){
+  const text = String(get(path)||"");
+  if(mode === "polish" && !text.trim()){ toast("Type something first, or use Draft for me."); return; }
+  AI = { path, loading:true }; render();
+  try{
+    const out = await callSheet({ action:"aiText", mode, field:path, text, context: aiContext(state) });
+    if(out.result !== "success"){
+      if(out.message === "Wrong password."){ AI = null; lock("Password changed. Log in again."); return; }
+      AI = { path, error: out.message };
+    } else AI = { path, text: out.text };
+  }catch(e){ AI = { path, error: "No connection? Try again." }; }
+  if(AI && AI.path === path) render();
+}
+// Ticking "Replaced X" adds X to Parts fitted (and unticking removes it if it was added that way).
+function partFromWork(item){
+  const m = /^Replaced (.+?)( \(MFMS\))?$/.exec(item);
+  if(!m) return "";
+  const n = m[1] + (m[2] ? " (MFMS)" : "");
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+function syncAutoPart(item, on){
+  const name = partFromWork(item);
+  if(!name) return false;
+  const i = state.parts.findIndex(p => p.name.trim().toLowerCase() === name.toLowerCase());
+  if(on && i < 0) state.parts.push({ name, qty:"1", auto:true });
+  else if(!on && i >= 0 && state.parts[i].auto) state.parts.splice(i, 1);
+  else return false;
+  return true;
+}
+function partsRows(){
+  return state.parts.map((pt,i)=>`
         <tr>
           <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
           <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="decimal" aria-label="Part ${i+1} quantity"></td>
           <td class="d"><button type="button" data-delpart="${i}" title="Remove part" aria-label="Remove part ${i+1}">&times;</button></td>
-        </tr>`).join("")}</tbody></table>
-      <div class="addrow"><button type="button" id="addPart">Add part</button></div>
-    </div>
-
-    <div class="stage">
-      <h2><span class="n">7</span>Verification<small>${s.verify.length+s.verifyCustom.length} selected</small></h2>
-      ${optionGroups("verify","verifyCustom",VERIFY,"Search checks...")}
-      <div class="grid one" style="margin-top:12px">
-        ${field("verifyNotes","Test results",{type:"textarea",ph:"e.g. 3 h benchmark print completed with no under-extrusion; first layer even across the plate."})}
-      </div>
-    </div>
-
-    <div class="stage">
-      <h2><span class="n">8</span>Handover</h2>
-      <div class="grid one">
-        ${field("advice","Recommendations for the customer",{type:"textarea",ph:"Preventive maintenance, settings to keep, what to watch for."})}
-      </div>
-      <div class="grid" style="margin-top:12px">
-        <label class="f span2">Outcome (shown as the badge on the report)<select data-f="job.status">
-          <option value="">Choose the outcome...</option>
-          ${STATUS.map(st=>'<option'+(st[0]===s.job.status?" selected":"")+'>'+esc(st[0])+'</option>').join("")}
-        </select></label>
-        ${field("job.terms","Warranty & terms",{type:"textarea",span:true})}
-      </div>
-    </div>
-  `;
+        </tr>`).join("");
+}
+// Test shortcuts: the usual checks in one tap, and checks that match the symptoms ticked.
+const STD_TESTS = {
+  printer: ["Benchmark test print completed","Cold and hot function test","Homing and bed levelling check","Fans and sensors checked","Visual inspection passed"],
+  mfms: ["All slots load and unload","Filament switching test passed"]
+};
+const SYMPTOM_TESTS = {
+  "Extrusion & filament": ["Benchmark test print completed","Extended soak test"],
+  "Motion & mechanical": ["Motion system checked by hand","Homing and bed levelling check"],
+  "Bed & first layer": ["First layer test passed","Homing and bed levelling check"],
+  "Thermal & electrical": ["Cold and hot function test","Fans and sensors checked","Extended soak test"],
+  "Print quality": ["Benchmark test print completed","Temperature tower run"],
+  "MFMS (AMS / CFS)": ["All slots load and unload","Filament switching test passed","RFID reads spools"]
+};
+function suggestedTests(s){
+  const out = [];
+  SYMPTOMS.forEach(([group, items]) => {
+    if(items.some(i => s.symptoms.includes(i)))
+      (SYMPTOM_TESTS[group]||[]).forEach(t => { if(!s.verify.includes(t) && !out.includes(t)) out.push(t); });
+  });
+  return out;
+}
+function quickRow(s){
+  const sug = suggestedTests(s);
+  return '<button type="button" class="mini" data-stdtests="1">Standard tests passed</button>' +
+    (sug.length ? '<span class="sugg"><span>Suggested from symptoms:</span>'+sug.map(t=>'<button type="button" class="mini sug" data-addverify="'+esc(t)+'">+ '+esc(t)+'</button>').join("")+'</span>' : "");
 }
 
 /* ---------- report ---------- */
@@ -913,11 +1084,6 @@ function renderReport(){
 
       ${s.advice?`<div class="sec"><h3>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
 
-      <div class="signrow">
-        <div class="sig"><b>${esc(s.shop.tech||"")}</b>MDR Specialist, ${esc(s.shop.name)}</div>
-        <div class="sig"><b>${esc(s.cust.name||"")}</b>Received: signature and date</div>
-      </div>
-
       ${s.job.terms?`<div class="terms">${nl2br(s.job.terms)}</div>`:""}
     </div>`;
 }
@@ -974,16 +1140,25 @@ function startCustom(){
   state = blank(); state.shop.tech = tech;
   state.job.custom = true; state.job.serviceType = "Printer only";
   state.std = stdFor(state);
+  NOTES_OPEN.clear(); AI = null;
   dirty = false; clearStatus(); render();
 }
 pane.addEventListener("change", e=>{
   const t = e.target;
   if(t.dataset.pickjob !== undefined){ if(t.value === "__custom") startCustom(); else if(t.value) pickJob(t.value); return; }
+  if(t.dataset.msel){
+    const k = t.dataset.msel, m = state.machine, other = t.value === "Other";
+    m[k] = other ? "" : t.value; m[k+"Other"] = other;
+    if(k === "brand"){ m.model = ""; m.modelOther = false; }
+    markDirty(); render();
+    if(other){ const box = pane.querySelector('[data-f="machine.'+k+'"]'); if(box) box.focus(); }
+    return;
+  }
   if(t.dataset.stype){
     // keep what was ticked/unticked for items that stay on the checklist
     const old = state.std; state.job.serviceType = t.value;
     if(t.value === "Printer only"){ state.machine.mfms = "None"; state.machine.mfmsSerial = ""; }
-    else if(state.machine.mfms === "None") state.machine.mfms = "";
+    else if(state.machine.mfms === "None"){ state.machine.mfms = ""; state.machine.mfmsOther = false; }
     state.std = stdFor(state).map(x => old.find(o => o.item === x.item) || x);
     markDirty(); render(); return;
   }
@@ -1001,19 +1176,26 @@ pane.addEventListener("change", e=>{
     const g = t.closest(".accg"), cnt = g && g.querySelector(".cnt");
     if(cnt){ const n = g.querySelectorAll("input:checked").length; cnt.textContent = n + " ticked"; cnt.hidden = !n; }
     const custom = state[{symptoms:"symptomsCustom", extra:"extraCustom", verify:"verifyCustom"}[key]];
-    const small = key === "extra" ? t.closest(".stage").querySelectorAll("h3.sub small")[1] : t.closest(".stage").querySelector("h2 small");
+    const small = pane.querySelector('[data-count="'+key+'"]');
     if(small) small.textContent = (arr.length + custom.length) + " selected";
-    renderReport();
+    if(key === "extra" && syncAutoPart(t.value, t.checked)) document.getElementById("partsBody").innerHTML = partsRows();
+    if(key !== "extra"){ const q = document.getElementById("quickTests"); if(q) q.innerHTML = quickRow(state); }
+    renderReport(); updateSteps();
     return;
   }
+  if(t.dataset.outcome){ state.job.status = t.value; markDirty(); renderReport(); updateSteps(); return; }
   if(t.dataset.f === "shop.tech"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
 });
 pane.addEventListener("input", e=>{
   const t = e.target;
   if(t.dataset.search !== undefined){ filterGroups(t); return; }
-  if(t.dataset.f){ markDirty(); set(t.dataset.f, t.value); renderReport(); return; }
-  if(t.dataset.stdreason !== undefined){ markDirty(); state.std[+t.dataset.stdreason].reason = t.value; renderReport(); return; }
-  if(t.dataset.part){ markDirty(); state.parts[+t.dataset.i][t.dataset.part] = t.value; renderReport(); }
+  if(t.dataset.f){ markDirty(); set(t.dataset.f, t.value); renderReport(); updateSteps(); return; }
+  if(t.dataset.stdreason !== undefined){ markDirty(); state.std[+t.dataset.stdreason].reason = t.value; renderReport(); updateSteps(); return; }
+  if(t.dataset.part){
+    markDirty(); const pt = state.parts[+t.dataset.i]; pt[t.dataset.part] = t.value;
+    if(t.dataset.part === "name") pt.auto = false; // renamed by hand: no longer tied to a "Replaced" tick
+    renderReport();
+  }
 });
 // Remember which groups are open (toggle does not bubble, so listen in the capture phase)
 pane.addEventListener("toggle", e=>{
@@ -1047,6 +1229,27 @@ pane.addEventListener("click", e=>{
     const k = t.dataset.setna; state.machine[k] = "NA"; state.machine[k + "Corrected"] = true;
     markDirty(); render(); toast("Set to NA. It updates in the MDR Sheet when you save."); return;
   }
+  if(t.dataset.step){
+    const st = document.getElementById("st-" + t.dataset.step);
+    if(st) st.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start" });
+    return;
+  }
+  if(t.dataset.note){
+    const n = t.dataset.note; NOTES_OPEN.add(n); render();
+    const box = pane.querySelector('[data-f="'+(n === "terms" ? "job.terms" : n === "handed" ? "machine.nozzle" : n)+'"]');
+    if(box) box.focus();
+    return;
+  }
+  if(t.dataset.ai){ runAi(t.dataset.ai, t.dataset.path); return; }
+  if(t.dataset.aiuse){ set(AI.path, AI.text); markDirty(); AI = null; render(); toast("Updated. You can still edit it."); return; }
+  if(t.dataset.aikeep){ AI = null; render(); return; }
+  if(t.dataset.stdtests){
+    const add = (hasPrinter(state) ? STD_TESTS.printer : []).concat(hasMfms(state) ? STD_TESTS.mfms : []).filter(x => !state.verify.includes(x));
+    state.verify.push(...add); markDirty(); render();
+    toast(add.length ? "Ticked " + add.length + " standard checks. Untick any not done." : "Standard checks are already ticked.");
+    return;
+  }
+  if(t.dataset.addverify){ if(!state.verify.includes(t.dataset.addverify)) state.verify.push(t.dataset.addverify); markDirty(); render(); return; }
   if(t.id === "addPart"){ markDirty(); state.parts.push({name:"",qty:"1"}); render(); return; }
   if(t.dataset.delpart !== undefined){ markDirty(); state.parts.splice(+t.dataset.delpart,1); render(); return; }
   if(t.dataset.addbtn){ addCustom(t.dataset.addbtn); return; }
@@ -1068,11 +1271,8 @@ function addCustom(key){
 
 // Before anything goes to the customer: flag what is missing and whether it is saved.
 function readyForCustomer(){
-  const missing = [];
-  if(!state.job.status) missing.push("Outcome");
-  if(!String(state.findings||"").trim()) missing.push("Diagnosis");
-  if(!String(state.shop.tech||"").trim()) missing.push("MDR Specialist");
-  if(state.std.some(x => !x.done && !x.reason.trim())) missing.push("reason for each unticked standard item");
+  const need = stepStatus(state).need;
+  const missing = [].concat(need.job, need.inspect, need.fix, need.handover);
   const warn = [];
   if(missing.length) warn.push("Not filled in yet: " + missing.join(", ") + ".");
   if(dirty || !lastSaved) warn.push("This report has not been saved to the Sheet yet.");
@@ -1221,7 +1421,7 @@ async function downloadPdf(asData){
   const logoH = 15;
   doc.addImage(LOGO, "PNG", M, y, logoH*LOGO_RATIO, logoH);
   const tx = M + logoH*LOGO_RATIO + 5;
-  set(13, "bold", INK); doc.text(s.shop.name||"Layer by Layer", tx, y+6.5);
+  set(13, "bold", INK); doc.text(s.shop.name||"Layer By Layer", tx, y+6.5);
   set(8.8, "normal", MUTED);
   doc.splitTextToSize(s.shop.contact||"", 80).slice(0,2).forEach((ln,i)=> doc.text(ln, tx, y+11.5+i*4));
   set(9, "normal", MUTED); doc.text("Service report", R, y+5, {align:"right"});
@@ -1319,18 +1519,7 @@ async function downloadPdf(asData){
   if(s.verifyNotes){ y += 1; para(s.verifyNotes, {color:INK2}); }
   if(s.advice){ head("Recommendations"); para(s.advice); }
 
-  /* sign-off */
-  ensure(24); y += 13;
-  const sw2 = (CW-14)/2;
-  set(10.5, "bold", INK);
-  if(s.shop.tech) doc.text(s.shop.tech, M, y-2.5);
-  if(s.cust.name) doc.text(s.cust.name, M+sw2+14, y-2.5);
-  doc.setDrawColor.apply(doc, [205,211,200]); doc.setLineWidth(0.3);
-  doc.line(M, y, M+sw2, y); doc.line(M+sw2+14, y, R, y);
-  set(8.6, "normal", MUTED);
-  doc.text("MDR Specialist, "+(s.shop.name||"Layer by Layer"), M, y+4.5);
-  doc.text("Received: signature and date", M+sw2+14, y+4.5);
-  y += 11;
+  y += 6;
 
   if(s.job.terms){
     set(7.8, "normal", MUTED);
@@ -1349,7 +1538,7 @@ async function downloadPdf(asData){
     doc.setPage(i);
     doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, 284, R, 284);
     set(7.8, "normal", MUTED);
-    doc.text((s.shop.name||"Layer by Layer")+"  ·  "+(s.job.ref||"Service report"), M, 289);
+    doc.text((s.shop.name||"Layer By Layer")+"  ·  "+(s.job.ref||"Service report"), M, 289);
     doc.text("Page "+i+" of "+pages, R, 289, {align:"right"});
   }
 
@@ -1374,7 +1563,7 @@ document.getElementById("btnPdf").addEventListener("click", async e=>{
 // Everything before navigator.share must stay synchronous, or the phone blocks the share.
 function sendText(){
   const s = state;
-  return "Hi " + (s.cust.name || "there") + ", here is your Layer by Layer service report" +
+  return "Hi " + (s.cust.name || "there") + ", here is your Layer By Layer service report" +
     (s.job.quoteNo ? " for " + s.job.quoteNo : "") + " (" + (s.job.ref || "") + "). Thank you for choosing us!";
 }
 function saveFileLocally(file){
@@ -1387,7 +1576,7 @@ function saveFileLocally(file){
 document.getElementById("btnWa").addEventListener("click", e=>{
   if(!sendFile || !readyForCustomer()) return;
   const text = sendText();
-  try{ navigator.clipboard.writeText(text); }catch(err){}
+  try{ navigator.clipboard.writeText(text).catch(()=>{}); }catch(err){}
   const touch = matchMedia("(pointer:coarse)").matches;
   if(!e.shiftKey && navigator.canShare && navigator.canShare({ files:[sendFile] })){
     // Phone share menu, or the Windows share panel on a computer (WhatsApp shows there when its
@@ -1411,21 +1600,21 @@ document.getElementById("btnWa").addEventListener("click", e=>{
 
 // Email template. {name} = customer, {quote} = quotation number (report number for custom jobs),
 // {machine} = printer and/or MFMS, {specialist} = MDR Specialist. Staff can edit it before sending.
-const EMAIL_SUBJECT = "Your service report for {quote} | Layer by Layer";
+const EMAIL_SUBJECT = "Your service report for {quote} | Layer By Layer";
 const EMAIL_BODY = `Hi {name},
 
-Thank you for choosing Layer by Layer. Attached is the service report for your {machine} (reference: {quote}).
+Thank you for choosing Layer By Layer. Attached is the service report for your {machine} (reference: {quote}).
 
 It covers what we found, the work we did and our recommendations. If you have any questions, just reply to this email or WhatsApp us at +65 8986 7382.
 
 Best regards,
 {specialist}
-Layer by Layer`;
+Layer By Layer`;
 function fillTemplate(t){
   const s = state;
   const machine = [hasPrinter(s) ? (s.machine.brand + " " + s.machine.model).trim() : "",
                    hasMfms(s) ? s.machine.mfms : ""].filter(Boolean).join(" and ") || "3D printer";
-  const vals = { name: s.cust.name || "there", quote: s.job.quoteNo || s.job.ref, machine, specialist: s.shop.tech || "The Layer by Layer team" };
+  const vals = { name: s.cust.name || "there", quote: s.job.quoteNo || s.job.ref, machine, specialist: s.shop.tech || "The Layer By Layer team" };
   return t.replace(/\{(name|quote|machine|specialist)\}/g, (m, k) => vals[k]);
 }
 const mailDlg = document.getElementById("mailDlg");
