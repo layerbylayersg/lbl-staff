@@ -48,6 +48,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
+  body{overflow-x:clip} /* safety net: never scroll sideways (clip keeps the sticky bars working) */
   body{
     font-family:var(--ui);color:var(--ink);background:var(--bg);
     font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
@@ -186,8 +187,8 @@
   }
   .stage > h2 small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:auto}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .grid.one{grid-template-columns:1fr}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .grid.one{grid-template-columns:minmax(0,1fr)}
   .span2{grid-column:1/-1}
   label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
   label.f input,label.f select,label.f textarea,.addrow input,table.parts input{
@@ -197,6 +198,10 @@
     transition:border-color .15s ease,box-shadow .15s ease;
   }
   label.f input,label.f select{height:40px;padding:0 12px}
+  label.f input,label.f select,label.f textarea{min-width:0;max-width:100%;box-sizing:border-box}
+  label.f input[type=date]{-webkit-appearance:none;appearance:none;display:block;text-align:left;line-height:38px}
+  label.f input[type=date]::-webkit-date-and-time-value{text-align:left}
+  label.f{min-width:0}
   label.f textarea{min-height:76px;padding:10px 12px;resize:vertical;line-height:1.45}
   label.f input:focus,label.f select:focus,label.f textarea:focus,.addrow input:focus,table.parts input:focus{
     border-color:var(--green-600);box-shadow:0 0 0 3px rgba(94,138,42,.18);outline:none}
@@ -410,7 +415,7 @@
   .mobiletabs{display:none}
 
   @media (max-width:960px){
-    .layout{grid-template-columns:1fr}
+    .layout{grid-template-columns:minmax(0,1fr)}
     .pane,.preview,.finish{grid-column:1;grid-row:auto}
     .preview{position:static;max-height:none;padding:14px}
     .mobiletabs{display:flex;gap:4px;margin:14px 20px 0;padding:4px;background:#E9EBE6;border-radius:10px}
@@ -438,7 +443,7 @@
     .sheet .body{padding:18px 18px 22px}
   }
   /* small phones: one field per row so quote numbers and serials are never cut off */
-  @media (max-width:480px){ .grid{grid-template-columns:1fr} }
+  @media (max-width:480px){ .grid{grid-template-columns:minmax(0,1fr)} }
   @media (max-width:700px){
     label.f input,label.f select,label.f textarea,.addrow input,table.parts input,.accsearch,#gate input,#mailDlg input,#mailDlg textarea{font-size:16px}
   }
