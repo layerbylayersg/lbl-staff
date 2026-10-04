@@ -286,6 +286,10 @@
   .quick{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
   .quick .sugg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex-basis:100%;font-size:12.5px;color:var(--muted)}
   .quick .sug{height:30px;font-size:12.5px;border-style:dashed}
+  .quick .toggle[aria-pressed="true"]{background:var(--green-tint);border-color:var(--green-600);color:var(--green-ink)}
+  .quick .toggle[aria-pressed="true"]::before{content:"\2713";font-weight:700}
+  .partsin{padding:0 14px 14px}
+  .partsin .addrow{margin-top:6px}
   .outcome{margin-bottom:4px}
   .std{display:grid;gap:6px}
   .stdrow{border:1px solid #CFE3B0;background:var(--green-wash);border-radius:10px;padding:10px 12px}
@@ -517,19 +521,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrLDNaBETrJsihetOMJ
    pre-ticked for the job's service type; unticking asks for a reason that prints as "Not done". */
 const STD = {
   printer: [
-    ["Nozzle care", "cleaned and inspected for wear"],
-    ["Extruder tune-up", "cleaned, lubricated and greased"],
-    ["Full cleaning", "build plate, fans and exterior, interior for enclosed printers"],
-    ["Smooth motion", "rails and bearings lubricated, threaded rods greased"],
-    ["Belt check", "tensioned and inspected"],
-    ["Firmware check", "updated to the latest release"],
-    ["Test print", "printer confirmed working"]
+    ["Nozzle care", "Cleaned and inspected for wear"],
+    ["Extruder tune-up", "Cleaned, lubricated and greased"],
+    ["Full cleaning", "Build plate, fans and exterior, interior for enclosed printers"],
+    ["Smooth motion", "Rails and bearings lubricated, threaded rods greased"],
+    ["Belt check", "Tensioned and inspected"],
+    ["Firmware check", "Updated to the latest release"]
   ],
   mfms: [
-    ["MFMS full cleaning", "interior, exterior and filament slots"],
-    ["MFMS blockage inspection", "filament slots, PTFE tubes and couplers"],
-    ["MFMS smooth motion", "spool holder and rotary mechanism"],
-    ["MFMS firmware check", "updated to the latest release"]
+    ["MFMS full cleaning", "Interior, exterior and filament slots"],
+    ["MFMS blockage inspection", "Filament slots, PTFE tubes and couplers"],
+    ["MFMS smooth motion", "Spool holder and rotary mechanism"],
+    ["MFMS firmware check", "Updated to the latest release"]
   ]
 };
 const STD_DESC = Object.fromEntries(STD.printer.concat(STD.mfms));
@@ -559,17 +562,12 @@ const VERIFY = [
 
 const STATUS = [
   ["Resolved","ok"],
-  ["Resolved (monitor)","warn"],
   ["Partially resolved","warn"],
-  ["Follow-up required","warn"],
-  ["Parts on order","warn"],
   ["Not economical to repair","bad"]
 ];
 
-const DEFAULT_TERMS =
-  "Workmanship is warranted for 7 calendar days from the service date. Replacement parts carry the manufacturer's warranty where applicable. " +
-  "The warranty does not cover damage from crashes, modified firmware or slicer profiles, third-party parts fitted after this service, or normal wear of consumables such as nozzles, PTFE tubing and build plates. " +
-  "Scope of this service is mechanical and hardware only.";
+// Standard Terms and Conditions (warranty included): the same document the MDR form links to.
+const TERMS_URL = "https://docs.google.com/document/d/1DngWODjNj8ZGSHCc7oOXkODaWqwWEJ5kUnDf0msr7Rc/view?usp=sharing";
 
 /* ---------- state ---------- */
 // Customer and machine details come from the MDR Sheet and are read-only here; staff edit them in
@@ -581,7 +579,7 @@ const SPECIALIST_KEY = "mdr-specialist"; // remembered on this device, not sensi
 function blank(){
   return {
     shop:{ name:SHOP_NAME, contact:SHOP_CONTACT, tech:"" },
-    job:{ ref:"", quoteNo:"", custom:false, serviceType:"", date:today(), status:"", terms:DEFAULT_TERMS },
+    job:{ ref:"", quoteNo:"", custom:false, serviceType:"", date:today(), status:"" },
     cust:{ name:"", phone:"", email:"", intake:"" },
     machine:{ brand:"", model:"", serial:"", mfms:"None", mfmsSerial:"", nozzle:"", plate:"", filament:"",
               serialCorrected:false, mfmsSerialCorrected:false },
@@ -703,6 +701,7 @@ function openJob(j){
     state.std = stdFor(state);
   }
   NOTES_OPEN.clear(); AI = null;
+  if(state.parts.some(p => p.name)) OPEN.add("extra|Parts replaced");
   dirty = false; clearStatus();
 }
 // What gets saved: the standard checklist is folded into Work Performed and Not done for the Sheet.
@@ -740,14 +739,15 @@ function chip(key, item){
   return '<label class="chip"><input type="checkbox" data-multi="'+key+'" value="'+esc(item)+'"'+(on?" checked":"")+'>'+esc(item)+'</label>';
 }
 // Collapsible option groups with a search box and an "Other" field.
-function optionGroups(key, customKey, groups, searchLabel){
+// after: extra HTML shown inside a named group, under its options (e.g. the parts table).
+function optionGroups(key, customKey, groups, searchLabel, after){
   let h = '<div class="acc" data-acc="'+key+'">';
   h += '<input type="search" class="accsearch" data-search="'+key+'" placeholder="'+esc(searchLabel)+'" aria-label="'+esc(searchLabel)+'">';
   for(const [name, items] of groupsFor(groups, state)){
     const n = items.filter(i => state[key].includes(i)).length, id = key + "|" + name;
     h += '<details class="accg" data-g="'+esc(id)+'"'+(OPEN.has(id)?" open":"")+'><summary><span>'+esc(name)+'</span>'+
          '<span class="cnt"'+(n?"":" hidden")+'>'+n+' ticked</span></summary>'+
-         '<div class="chips">'+items.map(i => chip(key, i)).join("")+'</div></details>';
+         '<div class="chips">'+items.map(i => chip(key, i)).join("")+'</div>'+((after||{})[name]||"")+'</details>';
   }
   h += '<p class="nomatch" hidden>No matches. Add it under Other below.</p></div>';
   return h + customList(customKey);
@@ -817,7 +817,7 @@ function renderForm(){
       <div class="grid">
         ${field("cust.name","Name")}${field("cust.phone","Phone",{type:"tel",ph:"For WhatsApp, e.g. 9123 4567"})}
         ${field("cust.email","Email",{type:"email",span:true})}
-        ${field("cust.intake","Customer reported",{type:"textarea",span:true,ph:"The problem in the customer's words."})}
+        ${field("cust.intake","Customer's reported issue(s)",{type:"textarea",span:true,ph:"The problem in the customer's words."})}
       </div>
       <h3 class="sub">Machine</h3>
       <div class="grid">
@@ -832,7 +832,7 @@ function renderForm(){
         ${infoRow("Contact", [s.cust.phone, s.cust.email].filter(Boolean).join(" · "))}
         ${hasPrinter(s) ? infoRow("Printer", (m.brand+" "+m.model).trim()) + infoRow("Serial", m.serial, naButton("serial", m.serial)) : ""}
         ${hasMfms(s) ? infoRow("MFMS", m.mfms) + infoRow("MFMS serial", m.mfmsSerial, naButton("mfmsSerial", m.mfmsSerial)) : ""}
-        <div class="ir rep"><span>Reported</span><p>${s.cust.intake ? nl2br(s.cust.intake) : "–"}</p></div>
+        <div class="ir rep"><span>Customer's reported issue(s)</span><p>${s.cust.intake ? nl2br(s.cust.intake) : "–"}</p></div>
       </div>
       <p class="hint">Details come from the MDR Sheet. To change them, edit the Sheet, then press Refresh.</p>`;
 
@@ -867,7 +867,7 @@ function renderForm(){
       <h2><span class="n">2</span>Inspect<small class="need" data-need="inspect"></small></h2>
       <h3 class="sub">Symptoms found<small data-count="symptoms">${s.symptoms.length+s.symptomsCustom.length} selected</small></h3>
       ${optionGroups("symptoms","symptomsCustom",SYMPTOMS,"Search symptoms...")}
-      ${noteToggle("symptomNotes","Symptom note","Anything the options don't cover.")}
+      ${noteToggle("symptomNotes","Note:","Anything the options don't cover.")}
       <h3 class="sub">Diagnosis</h3>
       <div class="grid one">
         ${field("findings","What was actually wrong, and why",{type:"textarea",ph:"Type it rough, then press Polish. e.g. nozzle jam bcos heat creep, hotend fan weak"})}
@@ -877,7 +877,7 @@ function renderForm(){
 
     <div class="stage" id="st-fix">
       <h2><span class="n">3</span>Fix<small class="need" data-need="fix"></small></h2>
-      <h3 class="sub">Standard service<small>Untick anything not done and say why</small></h3>
+      <h3 class="sub">Standard service<small>Deselect anything not done and state reason</small></h3>
       <div class="std">
         ${s.std.map((x,i)=>`
           <div class="stdrow${x.done?"":" off"}">
@@ -886,20 +886,21 @@ function renderForm(){
           </div>`).join("")}
       </div>
       <h3 class="sub">Additional work<small data-count="extra">${s.extra.length+s.extraCustom.length} selected</small></h3>
-      ${optionGroups("extra","extraCustom",EXTRA,"Search repairs and adjustments...")}
-      ${noteToggle("workNotes","Work note","Anything else about the work done.")}
-      <h3 class="sub">Parts fitted<small>"Replaced ..." items add themselves</small></h3>
-      <table class="parts"><thead><tr><th>Part</th><th>Qty</th><th></th></tr></thead>
-      <tbody id="partsBody">${partsRows()}</tbody></table>
-      <div class="addrow"><button type="button" id="addPart">Add part</button></div>
+      ${optionGroups("extra","extraCustom",EXTRA,"Search repairs and adjustments...", { "Parts replaced": `
+        <div class="partsin">
+          <table class="parts"><thead><tr><th>Part(s) replaced</th><th>Qty</th><th></th></tr></thead>
+          <tbody id="partsBody">${partsRows()}</tbody></table>
+          <div class="addrow"><button type="button" id="addPart">Add part</button></div>
+        </div>` })}
+      ${noteToggle("workNotes","Note:","Anything else about the work done.")}
     </div>
 
     <div class="stage" id="st-test">
-      <h2><span class="n">4</span>Test<small class="need" data-need="test"></small></h2>
+      <h2><span class="n">4</span>Verification<small class="need" data-need="test"></small></h2>
       <div class="quick" id="quickTests">${quickRow(s)}</div>
       <h3 class="sub">Checks done<small data-count="verify">${s.verify.length+s.verifyCustom.length} selected</small></h3>
       ${optionGroups("verify","verifyCustom",VERIFY,"Search checks...")}
-      ${noteToggle("verifyNotes","Test results","e.g. 3 h benchmark print completed with no under-extrusion; first layer even across the plate.")}
+      ${noteToggle("verifyNotes","Note:","e.g. 3 h benchmark print completed with no under-extrusion; first layer even across the plate.")}
     </div>
 
     <div class="stage" id="st-handover">
@@ -912,15 +913,14 @@ function renderForm(){
         ${field("advice","Recommendations for the customer",{type:"textarea",ph:"Preventive maintenance, settings to keep, what to watch for. Or press Draft for me."})}
       </div>
       ${aiTools("advice", true)}
-      ${NOTES_OPEN.has("terms") ? '<div class="grid one" style="margin-top:14px">'+field("job.terms","Warranty & terms",{type:"textarea"})+'</div>'
-        : '<button type="button" class="addnote" data-note="terms">Edit warranty &amp; terms</button><span class="hint inline"> Standard terms are printed on the report.</span>'}
+      <p class="hint">Warranty and terms: the report links to our standard <a href="${TERMS_URL}" target="_blank" rel="noopener">Terms and Conditions</a> (same as the MDR form).</p>
     </div>
   `;
   updateSteps();
 }
 
 /* ---------- form helpers: steps, notes, AI, auto parts ---------- */
-const STEPS = [["job","Job"],["inspect","Inspect"],["fix","Fix"],["test","Test"],["handover","Handover"]];
+const STEPS = [["job","Job"],["inspect","Inspect"],["fix","Fix"],["test","Verification"],["handover","Handover"]];
 // What each step still needs, and whether it counts as done.
 function stepStatus(s){
   const need = { job:[], inspect:[], fix:[], test:[], handover:[] };
@@ -952,7 +952,7 @@ function updateSteps(){
 const NOTES_OPEN = new Set();
 function noteToggle(path, label, ph){
   if(!NOTES_OPEN.has(path) && !String(get(path)||"").trim())
-    return '<button type="button" class="addnote" data-note="'+path+'">+ Add '+esc(label.toLowerCase())+'</button>';
+    return '<button type="button" class="addnote" data-note="'+path+'">+ Add note</button>';
   return '<div class="grid one" style="margin-top:12px">'+field(path,label,{type:"textarea",ph})+'</div>'+aiTools(path, false);
 }
 // "Polish" / "Draft for me" under a writing box, plus the suggestion panel when one is showing.
@@ -992,7 +992,7 @@ async function runAi(mode, path){
   }catch(e){ AI = { path, error: "No connection? Try again." }; }
   if(AI && AI.path === path) render();
 }
-// Ticking "Replaced X" adds X to Parts fitted (and unticking removes it if it was added that way).
+// Ticking "Replaced X" adds X to Part(s) replaced (and unticking removes it if it was added that way).
 function partFromWork(item){
   const m = /^Replaced (.+?)( \(MFMS\))?$/.exec(item);
   if(!m) return "";
@@ -1012,7 +1012,7 @@ function partsRows(){
   return state.parts.map((pt,i)=>`
         <tr>
           <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
-          <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="decimal" aria-label="Part ${i+1} quantity"></td>
+          <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="numeric" pattern="[0-9]*" placeholder="1" aria-label="Part ${i+1} quantity (numbers only)"></td>
           <td class="d"><button type="button" data-delpart="${i}" title="Remove part" aria-label="Remove part ${i+1}">&times;</button></td>
         </tr>`).join("");
 }
@@ -1021,6 +1021,7 @@ const STD_TESTS = {
   printer: ["Benchmark test print completed","Cold and hot function test","Homing and bed levelling check","Fans and sensors checked","Visual inspection passed"],
   mfms: ["All slots load and unload","Filament switching test passed"]
 };
+const stdTestsFor = s => (hasPrinter(s) ? STD_TESTS.printer : []).concat(hasMfms(s) ? STD_TESTS.mfms : []);
 const SYMPTOM_TESTS = {
   "Extrusion & filament": ["Benchmark test print completed","Extended soak test"],
   "Motion & mechanical": ["Motion system checked by hand","Homing and bed levelling check"],
@@ -1039,7 +1040,8 @@ function suggestedTests(s){
 }
 function quickRow(s){
   const sug = suggestedTests(s);
-  return '<button type="button" class="mini" data-stdtests="1">Standard tests passed</button>' +
+  const on = stdTestsFor(s).every(x => s.verify.includes(x));
+  return '<button type="button" class="mini toggle" data-stdtests="1" aria-pressed="'+on+'">Standard tests passed</button>' +
     (sug.length ? '<span class="sugg"><span>Suggested from symptoms:</span>'+sug.map(t=>'<button type="button" class="mini sug" data-addverify="'+esc(t)+'">+ '+esc(t)+'</button>').join("")+'</span>' : "");
 }
 
@@ -1066,7 +1068,7 @@ function renderReport(){
 
   let partsSec = "";
   if(partRows.length){
-    partsSec = `<table class="tbl"><tr><th>Part</th><th class="r">Qty</th></tr>${
+    partsSec = `<table class="tbl"><tr><th>Part(s) replaced</th><th class="r">Qty</th></tr>${
       partRows.map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${esc(p.qty||1)}</td></tr>`).join("")
     }</table>`;
   }
@@ -1103,11 +1105,11 @@ function renderReport(){
         </dl></div>
       </div>
 
-      ${s.cust.intake?`<div class="sec"><h3>Reported by customer</h3><p class="note">${nl2br(s.cust.intake)}</p></div>`:""}
+      ${s.cust.intake?`<div class="sec"><h3>Customer's reported issue(s)</h3><p class="note">${nl2br(s.cust.intake)}</p></div>`:""}
 
       <div class="sec"><h3>Symptoms observed</h3>
         ${list(s.symptoms.concat(s.symptomsCustom))}
-        ${s.symptomNotes?`<p class="note">${nl2br(s.symptomNotes)}</p>`:""}
+        ${s.symptomNotes?`<p class="note"><b>Note:</b> ${nl2br(s.symptomNotes)}</p>`:""}
       </div>
 
       <div class="sec"><h3>Diagnosis</h3>
@@ -1120,18 +1122,18 @@ function renderReport(){
           ${notDone.map(x=>`<li class="notdone"><b>Not done:</b> ${esc(x.item)}${x.reason?` (${esc(x.reason)})`:""}</li>`).join("")}
         </ul>`:""}
         ${extra.length?`<h4>Additional work</h4>${list(extra)}`:""}
-        ${s.workNotes?`<p class="note">${nl2br(s.workNotes)}</p>`:""}
+        ${s.workNotes?`<p class="note"><b>Note:</b> ${nl2br(s.workNotes)}</p>`:""}
         ${partsSec}
       </div>
 
       <div class="sec"><h3>Verification</h3>
         ${list(s.verify.concat(s.verifyCustom))}
-        ${s.verifyNotes?`<p class="note">${nl2br(s.verifyNotes)}</p>`:""}
+        ${s.verifyNotes?`<p class="note"><b>Note:</b> ${nl2br(s.verifyNotes)}</p>`:""}
       </div>
 
       ${s.advice?`<div class="sec"><h3>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
 
-      ${s.job.terms?`<div class="terms">${nl2br(s.job.terms)}</div>`:""}
+      <div class="terms">Warranty and service terms: this service is covered by our <a href="${TERMS_URL}" target="_blank" rel="noopener">Terms and Conditions</a>.</div>
     </div>`;
 }
 
@@ -1239,6 +1241,7 @@ pane.addEventListener("input", e=>{
   if(t.dataset.f){ markDirty(); set(t.dataset.f, t.value); renderReport(); updateSteps(); return; }
   if(t.dataset.stdreason !== undefined){ markDirty(); state.std[+t.dataset.stdreason].reason = t.value; renderReport(); updateSteps(); return; }
   if(t.dataset.part){
+    if(t.dataset.part === "qty" && /\D/.test(t.value)) t.value = t.value.replace(/\D/g, ""); // numbers only
     markDirty(); const pt = state.parts[+t.dataset.i]; pt[t.dataset.part] = t.value;
     if(t.dataset.part === "name") pt.auto = false; // renamed by hand: no longer tied to a "Replaced" tick
     renderReport();
@@ -1291,9 +1294,11 @@ pane.addEventListener("click", e=>{
   if(t.dataset.aiuse){ set(AI.path, AI.text); markDirty(); AI = null; render(); toast("Updated. You can still edit it."); return; }
   if(t.dataset.aikeep){ AI = null; render(); return; }
   if(t.dataset.stdtests){
-    const add = (hasPrinter(state) ? STD_TESTS.printer : []).concat(hasMfms(state) ? STD_TESTS.mfms : []).filter(x => !state.verify.includes(x));
-    state.verify.push(...add); markDirty(); render();
-    toast(add.length ? "Ticked " + add.length + " standard checks. Untick any not done." : "Standard checks are already ticked.");
+    // toggle: all on if any are missing, otherwise all off
+    const std = stdTestsFor(state), add = std.filter(x => !state.verify.includes(x));
+    if(add.length) state.verify.push(...add); else state.verify = state.verify.filter(x => !std.includes(x));
+    markDirty(); render();
+    toast(add.length ? "Standard checks ticked. Deselect any not done." : "Standard checks cleared.");
     return;
   }
   if(t.dataset.addverify){ if(!state.verify.includes(t.dataset.addverify)) state.verify.push(t.dataset.addverify); markDirty(); render(); return; }
@@ -1519,10 +1524,10 @@ async function downloadPdf(asData){
   y += boxH + 2;
 
   /* sections */
-  if(s.cust.intake){ head("Reported by customer"); para(s.cust.intake, {color:INK2}); }
+  if(s.cust.intake){ head("Customer's reported issue(s)"); para(s.cust.intake, {color:INK2}); }
   head("Symptoms observed");
   bullets(s.symptoms.concat(s.symptomsCustom));
-  if(s.symptomNotes){ y += 1; para(s.symptomNotes, {color:INK2}); }
+  if(s.symptomNotes){ y += 1; para("Note: " + s.symptomNotes, {color:INK2}); }
   head("Diagnosis");
   s.findings ? para(s.findings) : para("Not recorded.", {color:MUTED});
   head("Work performed");
@@ -1544,14 +1549,14 @@ async function downloadPdf(asData){
   }
   const extra = s.extra.concat(s.extraCustom);
   if(extra.length){ sub("Additional work"); bullets(extra); }
-  if(s.workNotes){ y += 1; para(s.workNotes, {color:INK2}); }
+  if(s.workNotes){ y += 1; para("Note: " + s.workNotes, {color:INK2}); }
   if(partRows.length){
     y += 3; ensure(8 + partRows.length*6.5);
     const top = y, rowH = 6.5, tableH = 7 + partRows.length*rowH;
     doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3);
     doc.setFillColor.apply(doc, PANEL); doc.roundedRect(M, top, CW, tableH, 2, 2, "FD");
     doc.setFillColor(255,255,255); doc.rect(M+0.2, top+7, CW-0.4, tableH-7.2, "F");
-    set(8.6, "bold", MUTED); doc.text("Parts fitted", M+4, top+4.8); doc.text("Qty", R-4, top+4.8, {align:"right"});
+    set(8.6, "bold", MUTED); doc.text("Part(s) replaced", M+4, top+4.8); doc.text("Qty", R-4, top+4.8, {align:"right"});
     y = top + 7;
     partRows.forEach((p, i)=>{
       if(i) { doc.setDrawColor.apply(doc, LINE); doc.line(M+0.2, y, R-0.2, y); }
@@ -1563,21 +1568,21 @@ async function downloadPdf(asData){
   }
   head("Verification");
   bullets(s.verify.concat(s.verifyCustom));
-  if(s.verifyNotes){ y += 1; para(s.verifyNotes, {color:INK2}); }
+  if(s.verifyNotes){ y += 1; para("Note: " + s.verifyNotes, {color:INK2}); }
   if(s.advice){ head("Recommendations"); para(s.advice); }
 
   y += 6;
 
-  if(s.job.terms){
-    set(7.8, "normal", MUTED);
-    const lines = doc.splitTextToSize(String(s.job.terms), CW-10);
-    const th = 6 + lines.length*lh(7.8);
-    ensure(th + 2);
-    doc.setFillColor.apply(doc, PANEL); doc.roundedRect(M, y, CW, th, 2, 2, "F");
-    set(7.8, "normal", MUTED);
-    lines.forEach((ln,i)=> doc.text(ln, M+5, y+4.6+i*lh(7.8)));
-    y += th;
-  }
+  // Warranty and terms live in one document (also linked from the MDR form).
+  ensure(12);
+  doc.setFillColor.apply(doc, PANEL); doc.roundedRect(M, y, CW, 9, 2, 2, "F");
+  set(8.4, "normal", MUTED);
+  const lead = "Warranty and service terms: this service is covered by our ";
+  doc.text(lead, M+5, y+5.8);
+  const leadW = doc.getTextWidth(lead); // measured in the regular font, before switching to bold
+  set(8.4, "bold", G700);
+  doc.textWithLink("Terms and Conditions.", M+5+leadW, y+5.8, { url: TERMS_URL });
+  y += 9;
 
   /* footers */
   const pages = doc.getNumberOfPages();
