@@ -343,7 +343,7 @@
   .facts dt{color:var(--muted)}
   .facts dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 
-  .sec{margin-top:22px;page-break-inside:avoid}
+  .sec{margin-top:20px;padding-top:18px;border-top:1px solid var(--line);page-break-inside:avoid} /* divider per section, like the form steps */
   .sec h3{font-size:14.5px;font-weight:650;margin:0 0 8px;letter-spacing:-.005em}
   .sec ul{margin:0;padding:0;list-style:none;display:grid;gap:5px}
   .sec li{position:relative;padding-left:22px}
@@ -605,7 +605,7 @@ const MFMS_LIST = ["AMS Lite","AMS 1","AMS 2","CFS","CFS-C"];
 // Dropdown + "Other / not listed" (then a text box), like the intake form. machine.<key>Other marks the text box.
 function pickField(key, label, options, opts){
   opts = opts || {};
-  const m = state.machine, v = m[key], other = !!m[key+"Other"];
+  const m = state.machine, v = m[key], other = !!m[key+"Other"] || !!(v && !options.includes(v)); // older free-text values show as Other
   const sel = options.includes(v) ? v : (other ? "Other" : "");
   let h = '<label class="f'+(opts.span?" span2":"")+'">'+esc(label)+'<select data-msel="'+key+'"'+(opts.disabled?" disabled":"")+'>'+
     '<option value="">'+esc(opts.disabled ? "Select brand first" : "Select...")+'</option>'+
@@ -841,8 +841,8 @@ function renderForm(){
     : (NOTES_OPEN.has("handed") || m.nozzle || m.plate || m.filament) ? `
       <h3 class="sub">Parts handed over</h3>
       <div class="grid">
-        ${field("machine.nozzle","Nozzle",{ph:"0.4 mm hardened"})}
-        ${field("machine.plate","Build plate",{ph:"Textured PEI"})}
+        ${pickField("nozzle","Nozzle",NOZZLES,{ph:"e.g. 1.0 mm"})}
+        ${pickField("plate","Build plate",PLATES,{ph:"e.g. Glacier plate"})}
         ${field("machine.filament","Filament",{span:true,ph:"PLA / PETG / ABS"})}
       </div>` : '<button type="button" class="addnote" data-note="handed">+ Parts handed over (nozzle, plate, filament)</button>';
 
@@ -1433,7 +1433,9 @@ async function downloadPdf(asData){
     }
   }
   function head(title){
-    ensure(14); y += 5;
+    ensure(18); y += 4;
+    doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.3); doc.line(M, y, R, y); // divider per section
+    y += 6;
     set(11.5, "bold", INK); doc.text(title, M, y);
     y += 4;
   }
