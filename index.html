@@ -490,7 +490,7 @@ const SPECIALIST_KEY = "mdr-specialist"; // remembered on this device, not sensi
 function blank(){
   return {
     shop:{ name:SHOP_NAME, contact:SHOP_CONTACT, tech:"" },
-    job:{ ref:"", quoteNo:"", serviceType:"", date:today(), status:"", terms:DEFAULT_TERMS },
+    job:{ ref:"", quoteNo:"", custom:false, serviceType:"", date:today(), status:"", terms:DEFAULT_TERMS },
     cust:{ name:"", phone:"", email:"", intake:"" },
     machine:{ brand:"", model:"", serial:"", mfms:"None", mfmsSerial:"", nozzle:"", plate:"", filament:"",
               serialCorrected:false, mfmsSerialCorrected:false },
@@ -671,11 +671,12 @@ const naButton = (key, v) => String(v).toUpperCase() === "NA" ? "" :
   '<button type="button" class="mini na" data-setna="'+key+'">Set to NA</button>';
 
 function renderForm(){
-  const s = state, picked = !!s.job.quoteNo;
-  const pick = '<label class="f span2 jobpick">Confirmed job<span class="pickrow"><select data-pickjob="1"><option value="">'+
+  const s = state, custom = s.job.custom, picked = !!(s.job.quoteNo || custom);
+  const pick = '<label class="f span2 jobpick">Job<span class="pickrow"><select data-pickjob="1"><option value="">'+
     (JOBS.length ? "Pick the job you are reporting on..." : "No jobs are In Progress on the job sheet") + '</option>' +
     JOBS.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===s.job.quoteNo?" selected":"")+'>'+
       esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.savedReport?" · has report":""))+'</option>').join("") +
+    '<option value="__custom"'+(s.job.custom?" selected":"")+'>Custom job (not on the job sheet)</option>' +
     '</select><button type="button" class="mini" data-refresh="1" title="Reload jobs from the Sheet">Refresh</button></span></label>';
   const names = STAFF.slice(); if(s.shop.tech && !names.includes(s.shop.tech)) names.unshift(s.shop.tech);
   const specialist = STAFF.length
@@ -690,7 +691,7 @@ function renderForm(){
     <div class="stage">
       <h2><span class="n">1</span>Job</h2>
       <div class="grid">${pick}</div>
-      <p class="hint">Pick a job to start. Customer and machine details fill in from the MDR Sheet.</p>
+      <p class="hint">Pick a job to start. Customer and machine details fill in from the MDR Sheet. For anything not on the sheet, pick Custom job and type the details in.</p>
     </div>`;
     return;
   }
@@ -702,25 +703,33 @@ function renderForm(){
         ${pick}
         ${specialist}
         ${field("job.date","Service date (handover)",{type:"date"})}
+        ${custom ? '<label class="f">Service type<select data-stype="1">'+["Printer only","Printer + MFMS","MFMS only"].map(t=>'<option'+(t===s.job.serviceType?" selected":"")+'>'+t+'</option>').join("")+'</select></label>' : ""}
       </div>
-      <div class="refs"><span>Quotation <b>${esc(s.job.quoteNo)}</b></span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
+      <div class="refs"><span>${custom ? "<b>Custom job</b>" : "Quotation <b>"+esc(s.job.quoteNo)+"</b>"}</span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
     </div>
 
     <div class="stage">
       <h2><span class="n">2</span>Customer</h2>
-      <div class="info">
+      ${custom ? `<div class="grid">
+        ${field("cust.name","Name")}${field("cust.phone","Phone",{type:"tel",ph:"For WhatsApp, e.g. 9123 4567"})}
+        ${field("cust.email","Email",{type:"email",span:true})}
+        ${field("cust.intake","Customer reported",{type:"textarea",span:true,ph:"The problem in the customer's words."})}
+      </div>` : `<div class="info">
         ${infoRow("Name", s.cust.name)}${infoRow("Phone", s.cust.phone)}${infoRow("Email", s.cust.email)}
       </div>
       <div class="info reported"><span>Customer reported</span><p>${s.cust.intake ? nl2br(s.cust.intake) : "–"}</p></div>
-      <p class="hint">To change these, edit the job in the MDR Sheet, then press Refresh.</p>
+      <p class="hint">To change these, edit the job in the MDR Sheet, then press Refresh.</p>`}
     </div>
 
     <div class="stage">
       <h2><span class="n">3</span>Machine</h2>
-      <div class="info">
+      ${custom ? `<div class="grid">
+        ${hasPrinter(s) ? field("machine.brand","Printer brand",{ph:"Bambu Lab"}) + field("machine.model","Printer model",{ph:"P1S"}) + field("machine.serial","Printer serial",{span:true,ph:"NA if unreadable"}) : ""}
+        ${hasMfms(s) ? field("machine.mfms","MFMS",{ph:"AMS"}) + field("machine.mfmsSerial","MFMS serial",{ph:"NA if unreadable"}) : ""}
+      </div>` : `<div class="info">
         ${hasPrinter(s) ? infoRow("Printer", (s.machine.brand+" "+s.machine.model).trim()) + infoRow("Serial", s.machine.serial, naButton("serial", s.machine.serial)) : ""}
         ${hasMfms(s) ? infoRow("MFMS", s.machine.mfms) + infoRow("MFMS serial", s.machine.mfmsSerial, naButton("mfmsSerial", s.machine.mfmsSerial)) : ""}
-      </div>
+      </div>`}
       ${hasPrinter(s) ? `
       <h3 class="sub">Parts handed over</h3>
       <div class="grid">
@@ -930,9 +939,27 @@ async function pickJob(quoteNo){
   }catch(e){ showStatus("err", "Could not reach the Sheet. Check the connection and try again."); }
 }
 
+// A report for work that is not on the job sheet: details are typed in, nothing is tagged.
+function startCustom(){
+  if(dirty && !state.job.custom && !confirm("Start a custom job? Unsaved changes to the current report will be lost.")){ render(); return; }
+  if(state.job.custom){ render(); return; }
+  const tech = state.shop.tech;
+  state = blank(); state.shop.tech = tech;
+  state.job.custom = true; state.job.serviceType = "Printer only";
+  state.std = stdFor(state);
+  dirty = false; clearStatus(); render();
+}
 pane.addEventListener("change", e=>{
   const t = e.target;
-  if(t.dataset.pickjob !== undefined){ if(t.value) pickJob(t.value); return; }
+  if(t.dataset.pickjob !== undefined){ if(t.value === "__custom") startCustom(); else if(t.value) pickJob(t.value); return; }
+  if(t.dataset.stype){
+    // keep what was ticked/unticked for items that stay on the checklist
+    const old = state.std; state.job.serviceType = t.value;
+    if(t.value === "Printer only"){ state.machine.mfms = "None"; state.machine.mfmsSerial = ""; }
+    else if(state.machine.mfms === "None") state.machine.mfms = "";
+    state.std = stdFor(state).map(x => old.find(o => o.item === x.item) || x);
+    markDirty(); render(); return;
+  }
   if(t.dataset.std !== undefined){
     const x = state.std[+t.dataset.std]; x.done = t.checked; markDirty(); render();
     if(!x.done){ const r = pane.querySelector('[data-stdreason="'+t.dataset.std+'"]'); if(r) r.focus(); }
@@ -1029,7 +1056,8 @@ document.getElementById("btnPrint").addEventListener("click", ()=>{ if(readyForC
 document.getElementById("btnSave").addEventListener("click", async e=>{
   const b = e.currentTarget;
   if(b.disabled) return;
-  if(!state.job.quoteNo){ showStatus("err", "Pick a confirmed job first."); return; }
+  if(!state.job.quoteNo && !state.job.custom){ showStatus("err", "Pick a confirmed job first."); return; }
+  if(state.job.custom && !String(state.cust.name).trim()){ showStatus("err", "Custom job: enter the customer name first."); return; }
   b.disabled = true; b.textContent = "Saving...";
   showStatus("busy", "Saving " + (state.job.ref || "report") + " to the Sheet and Drive...");
   try{
