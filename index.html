@@ -730,6 +730,7 @@ function openJob(j){
   if(j.savedReport){
     state = Object.assign(blank(), JSON.parse(JSON.stringify(j.savedReport)));
     state.machine = Object.assign(blank().machine, state.machine);
+    state.shop = Object.assign(state.shop || {}, { name:SHOP_NAME, contact:SHOP_CONTACT }); // shop details always current
     if(!state.std || !state.std.length){ state.std = []; state.extra = state.work || []; state.extraCustom = state.workCustom || []; }
     delete state.work; delete state.workCustom; delete state.notDone;
     applyJob(j); // Sheet details always win: they may have been edited since
