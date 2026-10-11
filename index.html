@@ -1119,7 +1119,7 @@ function renderReport(){
       <img class="logo" src="${LOGO}" alt="">
       <div class="shop">
         <div class="name">${esc(s.shop.name)}</div>
-        <div class="meta">${esc(s.shop.contact)}</div>
+        <div class="meta">${esc(SHOP_CONTACT)}</div>
       </div>
       <div class="ref">
         <div class="t">Service report</div>
@@ -1518,7 +1518,7 @@ async function downloadPdf(asData){
   const tx = M + logoH*LOGO_RATIO + 5;
   set(13, "bold", INK); doc.text(s.shop.name||"Layer By Layer", tx, y+6.5);
   set(8.8, "normal", MUTED);
-  doc.splitTextToSize(s.shop.contact||"", 80).slice(0,2).forEach((ln,i)=> doc.text(ln, tx, y+11.5+i*4));
+  doc.splitTextToSize(SHOP_CONTACT, 80).slice(0,2).forEach((ln,i)=> doc.text(ln, tx, y+11.5+i*4));
   set(9, "normal", MUTED); doc.text("Service report", R, y+5, {align:"right"});
   set(14.5, "bold", INK); doc.text(s.job.ref||"Not saved yet", R, y+11.5, {align:"right"});
   y += logoH + 6;
