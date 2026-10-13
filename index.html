@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="LBL Staff">
-<title>Layer By Layer · Staff Service Report</title>
+<title>Layer By Layer · Staff Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
@@ -78,11 +78,35 @@
   .bar .modes button:hover{background:var(--surface);border-color:transparent}
   .bar .modes button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
   .bar .modes .sm{display:none}
+  /* wide screens: the form switch becomes a left sidebar (no blur on the bar, or the fixed sidebar would be trapped inside it) */
+  @media (min-width:1100px){
+    body:not(.locked){padding-left:210px}
+    body:not(.locked) .bar{margin-left:-210px;-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}
+    .bar .modes{position:fixed;left:0;top:57px;bottom:0;width:210px;flex-direction:column;gap:4px;padding:14px 12px;
+      background:var(--surface);border:0;border-right:1px solid var(--line);border-radius:0;z-index:30}
+    .bar .modes::before{content:"Staff dashboard";padding:4px 12px 10px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .bar .modes button{height:40px;justify-content:flex-start;padding:0 14px;font-size:14px}
+    .bar .modes button:hover{background:var(--surface-2)}
+    .bar .modes button[aria-pressed="true"]{background:var(--green-wash);color:var(--green-ink);box-shadow:inset 3px 0 0 var(--green-700)}
+  }
+  /* phones: logo + Log out on top, the four tabs as a full-width row underneath */
+  @media (max-width:700px){ .bar .modes{order:3;flex:1 1 100%} .bar .modes button{flex:1;padding:0 4px} }
   @media (max-width:480px){ .bar .modes .lg{display:none} .bar .modes .sm{display:inline}
     .bar{gap:6px} .bar img{height:24px} .bar .modes button{padding:0 8px;font-size:12.5px} .bar #btnLogout{padding:0 6px;font-size:13px} }
   #hoView{display:none}
   body.mode-ho #hoView{display:block}
   body.mode-ho .layout,body.mode-ho .mobiletabs,body.mode-ho #saveStatus,body.locked #hoView{display:none!important}
+  #clView{display:none}
+  body.mode-cl #clView{display:block}
+  body.mode-cl .layout,body.mode-cl .mobiletabs,body.mode-cl #saveStatus,body.mode-cl #hoView,body.locked #clView{display:none!important}
+  .cllist{width:100%;border-collapse:collapse;font-size:13.5px}
+  .cllist th,.cllist td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  .cllist th{font-size:12px;font-weight:600;color:var(--muted)}
+  .cllist td.amt,.cllist th.amt{text-align:right;white-space:nowrap}
+  .cllist .x{display:block;font-size:12px;color:var(--muted)} .cllist .x.bad{color:var(--red-ink)}
+  .cltotals{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .cltotals span{padding:6px 10px;border-radius:999px;background:var(--green-wash);border:1px solid #CFE3B0;font-size:13px;font-weight:600}
+  .policy{white-space:pre-line;font-size:13.5px;line-height:1.55;color:var(--ink-2);padding:12px 14px}
   .howrap{max-width:680px;margin:0 auto;padding:20px 20px 60px}
   .sub2{margin-top:12px;padding:12px 14px;background:var(--green-wash);border:1px solid #CFE3B0;border-radius:10px}
   .notret{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);border:1px solid #F0D9A0;color:#6B4700;font-size:13.5px}
@@ -431,7 +455,7 @@
     /* no blur here: backdrop-filter would trap the fixed bottom bar inside the top bar */
     .bar{padding:8px 12px;gap:10px;backdrop-filter:none;background:var(--surface)}
     .bar h1{font-size:15px}
-    .steps{top:53px}
+    .steps{top:102px} /* below the two-row phone bar */
     .pane{padding:14px 12px 0}
     .finish{padding:0 12px calc(24px + env(safe-area-inset-bottom))}
     .finish .actions button{height:44px}
@@ -466,8 +490,8 @@
 <div id="gate">
   <form id="gateForm">
     <img id="gateLogo" alt="Layer By Layer">
-    <h1>Service reports</h1>
-    <p>Layer By Layer staff only.</p>
+    <h1>Staff dashboard</h1>
+    <p>Service reports, handovers, takeovers and petrol claims. Layer By Layer staff only.</p>
     <label>Staff password
       <span class="pwrow"><input type="password" id="gatePw" autocomplete="current-password" required>
         <button type="button" class="peek" id="gatePeek" aria-pressed="false" aria-label="Show password">Show</button></span>
@@ -483,6 +507,7 @@
     <button type="button" id="modeReport" aria-pressed="true"><span class="lg">Service report</span><span class="sm">Report</span></button>
     <button type="button" id="modeHo" aria-pressed="false">Handover</button>
     <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
+    <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
   </div>
   <button id="btnLogout">Log out</button>
   <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
@@ -512,6 +537,7 @@
 </div>
 
 <main id="hoView"><div class="howrap" id="hoPane"></div></main>
+<main id="clView"><div class="howrap" id="clPane"></div></main>
 
 <dialog id="mailDlg" aria-labelledby="mailTitle">
   <form id="mailForm">
@@ -597,7 +623,7 @@ const STATUS = [
 ];
 
 // Standard Terms and Conditions (warranty included): the same document the MDR form links to.
-const TERMS_URL = "https://docs.google.com/document/d/1DngWODjNj8ZGSHCc7oOXkODaWqwWEJ5kUnDf0msr7Rc/view?usp=sharing";
+const TERMS_URL = "https://docs.google.com/document/d/1IlmLCRt_RN5v0LFTn-UTru5KoSzqm3WO/edit?usp=sharing&ouid=110792326083115985332&rtpof=true&sd=true";
 
 /* ---------- state ---------- */
 // Customer and machine details come from the MDR Sheet and are read-only here; staff edit them in
@@ -667,6 +693,7 @@ async function callSheet(body){
 }
 function lock(msg){
   STAFF_PIN = ""; JOBS = [];
+  if(typeof CL === "object"){ CL.jobs = []; CL.claims = []; CL.loaded = false; }
   if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; for(const k in hoStash) delete hoStash[k]; }
   try{ localStorage.removeItem(PIN_KEY); }catch(e){}
   document.body.classList.add("locked");
@@ -730,7 +757,6 @@ function openJob(j){
   if(j.savedReport){
     state = Object.assign(blank(), JSON.parse(JSON.stringify(j.savedReport)));
     state.machine = Object.assign(blank().machine, state.machine);
-    state.shop = Object.assign(state.shop || {}, { name:SHOP_NAME, contact:SHOP_CONTACT }); // shop details always current
     if(!state.std || !state.std.length){ state.std = []; state.extra = state.work || []; state.extraCustom = state.workCustom || []; }
     delete state.work; delete state.workCustom; delete state.notDone;
     applyJob(j); // Sheet details always win: they may have been edited since
@@ -1119,7 +1145,7 @@ function renderReport(){
       <img class="logo" src="${LOGO}" alt="">
       <div class="shop">
         <div class="name">${esc(s.shop.name)}</div>
-        <div class="meta">${esc(SHOP_CONTACT)}</div>
+        <div class="meta">${esc(s.shop.contact)}</div>
       </div>
       <div class="ref">
         <div class="t">Service report</div>
@@ -1518,7 +1544,7 @@ async function downloadPdf(asData){
   const tx = M + logoH*LOGO_RATIO + 5;
   set(13, "bold", INK); doc.text(s.shop.name||"Layer By Layer", tx, y+6.5);
   set(8.8, "normal", MUTED);
-  doc.splitTextToSize(SHOP_CONTACT, 80).slice(0,2).forEach((ln,i)=> doc.text(ln, tx, y+11.5+i*4));
+  doc.splitTextToSize(s.shop.contact||"", 80).slice(0,2).forEach((ln,i)=> doc.text(ln, tx, y+11.5+i*4));
   set(9, "normal", MUTED); doc.text("Service report", R, y+5, {align:"right"});
   set(14.5, "bold", INK); doc.text(s.job.ref||"Not saved yet", R, y+11.5, {align:"right"});
   y += logoH + 6;
@@ -2212,15 +2238,134 @@ function setMode(m){
     ({ ho, hoPhotos, hoDirty, hoFile } = hoStash[hoKind] || { ho: hoBlank(), hoPhotos: [], hoDirty: false, hoFile: null });
   }
   document.body.classList.toggle("mode-ho", isForm);
-  document.getElementById("modeReport").setAttribute("aria-pressed", String(!isForm));
+  document.body.classList.toggle("mode-cl", m === "claim");
+  document.getElementById("modeReport").setAttribute("aria-pressed", String(m === "report"));
   document.getElementById("modeHo").setAttribute("aria-pressed", String(m === "handover"));
   document.getElementById("modeTo").setAttribute("aria-pressed", String(m === "takeover"));
+  document.getElementById("modeCl").setAttribute("aria-pressed", String(m === "claim"));
   if(isForm) renderHo();
+  if(m === "claim"){ renderCl(); loadClaims(); }
   scrollTo(0, 0);
 }
 document.getElementById("modeReport").addEventListener("click", () => setMode("report"));
 document.getElementById("modeHo").addEventListener("click", () => setMode("handover"));
 document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
+document.getElementById("modeCl").addEventListener("click", () => setMode("claim"));
+
+/* ---------- petrol claims ---------- */
+// Flat $15 per delivery / collection trip. Each claim goes to the "Petrol claims" tab and onto the
+// claimant's draft Xero bill for the month (backend: handlePetrolClaim). Wording below = the policy.
+const CL_TRIPS = ["Pickup from customer", "Return to customer", "Pickup and return", "Other job trip"];
+const clLegs = () => cl.trip === "Pickup and return" ? 2 : 1; // pickup and return = 2 trips
+const CL_POLICY = `LAYER BY LAYER PTE. LTD.
+Transport Claim Policy (effective 1 October 2026)
+
+1. Directors and staff who use their own vehicle for company delivery or collection trips may claim a flat $15 per trip for petrol. A pickup and return done together counts as 2 trips ($30).
+2. Each claim must state the date, whether it is a pickup or return, and the job it was for. Only confirmed jobs can be claimed. Claims are made on this page.
+3. Claims are added to a bill per person in Xero each month and paid at month end.
+4. No receipts are needed for this flat amount. Parking, ERP and car rental are not claimed here: pay them with the company cash card (stored value supplied and topped up by the company) and keep the receipt or app record.
+5. A pickup or return is paid once per job. Claims must be for real trips; false claims will be treated as misconduct.
+
+Approved by the directors.`;
+const clToday = () => new Date().toLocaleDateString("en-CA"); // yyyy-mm-dd, device time zone
+let CL = { jobs: [], claims: [], perTrip: 15, loaded: false, loading: false };
+let cl = { claimant: "", date: clToday(), quoteNo: "", trip: "", note: "" };
+
+async function loadClaims(){
+  if(CL.loading) return;
+  CL.loading = true;
+  try{
+    const out = await callSheet({ action:"petrolClaims" });
+    if(out.result !== "success"){ if(out.message === "Wrong password.") lock("Password changed. Log in again."); else clStatus("err", out.message); return; }
+    CL = { jobs: out.jobs || [], claims: out.claims || [], perTrip: out.perTrip || 15, loaded: true, loading: false };
+    if(out.staff && out.staff.length) STAFF = out.staff;
+    if(!cl.claimant){ try{ cl.claimant = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){} }
+    renderCl();
+  }catch(err){ clStatus("err", "Could not load claims. Check the connection and press Refresh."); }
+  finally{ CL.loading = false; }
+}
+function clStatus(kind, msg){ const el = document.getElementById("clStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+
+function renderCl(){
+  const p = document.getElementById("clPane");
+  const names = STAFF.slice(); if(cl.claimant && !names.includes(cl.claimant)) names.unshift(cl.claimant);
+  const who = names.length
+    ? '<label class="f">Your name<select data-cl="claimant"><option value="">Choose...</option>'+names.map(n=>'<option'+(n===cl.claimant?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select></label>'
+    : '<label class="f">Your name<input data-cl="claimant" value="'+esc(cl.claimant)+'"></label>';
+  const jobs = '<label class="f span2 jobpick">Job<span class="pickrow"><select data-cl="quoteNo"><option value="">'+
+    (CL.loaded ? (CL.jobs.length ? "Choose the job..." : "No jobs found") : "Loading jobs...")+'</option>'+
+    CL.jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===cl.quoteNo?" selected":"")+'>'+
+      esc(j.quoteNo+" · "+j.name+(j.machine?" · "+j.machine:"")+" · "+j.status+(/^y/i.test(j.transport)?" · transport":""))+'</option>').join("")+
+    '</select><button type="button" class="mini" data-clrefresh="1" title="Reload from the Sheet">Refresh</button></span></label>';
+  const month = clToday().slice(0, 7);
+  const mine = CL.claims.filter(c => c.date.slice(0, 7) === month);
+  const totals = {};
+  mine.forEach(c => { totals[c.claimant] = (totals[c.claimant] || 0) + c.amount; });
+  const list = mine.length
+    ? '<div class="cltotals">'+Object.keys(totals).map(n=>'<span>'+esc(n)+': $'+totals[n]+'</span>').join("")+'</div>'+
+      '<table class="cllist"><thead><tr><th>Date</th><th>Name</th><th>Job / trip</th><th class="amt">$</th></tr></thead><tbody>'+
+      mine.map(c=>'<tr><td>'+esc(c.date.slice(8)+"/"+c.date.slice(5,7))+'</td><td>'+esc(c.claimant)+'</td><td>'+esc(c.quoteNo+(c.customer?" · "+c.customer:""))+
+        '<span class="x">'+esc(c.trip+(c.note?" · "+c.note:""))+'</span><span class="x'+(/^NOT/.test(c.xero)?" bad":"")+'">'+esc(c.xero||"")+'</span></td><td class="amt">'+c.amount+'</td></tr>').join("")+
+      '</tbody></table>'
+    : '<p class="hint">No claims yet this month.</p>';
+
+  p.innerHTML = `
+    <div class="stage">
+      <h2><span class="n">1</span>Claim a trip</h2>
+      <div class="grid">
+        ${who}
+        <label class="f">Trip date<input type="date" data-cl="date" value="${esc(cl.date)}" max="${clToday()}"></label>
+        ${jobs}
+      </div>
+      <h3 class="sub">Trip</h3>
+      <div class="chips" role="radiogroup" aria-label="Trip">
+        ${CL_TRIPS.map(t=>'<label class="chip"><input type="radio" name="cltrip" data-cltrip="1" value="'+t+'"'+(cl.trip===t?" checked":"")+'>'+t+'</label>').join("")}
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <label class="f span2">Note ${cl.trip === "Other job trip" ? "(needed: what was the trip for?)" : "(optional)"}<input data-cl="note" value="${esc(cl.note)}" maxlength="300" placeholder="e.g. collected parts for this job"></label>
+      </div>
+      <p class="hint">Amount: <b>$${CL.perTrip * clLegs()}</b>${clLegs() > 1 ? " ($" + CL.perTrip + " × 2 trips)" : " flat per trip"}. It is added to your Xero bill for the month and paid at month end.</p>
+      <div class="hoactions" style="margin-top:14px"><button type="button" class="primary" id="clSave" style="grid-column:1 / -1">Submit claim ($${CL.perTrip * clLegs()})</button></div>
+      <p class="hostatus" id="clStatus" role="status"></p>
+    </div>
+    <div class="stage">
+      <h2><span class="n">2</span>Claims this month</h2>
+      ${list}
+    </div>
+    <details class="accg stage"><summary><span>Transport claim policy</span></summary><div class="policy">${esc(CL_POLICY)}</div></details>`;
+}
+
+const clPane = document.getElementById("clPane");
+clPane.addEventListener("change", e => {
+  const t = e.target;
+  if(t.dataset.cltrip){ cl.trip = t.value; renderCl(); return; }
+  if(t.dataset.cl){ cl[t.dataset.cl] = t.value; if(t.dataset.cl === "claimant"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} } }
+});
+clPane.addEventListener("input", e => { const t = e.target; if(t.dataset.cl) cl[t.dataset.cl] = t.value; });
+clPane.addEventListener("click", async e => {
+  const b = e.target.closest("button");
+  if(!b) return;
+  if(b.dataset.clrefresh){ loadClaims(); return; }
+  if(b.id !== "clSave") return;
+  const missing = [!cl.claimant && "your name", !cl.date && "trip date", !cl.quoteNo && "job", !cl.trip && "trip",
+    cl.trip === "Other job trip" && !cl.note.trim() && "note"].filter(Boolean);
+  if(missing.length){ clStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+  b.disabled = true; b.textContent = "Submitting...";
+  try{
+    const out = await callSheet({ action:"petrolClaim", claim: cl });
+    if(out.result !== "success"){
+      if(out.message === "Wrong password."){ lock("Password changed. Log in again, then submit again."); return; }
+      clStatus("err", "NOT claimed: " + out.message); return;
+    }
+    const done = cl.trip + " for " + cl.quoteNo;
+    cl = { claimant: cl.claimant, date: clToday(), quoteNo: "", trip: "", note: "" };
+    await loadClaims();
+    clStatus(out.xeroError ? "err" : "ok", "Claimed: " + done + ". " + (out.xeroError
+      ? "Saved to the Sheet, but NOT added to Xero (" + out.xeroError + "). Tell Nigel to add it to the bill by hand."
+      : "Added to your Xero bill \"" + out.billRef + "\"."));
+  }catch(err){ clStatus("err", "NOT claimed: no connection? Try again."); }
+  finally{ const s = document.getElementById("clSave"); if(s){ s.disabled = false; s.textContent = "Submit claim ($" + CL.perTrip * clLegs() + ")"; } }
+});
 
 const hoPane = document.getElementById("hoPane");
 hoPane.addEventListener("change", async e => {
