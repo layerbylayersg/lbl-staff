@@ -925,7 +925,7 @@ function renderForm(){
         ${s.job.handoverLocked ? '<label class="f">Service date (handover)<input value="'+esc(dmy(s.job.date))+'" readonly></label>' : field("job.date","Service date (handover)",{type:"date"})}
         ${custom ? '<label class="f">Service type<select data-stype="1">'+["Printer only","Printer + MFMS","MFMS only"].map(t=>'<option'+(t===s.job.serviceType?" selected":"")+'>'+t+'</option>').join("")+'</select></label>' : ""}
       </div>
-      <div class="refs"><span>${custom ? "<b>Custom job</b>" : "Quotation <b>"+esc(s.job.quoteNo)+"</b>"}</span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
+      <div class="refs"><span>${custom ? "<b>Custom job</b>" : "Job No. <b>"+esc(s.job.quoteNo)+"</b>"}</span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
       ${summary}
       ${handedOver}
     </div>
@@ -1157,7 +1157,7 @@ function renderReport(){
       <div><div class="k">Outcome</div><div class="v">${st?`<span class="badge ${st[1]}">${esc(st[0])}</span>`:'<span class="badge none">Not set</span>'}</div></div>
       <div><div class="k">Service date</div><div class="v">${esc(dateStr||"–")}</div></div>
       <div><div class="k">MDR Specialist</div><div class="v">${esc(s.shop.tech||"–")}</div></div>
-      ${s.job.quoteNo?`<div><div class="k">Quotation</div><div class="v">${esc(s.job.quoteNo)}</div></div>`:""}
+      ${s.job.quoteNo?`<div><div class="k">Job No.</div><div class="v">${esc(s.job.quoteNo)}</div></div>`:""}
     </div>
 
     <div class="body">
@@ -1553,7 +1553,7 @@ async function downloadPdf(asData){
 
   /* summary strip: outcome badge, date, technician, quotation */
   const cells = [["Outcome", null], ["Service date", dateStr||"–"], ["MDR Specialist", s.shop.tech||"–"]];
-  if(s.job.quoteNo) cells.push(["Quotation", s.job.quoteNo]);
+  if(s.job.quoteNo) cells.push(["Job No.", s.job.quoteNo]);
   // Column widths follow the content: the quotation number needs the most room
   const weights = cells.length === 4 ? [0.2, 0.22, 0.22, 0.36] : [0.3, 0.35, 0.35];
   const lefts = weights.map((w, i)=> M + CW * weights.slice(0, i).reduce((a,b)=>a+b, 0));
@@ -1722,7 +1722,7 @@ function shareOrChat(file, text, phone, skipShare){
   toast("PDF downloaded. Attach it in the WhatsApp chat.");
 }
 
-// Email template. {name} = customer, {quote} = quotation number (report number for custom jobs),
+// Email template. {name} = customer, {quote} = job number (report number for custom jobs),
 // {machine} = printer and/or MFMS. Signed off as Layer By Layer. Staff can edit it before sending.
 const EMAIL_SUBJECT = "Your service report for {quote} | Layer By Layer";
 const EMAIL_BODY = `Hi {name},
@@ -1838,7 +1838,7 @@ function openHo(j){
     rep: state.shop.tech || ""
   });
   const saved = hoKind === "takeover" ? j.takeover : j.handover;
-  if(saved){ Object.assign(ho, saved); ho.saved = true; }
+  if(saved){ Object.assign(ho, saved, { quoteNo: j.quoteNo }); ho.saved = true; } // older forms stored the quotation number
   else if(hoKind === "takeover" && j.handover){
     // start from what came in: everything handed over is ticked as returned
     ["nozzle","nozzleOther","otherOn","plateType","plateTypeOther","filamentDetail","otherItems"].forEach(k => { if(j.handover[k] != null) ho[k] = j.handover[k]; });
@@ -2080,7 +2080,7 @@ async function hoPdf(){
   /* summary strip */
   const how = (W().methods.find(m => m[0] === ho.method) || [,, ho.method || "–"])[2];
   const cells = [[W().date, longDate], [W().howPdf, how],
-                 ["Representative", ho.rep || "–"], ["Quotation", ho.quoteNo || "–"]];
+                 ["Representative", ho.rep || "–"], ["Job No.", ho.quoteNo || "–"]];
   const weights = [0.26, 0.2, 0.22, 0.32];
   doc.setFillColor.apply(doc, PANEL); doc.setDrawColor.apply(doc, LINE); doc.roundedRect(M, y, CW, 16, 2.5, 2.5, "FD");
   cells.forEach(([k,v], i) => {
