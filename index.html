@@ -2540,16 +2540,20 @@ async function rsScan(files){
     if(r.date) rs.date = r.date;
     if(r.currency) rs.currency = RS_CURRENCIES.includes(r.currency) ? r.currency : rs.currency;
     rs.items = (r.items.length ? r.items : [{ raw: "", qty: 1, unitPrice: "" }]).map(it => {
-      const m = rsMatch(it.raw);
-      return Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: m ? m.code : "", name: m ? m.name : "", isNew: false });
+      // Known item (receipt name, item name or the AI's suggested code) -> that item; otherwise a new item
+      // pre-filled with the AI's suggested code and English name, which staff can change.
+      const m = rsMatch(it.raw) || rsMatch(it.name) || (it.code ? stockOf(it.code) : null);
+      return m ? Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: m.code, name: m.name, isNew: false })
+        : Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: it.code || "", name: it.name || "", isNew: true });
     });
     rs.extras = r.extras.map(e => ({ label: e.label, amount: e.amount }));
     rs.receiptTotal = r.orderTotal || "";
     if(r.paidSGD > 0) rs.paidSGD = r.paidSGD; // printed on the receipt; staff still check it against the card / bank
     rsDirty = true; renderRs();
-    const unmatched = rs.items.filter(it => !it.code).length;
+    const fresh = rs.items.filter(it => it.isNew).length, blank = rs.items.filter(it => !it.code || !it.name).length;
     rsStatus("ok", "Read " + rs.items.length + " item(s). Check every number against the receipt" +
-      (unmatched ? ", and pick an item code for the " + unmatched + " line(s) not matched yet." : ".") + (r.paidSGD > 0 ? " SGD paid was read from the receipt: check it against your card / bank." : " Then enter the SGD you actually paid."));
+      (fresh ? ". " + fresh + " new item(s) got a suggested code and name: check them, or pick an existing item instead" : "") +
+      (blank ? ". " + blank + " line(s) still need a code / name" : "") + "." + (r.paidSGD > 0 ? " SGD paid was read from the receipt: check it against your card / bank." : " Then enter the SGD you actually paid."));
   }catch(err){ rsStatus("err", "Could not read the receipt (no connection?). Type the items in instead."); }
 }
 
