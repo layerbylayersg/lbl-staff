@@ -96,6 +96,20 @@
   #hoView{display:none}
   body.mode-ho #hoView{display:block}
   body.mode-ho .layout,body.mode-ho .mobiletabs,body.mode-ho #saveStatus,body.locked #hoView{display:none!important}
+  #rsView{display:none}
+  body.mode-rs #rsView{display:block}
+  body.mode-rs .layout,body.mode-rs .mobiletabs,body.mode-rs #saveStatus,body.mode-rs #hoView,body.locked #rsView{display:none!important}
+  .rsitem{border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 10px;background:var(--surface)}
+  .rsraw{font-size:12.5px;color:var(--muted);margin:0 0 8px;word-break:break-word}
+  .rscost{display:flex;flex-direction:column;justify-content:flex-end;gap:2px;font-size:13px;color:var(--ink-2)} .rscost b{font-size:18px;color:var(--ink)}
+  .rsnotes{margin:10px 0 8px;font-size:13px;line-height:1.5;color:var(--ink-2)}
+  .up{color:var(--red-ink)} .down{color:var(--green-ink)}
+  .rsextra{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;margin:0 0 8px}
+  .rsextra input,.rssum input,[data-rsfind]{height:40px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);font:inherit;font-size:16px;min-width:0;width:100%;box-sizing:border-box}
+  .rssum{margin-top:14px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;display:grid;gap:8px;font-size:14px}
+  .rssum div{display:flex;justify-content:space-between;align-items:center;gap:12px} .rssum div input{max-width:160px;text-align:right}
+  .rssum .big b{font-size:18px} .rssum .rscheck{font-size:13px}
+  .rstable{overflow-x:auto;margin-top:10px} .cllist td.low{color:var(--red-ink);font-weight:700}
   #clView{display:none}
   body.mode-cl #clView{display:block}
   body.mode-cl .layout,body.mode-cl .mobiletabs,body.mode-cl #saveStatus,body.mode-cl #hoView,body.locked #clView{display:none!important}
@@ -508,6 +522,7 @@
     <button type="button" id="modeHo" aria-pressed="false">Handover</button>
     <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
     <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
+    <button type="button" id="modeRs" aria-pressed="false">Restock</button>
   </div>
   <button id="btnLogout">Log out</button>
   <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
@@ -538,6 +553,7 @@
 
 <main id="hoView"><div class="howrap" id="hoPane"></div></main>
 <main id="clView"><div class="howrap" id="clPane"></div></main>
+<main id="rsView"><div class="howrap" id="rsPane"></div></main>
 
 <dialog id="mailDlg" aria-labelledby="mailTitle">
   <form id="mailForm">
@@ -694,6 +710,7 @@ async function callSheet(body){
 function lock(msg){
   STAFF_PIN = ""; JOBS = [];
   if(typeof CL === "object"){ CL.jobs = []; CL.claims = []; CL.loaded = false; }
+  if(typeof RS === "object"){ RS.stock = []; RS.history = []; RS.loaded = false; rs = rsBlank(); rsDirty = false; }
   if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; for(const k in hoStash) delete hoStash[k]; }
   try{ localStorage.removeItem(PIN_KEY); }catch(e){}
   document.body.classList.add("locked");
@@ -712,6 +729,7 @@ async function login(pw){
   STAFF_PIN = pw;
   if(!await loadJobs()) return false;
   document.body.classList.remove("locked");
+  loadStock(); // part-name suggestions in the service report
   render();
   return true;
 }
@@ -1078,7 +1096,7 @@ function syncAutoPart(item, on){
 function partsRows(){
   return state.parts.map((pt,i)=>`
         <tr>
-          <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
+          <td><input value="${esc(pt.name)}" data-part="name" data-i="${i}" list="stockNames" placeholder="e.g. Hotend fan" aria-label="Part ${i+1} name"></td>
           <td class="k"><input value="${esc(pt.qty)}" data-part="qty" data-i="${i}" inputmode="numeric" pattern="[0-9]*" placeholder="1" aria-label="Part ${i+1} quantity (numbers only)"></td>
           <td class="d"><button type="button" data-delpart="${i}" title="Remove part" aria-label="Remove part ${i+1}">&times;</button></td>
         </tr>`).join("");
@@ -2239,18 +2257,22 @@ function setMode(m){
   }
   document.body.classList.toggle("mode-ho", isForm);
   document.body.classList.toggle("mode-cl", m === "claim");
+  document.body.classList.toggle("mode-rs", m === "restock");
   document.getElementById("modeReport").setAttribute("aria-pressed", String(m === "report"));
   document.getElementById("modeHo").setAttribute("aria-pressed", String(m === "handover"));
   document.getElementById("modeTo").setAttribute("aria-pressed", String(m === "takeover"));
   document.getElementById("modeCl").setAttribute("aria-pressed", String(m === "claim"));
+  document.getElementById("modeRs").setAttribute("aria-pressed", String(m === "restock"));
   if(isForm) renderHo();
   if(m === "claim"){ renderCl(); loadClaims(); }
+  if(m === "restock"){ renderRs(); loadStock(); }
   scrollTo(0, 0);
 }
 document.getElementById("modeReport").addEventListener("click", () => setMode("report"));
 document.getElementById("modeHo").addEventListener("click", () => setMode("handover"));
 document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
 document.getElementById("modeCl").addEventListener("click", () => setMode("claim"));
+document.getElementById("modeRs").addEventListener("click", () => setMode("restock"));
 
 /* ---------- petrol claims ---------- */
 // Flat $15 per delivery / collection trip. Each claim goes to the "Petrol claims" tab and onto the
@@ -2436,6 +2458,313 @@ hoPane.addEventListener("click", e => {
   }
 });
 
+
+/* ---------- restock: landed cost, stock, supplier prices ---------- */
+// Purchases (typed or scanned from receipt photos) -> landed cost per unit in SGD -> Stock tab.
+// Backend: handleStockData / handleRestockScan / handleRestockSave / handleStockMove / handleStockPrice.
+const RS_PLATFORMS = ["Taobao", "Shopee", "Lazada", "AliExpress", "Carousell", "Amazon", "Local shop", "Other"];
+const RS_CURRENCIES = ["SGD", "CNY", "USD", "MYR", "HKD", "EUR"];
+const RS_EXTRAS = ["Shipping", "Agent fee", "Forwarder fee", "GST", "Import tax", "Service fee", "Discount"];
+let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loaded: false, loading: false };
+let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
+const rsItem = () => ({ code: "", name: "", raw: "", qty: 1, unitPrice: "", sellPrice: "", isNew: false });
+function rsBlank(){
+  let by = ""; try{ by = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){}
+  return { date: clToday(), merchant: "", platform: "Taobao", currency: "CNY", paidSGD: "", fxRate: "", by,
+    items: [rsItem()], extras: [], receiptTotal: "", images: [] };
+}
+rs = rsBlank();
+const money = n => (Math.round(Number(n) * 100) / 100).toFixed(2);
+
+async function loadStock(){
+  if(RS.loading) return;
+  RS.loading = true;
+  try{
+    const out = await callSheet({ action: "stockData" });
+    if(out.result !== "success"){ if(out.message === "Wrong password.") lock("Password changed. Log in again."); return; }
+    RS = { stock: out.stock || [], history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
+      target: out.targetMargin || 0.3, loaded: true, loading: false };
+    if(out.staff && out.staff.length) STAFF = out.staff;
+    fillStockNames();
+    if(document.body.classList.contains("mode-rs")) renderRs();
+  }catch(err){ rsStatus("err", "Could not load stock. Check the connection and press Refresh."); }
+  finally{ RS.loading = false; }
+}
+// Service report "Parts replaced": suggest stock item names so used parts come off stock.
+function fillStockNames(){
+  let dl = document.getElementById("stockNames");
+  if(!dl){ dl = document.createElement("datalist"); dl.id = "stockNames"; document.body.appendChild(dl); }
+  dl.innerHTML = RS.stock.map(s => '<option value="' + esc(s.name) + '">').join("");
+}
+function rsStatus(kind, msg){ const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+
+// Same maths as landedCosts() in the script: extras spread by value, SGD paid absorbs FX and card fees.
+function rsCalc(){
+  const items = rs.items.map(it => ({ qty: Number(it.qty) || 0, unit: Number(it.unitPrice) || 0 }));
+  const value = items.reduce((s, it) => s + it.qty * it.unit, 0);
+  const extras = rs.extras.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const order = value + extras;
+  const paid = Number(rs.paidSGD) || 0, fx = Number(rs.fxRate) || 0;
+  const sgd = paid > 0 ? paid : rs.currency === "SGD" ? order : fx > 0 ? order * fx : 0;
+  const factor = value > 0 && sgd > 0 ? sgd / value : 0;
+  return { value, extras, order, sgd, factor, units: items.map(it => factor ? it.unit * factor : 0) };
+}
+const stockOf = code => RS.stock.find(s => s.code === code);
+// Price history for one item: last buy from this merchant, cheapest buy ever.
+function rsHistory(code, merchant){
+  const h = RS.history.filter(x => x.code === code);
+  const same = h.filter(x => x.merchant === merchant).slice(-1)[0];
+  const cheapest = h.slice().sort((a, b) => a.unit - b.unit)[0];
+  return { same, cheapest };
+}
+function rsMatch(raw){
+  const n = String(raw || "").trim().toLowerCase();
+  if(!n) return null;
+  return RS.stock.find(s => s.name.toLowerCase() === n || s.code.toLowerCase() === n || s.aliases.some(a => a.toLowerCase() === n)) || null;
+}
+
+async function rsScan(files){
+  const imgs = [];
+  for(const f of Array.from(files || []).slice(0, 4)){
+    try{ imgs.push(await shrinkPhoto(f)); }catch(e){ toast(f.name + " is not an image."); }
+  }
+  if(!imgs.length) return;
+  rs.images = imgs; renderRs();
+  rsStatus("busy", "Reading the receipt...");
+  try{
+    const out = await callSheet({ action: "restockScan", images: imgs.map(d => ({ base64: d.split(",")[1], mime: "image/jpeg" })) });
+    if(out.result !== "success"){ rsStatus("err", out.message); return; }
+    const r = out.receipt;
+    if(r.merchant) rs.merchant = r.merchant;
+    if(RS_PLATFORMS.includes(r.platform)) rs.platform = r.platform;
+    if(r.date) rs.date = r.date;
+    if(r.currency) rs.currency = RS_CURRENCIES.includes(r.currency) ? r.currency : rs.currency;
+    rs.items = (r.items.length ? r.items : [{ raw: "", qty: 1, unitPrice: "" }]).map(it => {
+      const m = rsMatch(it.raw);
+      return Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: m ? m.code : "", name: m ? m.name : "", isNew: false });
+    });
+    rs.extras = r.extras.map(e => ({ label: e.label, amount: e.amount }));
+    rs.receiptTotal = r.orderTotal || "";
+    if(r.paidSGD > 0) rs.paidSGD = r.paidSGD; // printed on the receipt; staff still check it against the card / bank
+    rsDirty = true; renderRs();
+    const unmatched = rs.items.filter(it => !it.code).length;
+    rsStatus("ok", "Read " + rs.items.length + " item(s). Check every number against the receipt" +
+      (unmatched ? ", and pick an item code for the " + unmatched + " line(s) not matched yet." : ".") + (r.paidSGD > 0 ? " SGD paid was read from the receipt: check it against your card / bank." : " Then enter the SGD you actually paid."));
+  }catch(err){ rsStatus("err", "Could not read the receipt (no connection?). Type the items in instead."); }
+}
+
+function renderRs(){
+  const p = document.getElementById("rsPane");
+  if(!p) return;
+  const c = rsCalc(), cur = rs.currency;
+  const opt = (list, v) => list.map(x => '<option' + (x === v ? " selected" : "") + '>' + esc(x) + '</option>').join("");
+  const names = STAFF.slice(); if(rs.by && !names.includes(rs.by)) names.unshift(rs.by);
+  const codeSel = (it, i) => '<select data-rsi="' + i + '" data-k="pick"><option value="">Choose item...</option>' +
+    RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === it.code && !it.isNew ? " selected" : "") + '>' + esc(s.code + " · " + s.name) + '</option>').join("") +
+    '<option value="__new"' + (it.isNew ? " selected" : "") + '>+ New item...</option></select>';
+  const items = rs.items.map((it, i) => {
+    const unit = c.units[i] || 0, st = stockOf(it.code), sell = Number(it.sellPrice) || (st ? st.sell : 0);
+    const h = it.code && !it.isNew ? rsHistory(it.code, rs.merchant) : {};
+    const notes = [];
+    if(unit && h.same) notes.push('Last time from this seller: $' + money(h.same.unit) + (unit > h.same.unit * 1.005 ? ' <b class="up">▲ ' + Math.round((unit / h.same.unit - 1) * 100) + '% dearer</b>' : unit < h.same.unit * 0.995 ? ' <b class="down">▼ ' + Math.round((1 - unit / h.same.unit) * 100) + '% cheaper</b>' : ' (same)'));
+    if(unit && h.cheapest && h.cheapest.merchant !== rs.merchant && h.cheapest.unit < unit) notes.push('Cheapest so far: $' + money(h.cheapest.unit) + ' from ' + esc(h.cheapest.merchant));
+    if(unit && sell){
+      const m = (sell - unit) / sell;
+      notes.push('Sell $' + money(sell) + ' → margin <b class="' + (m < RS.target ? "up" : "down") + '">' + Math.round(m * 100) + '%</b>' +
+        (m < RS.target ? ' (below ' + Math.round(RS.target * 100) + '%: suggest $' + Math.ceil(unit / (1 - RS.target)) + ')' : ''));
+    } else if(unit) notes.push('Suggested sell price for ' + Math.round(RS.target * 100) + '% margin: $' + Math.ceil(unit / (1 - RS.target)));
+    return `<div class="rsitem">
+      ${it.raw ? '<div class="rsraw">Receipt: ' + esc(it.raw) + '</div>' : ''}
+      <div class="grid">
+        <label class="f span2">Item${codeSel(it, i)}</label>
+        ${it.isNew ? '<label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PART-BL-P2S-BUFFER" autocapitalize="characters"></label>' +
+          '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label>' : ''}
+        <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
+        <label class="f">Unit price (${esc(cur)})<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="unitPrice" value="${esc(it.unitPrice)}"></label>
+        <label class="f">Sell price (SGD, optional)<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="sellPrice" value="${esc(it.sellPrice)}" placeholder="${st && st.sell ? money(st.sell) : ""}"></label>
+        <div class="rscost"><span>Landed cost / unit</span><b>${unit ? "$" + money(unit) : "–"}</b></div>
+      </div>
+      ${notes.length ? '<div class="rsnotes">' + notes.join("<br>") + '</div>' : ''}
+      <button type="button" class="mini" data-rsdel="${i}">Remove item</button>
+    </div>`;
+  }).join("");
+  const extras = rs.extras.map((e, i) => `<div class="rsextra">
+      <input list="rsExtraNames" data-rse="${i}" data-k="label" value="${esc(e.label)}" placeholder="e.g. Shipping" aria-label="Charge">
+      <input type="number" inputmode="decimal" step="any" data-rse="${i}" data-k="amount" value="${esc(e.amount)}" placeholder="Amount (${esc(cur)}), minus for discount" aria-label="Amount">
+      <button type="button" class="mini" data-rsedel="${i}" aria-label="Remove charge">✕</button></div>`).join("");
+  const rt = Number(rs.receiptTotal) || 0, diff = rt ? c.order - rt : 0;
+  const check = !rt ? "" : Math.abs(diff) < 0.01 ? '<span class="down">✓ matches the receipt total</span>' : '<span class="up">⚠ differs from the receipt total by ' + money(Math.abs(diff)) + ' ' + esc(cur) + '. Check the items and charges.</span>';
+
+  const q = rsFind.trim().toLowerCase();
+  const rows = RS.stock.filter(s => !q || (s.code + " " + s.name).toLowerCase().includes(q)).map(s => {
+    const m = s.sell && s.avg ? (s.sell - s.avg) / s.sell : null;
+    return '<tr><td>' + esc(s.name) + '<span class="x">' + esc(s.code) + '</span></td><td class="amt' + (s.qty <= s.min ? ' low' : '') + '">' + s.qty + '</td>' +
+      '<td class="amt">$' + money(s.avg) + '</td><td class="amt">' + (s.sell ? '$' + money(s.sell) : '–') + '</td>' +
+      '<td class="amt">' + (m === null ? '–' : '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b>') + '</td></tr>';
+  }).join("");
+  const itemOpts = '<option value="">Choose item...</option>' + RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === rsOut.code ? " selected" : "") + '>' + esc(s.code + " · " + s.name + " (" + s.qty + ")") + '</option>').join("");
+  const selOut = stockOf(rsOut.code);
+
+  p.innerHTML = `
+    <div class="stage">
+      <h2><span class="n">1</span>Scan receipt</h2>
+      <p class="hint" style="margin-top:0">Take a photo or pick screenshots of the order or invoice (up to 4). The AI fills in the items; you check them.</p>
+      <div class="photos">${rs.images.map(d => '<div class="ph"><img src="' + d + '" alt="Receipt"></div>').join("")}
+        <label class="addph">📷 Scan receipt<input type="file" accept="image/*" multiple data-rsscan="1"></label></div>
+    </div>
+    <div class="stage">
+      <h2><span class="n">2</span>Purchase</h2>
+      <div class="grid">
+        <label class="f">Date<input type="date" data-rs="date" value="${esc(rs.date)}"></label>
+        <label class="f">Entered by<select data-rsby="1"><option value="">Choose...</option>${opt(names, rs.byOther ? "" : rs.by)}<option value="__other"${rs.byOther ? " selected" : ""}>Other...</option></select></label>
+        ${rs.byOther ? '<label class="f">Your name<input data-rs="by" value="' + esc(rs.by) + '" placeholder="Type your name"></label>' : ""}
+        <label class="f span2">Merchant / seller<input list="rsMerchants" data-rs="merchant" value="${esc(rs.merchant)}" placeholder="Shop name"></label>
+        <label class="f">Platform<select data-rs="platform">${opt(RS_PLATFORMS, rs.platform)}</select></label>
+        <label class="f">Receipt currency<select data-rs="currency">${opt(RS_CURRENCIES, rs.currency)}</select></label>
+        <label class="f span2">Total you actually paid (SGD)<input type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="From your card / bank statement${cur === "SGD" ? " (blank = receipt total)" : ""}"></label>
+        ${cur !== "SGD" && !(Number(rs.paidSGD) > 0) ? '<label class="f span2">Or exchange rate (1 ' + esc(cur) + ' = ? SGD)<input type="number" inputmode="decimal" step="any" data-rs="fxRate" value="' + esc(rs.fxRate) + '" placeholder="Only if you don\'t know the SGD paid yet"></label>' : ''}
+      </div>
+    </div>
+    <div class="stage">
+      <h2><span class="n">3</span>Items</h2>
+      ${items}
+      <button type="button" class="mini" data-rsadd="1">+ Add item</button>
+      <h3 class="sub">Extra charges (shipping, fees, tax, discounts)</h3>
+      ${extras || '<p class="hint" style="margin-top:0">None.</p>'}
+      <button type="button" class="mini" data-rseadd="1">+ Add charge</button>
+      <div class="rssum">
+        <div><span>Items</span><b>${money(c.value)} ${esc(cur)}</b></div>
+        <div><span>Extra charges</span><b>${money(c.extras)} ${esc(cur)}</b></div>
+        <div><span>Order total</span><b>${money(c.order)} ${esc(cur)}</b></div>
+        <div><span>Receipt total</span><input type="number" inputmode="decimal" step="any" data-rs="receiptTotal" value="${esc(rs.receiptTotal)}" aria-label="Receipt total"></div>
+        ${check ? '<div class="rscheck">' + check + '</div>' : ''}
+        <div class="big"><span>Landed in SGD</span><b>${c.sgd ? "$" + money(c.sgd) : "enter SGD paid"}</b></div>
+      </div>
+      <div class="hoactions" style="margin-top:14px"><button type="button" class="primary" id="rsSave" style="grid-column:1 / -1">Save purchase &amp; add to stock</button></div>
+      <p class="hostatus" id="rsStatus" role="status"></p>
+    </div>
+    <div class="stage">
+      <h2><span class="n">4</span>Stock <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">Refresh</button></h2>
+      <label class="f"><input data-rsfind="1" value="${esc(rsFind)}" placeholder="Search item or code" aria-label="Search stock"></label>
+      ${RS.stock.length ? '<div class="rstable"><table class="cllist"><thead><tr><th>Item</th><th class="amt">Qty</th><th class="amt">Avg cost</th><th class="amt">Sell</th><th class="amt">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+        : '<p class="hint">' + (RS.loaded ? 'No stock yet. Save a purchase to start.' : 'Loading stock...') + '</p>'}
+      <h3 class="sub">Sold / used, or stock count</h3>
+      <div class="grid">
+        <label class="f span2">Item<select data-rso="code">${itemOpts}</select></label>
+        <div class="chips span2" role="radiogroup" aria-label="Type">
+          <label class="chip"><input type="radio" name="rskind" data-rso="kind" value="out"${rsOut.kind === "out" ? " checked" : ""}>Sold / used</label>
+          <label class="chip"><input type="radio" name="rskind" data-rso="kind" value="count"${rsOut.kind === "count" ? " checked" : ""}>Stock count (set qty)</label>
+        </div>
+        <label class="f">${rsOut.kind === "count" ? "Counted qty" : "Qty"}<input type="number" inputmode="decimal" min="0" step="any" data-rso="qty" value="${esc(rsOut.qty)}"></label>
+        ${rsOut.kind === "out" ? '<label class="f">Where it went<select data-rso="channel"><option value="">Choose...</option>' + opt(RS.channels, rsOut.channel) + '</select></label>' : ''}
+        <label class="f span2">Note / order no. (optional)<input data-rso="note" value="${esc(rsOut.note)}" placeholder="e.g. Shopee order 2610xxxx"></label>
+      </div>
+      <div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">${rsOut.kind === "count" ? "Save count" : "Take off stock"}</button></div>
+      ${selOut ? '<h3 class="sub">Sell price &amp; low-stock alert for ' + esc(selOut.name) + '</h3><div class="grid">' +
+        '<label class="f">Sell price (SGD)<input type="number" inputmode="decimal" step="any" id="rsSell" value="' + (selOut.sell || "") + '"></label>' +
+        '<label class="f">Alert when qty is at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + selOut.min + '"></label></div>' +
+        '<div class="hoactions" style="margin-top:12px"><button type="button" id="rsPrice" style="grid-column:1 / -1">Save price &amp; alert level</button></div>' : ''}
+      <p class="hostatus" id="rsStatus2" role="status"></p>
+    </div>
+    <datalist id="rsMerchants">${RS.merchants.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>
+    <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
+}
+function rsStatus2(kind, msg){ const el = document.getElementById("rsStatus2"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+
+const rsPane = document.getElementById("rsPane");
+rsPane.addEventListener("input", e => {
+  const t = e.target;
+  if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; }
+  else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
+  else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
+  else if(t.dataset.rso && t.type !== "radio" && t.tagName !== "SELECT"){ rsOut[t.dataset.rso] = t.value; }
+  else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
+});
+rsPane.addEventListener("change", e => {
+  const t = e.target;
+  if(t.dataset.rsscan){ rsScan(t.files); return; }
+  if(t.dataset.rsby){ // staff list (Script Property STAFF_NAMES) or "Other..." to type a name
+    rs.byOther = t.value === "__other"; rs.by = rs.byOther ? "" : t.value;
+    if(!rs.byOther){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
+    rsDirty = true; renderRs();
+    if(rs.byOther){ const box = rsPane.querySelector('[data-rs="by"]'); if(box) box.focus(); }
+    return;
+  }
+  if(t.dataset.rsi !== undefined && t.dataset.k === "pick"){
+    const it = rs.items[+t.dataset.rsi];
+    if(t.value === "__new"){ it.isNew = true; it.code = ""; it.name = it.name || ""; }
+    else { const s = stockOf(t.value); it.isNew = false; it.code = t.value; it.name = s ? s.name : ""; }
+    rsDirty = true; renderRs(); return;
+  }
+  if(t.dataset.rso){
+    rsOut[t.dataset.rso] = t.value;
+    if(t.dataset.rso === "code" || t.dataset.rso === "kind") renderRs();
+    return;
+  }
+  if(t.dataset.rs || t.dataset.rsi !== undefined || t.dataset.rse !== undefined){
+    renderRs(); // refresh landed costs and price comparisons
+  }
+});
+rsPane.addEventListener("click", async e => {
+  const b = e.target.closest("button");
+  if(!b) return;
+  if(b.dataset.rsadd){ rs.items.push(rsItem()); renderRs(); return; }
+  if(b.dataset.rsdel !== undefined){ rs.items.splice(+b.dataset.rsdel, 1); if(!rs.items.length) rs.items.push(rsItem()); renderRs(); return; }
+  if(b.dataset.rseadd){ rs.extras.push({ label: "", amount: "" }); renderRs(); return; }
+  if(b.dataset.rsedel !== undefined){ rs.extras.splice(+b.dataset.rsedel, 1); renderRs(); return; }
+  if(b.dataset.rsrefresh){ loadStock(); return; }
+  if(b.id === "rsSave"){
+    const c = rsCalc();
+    const missing = [!rs.merchant.trim() && "merchant", !rs.by && "entered by",
+      rs.items.some(it => !it.code || !it.name) && "an item code for every line",
+      rs.items.some(it => !(Number(it.qty) > 0) || it.unitPrice === "") && "qty and price for every line",
+      !c.sgd && "the SGD you paid (or exchange rate)"].filter(Boolean);
+    if(missing.length){ rsStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+    const rt = Number(rs.receiptTotal) || 0;
+    if(rt && Math.abs(c.order - rt) >= 0.01 && !confirm("The items and charges add up to " + money(c.order) + " " + rs.currency + ", but the receipt total is " + money(rt) + ". Save anyway?")) return;
+    b.disabled = true; b.textContent = "Saving...";
+    try{
+      const purchase = Object.assign({}, rs); delete purchase.images; delete purchase.receiptTotal;
+      purchase.items = rs.items.map(it => ({ code: it.code, name: it.name, raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, sellPrice: it.sellPrice }));
+      const out = await callSheet({ action: "restockSave", purchase });
+      if(out.result !== "success"){
+        if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); return; }
+        rsStatus("err", "NOT saved: " + out.message); return;
+      }
+      const keepBy = rs.by;
+      rs = rsBlank(); rs.by = keepBy; rsDirty = false;
+      await loadStock();
+      rsStatus("ok", "Saved as " + out.purchaseId + " ($" + money(out.sgdTotal) + "). Stock updated.");
+    }catch(err){ rsStatus("err", "NOT saved: no connection? Try again."); }
+    finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = "Save purchase & add to stock"; } }
+    return;
+  }
+  if(b.id === "rsMove"){
+    if(!rsOut.code){ rsStatus2("err", "Pick an item."); return; }
+    if(rsOut.kind === "out" && !rsOut.channel){ rsStatus2("err", "Pick where it went."); return; }
+    b.disabled = true;
+    try{
+      const out = await callSheet({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by });
+      if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
+      const name = (stockOf(rsOut.code) || {}).name || rsOut.code;
+      rsOut = { code: "", kind: rsOut.kind, qty: 1, channel: "", note: "" };
+      await loadStock();
+      rsStatus2("ok", name + ": " + out.qty + " left.");
+    }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
+    finally{ const s = document.getElementById("rsMove"); if(s) s.disabled = false; }
+    return;
+  }
+  if(b.id === "rsPrice"){
+    b.disabled = true;
+    try{
+      const out = await callSheet({ action: "stockPrice", code: rsOut.code, sellPrice: document.getElementById("rsSell").value, minQty: document.getElementById("rsMin").value });
+      if(out.result !== "success"){ rsStatus2("err", out.message); return; }
+      await loadStock(); rsStatus2("ok", "Saved.");
+    }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
+    finally{ const s = document.getElementById("rsPrice"); if(s) s.disabled = false; }
+  }
+});
+
 /* ---------- boot ---------- */
 (async function(){
   document.getElementById("barLogo").src = LOGO;
@@ -2443,7 +2772,7 @@ hoPane.addEventListener("click", e => {
   render();
   try{ localStorage.removeItem(PIN_KEY); }catch(e){} // forget passwords older versions remembered
   // A refresh logs out, so warn before throwing away an unsaved report.
-  window.addEventListener("beforeunload", e=>{ if(dirty || hoDirty || Object.values(hoStash).some(x => x.hoDirty)){ e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", e=>{ if(dirty || hoDirty || rsDirty || Object.values(hoStash).some(x => x.hoDirty)){ e.preventDefault(); e.returnValue = ""; } });
 })();
 </script>
 </body>
