@@ -116,6 +116,15 @@
   .stepper{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px} .stepper .mini{height:40px;padding:0;font-size:18px}
   #rsPrice,#rsMarketBtn{white-space:normal;height:auto;min-height:44px;padding:6px 10px;line-height:1.25;min-width:0}
   .rsmarket{margin-top:14px;display:grid;gap:12px}
+  .pbox{margin-top:12px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);display:grid;gap:8px}
+  .pb-cost{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:13.5px} .pb-cost span{color:var(--ink-2)} .pb-cost b{font-size:17px} .pb-cost small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)}
+  .pb-sell{display:grid;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
+  .pb-sell input{height:40px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);font:inherit;font-size:16px;min-width:0;width:100%;box-sizing:border-box;text-align:center;color:var(--ink);background:var(--surface)}
+  .pb-keep{font-size:12px;color:var(--muted);margin-top:-4px}
+  .pb-info{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
+  .pb-rec{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:8px;border-top:1px dashed var(--line)}
+  .pb-rec > div{flex:1 1 160px;min-width:0} .pb-rec span{display:block;font-size:12px;color:var(--ink-2)} .pb-rec b{font-size:18px;color:var(--green-ink)} .pb-rec small{display:block;font-size:12px;color:var(--ink-2)}
+  .pb-mkt{margin:0;font-size:12.5px;color:var(--ink-2)}
   .rsrec{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:10px;background:var(--green-wash);border:1px solid #CFE3B0}
   .rsrec span{display:block;font-size:12.5px;color:var(--ink-2)} .rsrec b{font-size:22px} .rsrec small{display:block;font-size:12.5px;color:var(--ink-2)}
   .rsbambu{padding:12px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);display:grid;gap:4px;font-size:13.5px}
@@ -2568,7 +2577,7 @@ async function rsCall(body){
     return { result: "success", qty: s.qty };
   }
   if(body.action === "priceResearch") return { result: "success", recommended: 47.9, why: "about 3% under the typical Singapore price ($49.50) (demo)", low: 42, median: 49.5, floor: Math.ceil((body.cost || 0) / 0.7 * 10) / 10, target: 0.3,
-    bambu: { price: 29.99, currency: "USD", url: "https://asia.store.bambulab.com", gstIncluded: false, itemSgd: 38.69, shippingSgd: 32.25, gstSgd: 6.39, trueCost: 77.33 },
+    direct: { brand: "Bambu Lab", price: 29.99, currency: "USD", url: "https://asia.store.bambulab.com", gstIncluded: false, itemSgd: 38.69, shippingSgd: 32.25, shippingNote: "US$25 flat", gstSgd: 6.39, trueCost: 77.33 },
     listings: [ { platform: "Shopee", seller: "3dprintsg (demo)", sgd: 42, price: 42, currency: "SGD", url: "", note: "" }, { platform: "Carousell", seller: "makerSG (demo)", sgd: 48, price: 48, currency: "SGD", url: "", note: "used once" },
       { platform: "Lazada", seller: "BL Partner (demo)", sgd: 51, price: 51, currency: "SGD", url: "", note: "" }, { platform: "Shop", seller: "Local shop (demo)", sgd: 55, price: 55, currency: "SGD", url: "", note: "" } ] };
   if(body.action === "fxRate") return { result: "success", rate: { CNY: 0.1912, USD: 1.29, MYR: 0.3134, HKD: 0.166, EUR: 1.46 }[body.from] || 1, date: body.date, source: "ECB rate (demo)" };
@@ -2597,16 +2606,12 @@ let rsMarket = { code: "", loading: false, data: null, error: "" };
 const rsFloor = s => s.avg ? Math.ceil(s.avg / (1 - RS.target) * 10) / 10 : 0; // lowest price keeping the target margin
 const rsSellOf = s => rsOut.sellCode === s.code ? rsOut.sell : (s.sell ? String(s.sell) : "");
 function rsRecOf(s){
-  const m = rsMarket.code === s.code && rsMarket.data ? rsMarket.data : null;
-  return m && m.recommended ? { price: m.recommended, label: "recommended" } : { price: rsFloor(s), label: Math.round(RS.target * 100) + "% margin price" };
+  const m = rsMarket.code === s.code && rsMarket.data ? rsMarket.data : null, floor = rsFloor(s);
+  if(m && m.recommended) return { price: Math.max(m.recommended, floor), label: "recommended", why: m.recommended >= floor ? m.why : "the market is lower; this keeps your " + Math.round(RS.target * 100) + "% margin" };
+  if(s.mktRec) return { price: Math.max(s.mktRec, floor), label: "recommended", why: "from the market check on " + s.mktChecked };
+  return { price: floor, label: Math.round(RS.target * 100) + "% margin price", why: floor ? "keeps your " + Math.round(RS.target * 100) + "% margin. Tap 🔎 Market to compare" : "" };
 }
-function rsSellInfo(s){
-  const sell = Number(rsSellOf(s)) || 0, rec = rsRecOf(s);
-  if(!sell) return 'Set a sell price.' + (rec.price ? ' Suggested: <b>$' + money(rec.price) + '</b> (' + rec.label + ').' : '');
-  const m = s.avg ? (sell - s.avg) / sell : null, d = rec.price ? sell - rec.price : 0;
-  return (m === null ? '' : 'Margin <b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b> · profit $' + money(sell - s.avg) + ' per unit') +
-    (rec.price ? ' · ' + (Math.abs(d) < 0.005 ? 'same as' : '<b>' + (d > 0 ? '+' : '−') + '$' + money(Math.abs(d)) + '</b> ' + (d > 0 ? 'above' : 'below')) + ' the ' + rec.label + ' ($' + money(rec.price) + ')' : '');
-}
+function rsSellInfo(s){ return rsPriceInfo(s.avg, Number(rsSellOf(s)) || 0, rsRecOf(s)); }
 function rsMarketHtml(s){
   if(rsMarket.code !== s.code) return '';
   if(rsMarket.loading) return '<p class="hint">Searching Shopee, Lazada, Carousell, other Singapore sellers and the Bambu Lab store... (about 10–20 seconds)</p>';
@@ -2616,11 +2621,11 @@ function rsMarketHtml(s){
   return '<div class="rsmarket">' +
     '<div class="rsrec"><div><span>Recommended price</span><b>$' + money(m.recommended) + '</b><small>' + esc(m.why) + '</small></div>' +
       '<button type="button" class="mini" data-userec="1">Use $' + money(m.recommended) + '</button></div>' +
-    (m.bambu ? '<div class="rsbambu"><b>Buying direct from Bambu Lab</b> ' + link(m.bambu.url, '(store page)') +
-      '<div><span>Item (' + esc(m.bambu.currency) + ' ' + m.bambu.price + ')</span><b>$' + money(m.bambu.itemSgd) + '</b></div>' +
-      '<div><span>Shipping (US$25)</span><b>$' + money(m.bambu.shippingSgd) + '</b></div>' +
-      '<div><span>GST 9%' + (m.bambu.gstIncluded ? ' (already included)' : '') + '</span><b>$' + money(m.bambu.gstSgd) + '</b></div>' +
-      '<div class="t"><span>True cost to a customer</span><b>$' + money(m.bambu.trueCost) + '</b></div></div>' : '') +
+    (m.direct || m.bambu ? (d => '<div class="rsbambu"><b>Buying direct from ' + esc(d.brand || 'Bambu Lab') + ' (official store)</b> ' + link(d.url, '(store page)') +
+      '<div><span>Item (' + esc(d.currency) + ' ' + d.price + ')</span><b>$' + money(d.itemSgd) + '</b></div>' +
+      '<div><span>Shipping (' + esc(d.shippingNote || 'US$25 flat') + ')</span><b>' + (d.shippingSgd === null ? '–' : '$' + money(d.shippingSgd)) + '</b></div>' +
+      '<div><span>GST 9%' + (d.gstIncluded ? ' (already included)' : '') + '</span><b>$' + money(d.gstSgd) + '</b></div>' +
+      '<div class="t"><span>True cost to a customer</span><b>$' + money(d.trueCost) + '</b></div></div>')(m.direct || m.bambu) : '') +
     (m.listings.length ? '<div class="rstable"><table class="cllist"><thead><tr><th>Where</th><th>Seller</th><th class="amt">Price (SGD)</th></tr></thead><tbody>' +
       m.listings.map(l => '<tr><td>' + link(l.url, l.platform || 'Link') + '</td><td>' + esc(l.seller) + (l.note ? '<span class="x">' + esc(l.note) + '</span>' : '') +
         '</td><td class="amt">$' + money(l.sgd) + (l.currency !== 'SGD' ? '<span class="x">' + esc(l.currency) + ' ' + l.price + '</span>' : '') + '</td></tr>').join('') +
@@ -2628,13 +2633,11 @@ function rsMarketHtml(s){
       : '<p class="hint">No Singapore listings found for this exact item.</p>') + '</div>';
 }
 function rsPriceBlock(s){
-  return '<h3 class="sub">Sell price &amp; low-stock alert for ' + esc(s.name) + '</h3><div class="grid">' +
-    '<label class="f span2">Sell price (SGD)<span class="stepper"><button type="button" class="mini" data-sellstep="-1" aria-label="Lower by $1">−</button>' +
-      '<input type="number" inputmode="decimal" step="any" id="rsSell" value="' + esc(rsSellOf(s)) + '"><button type="button" class="mini" data-sellstep="1" aria-label="Raise by $1">+</button></span></label>' +
-    '<p class="hint span2" id="rsSellInfo" style="margin-top:-4px">' + rsSellInfo(s) + '</p>' +
-    '<label class="f">Alert when qty is at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + s.min + '"></label></div>' +
-    '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsPrice">Save price &amp; alert level</button>' +
-      '<button type="button" id="rsMarketBtn"' + (rsMarket.loading ? ' disabled' : '') + '>🔎 Check market prices</button></div>' + rsMarketHtml(s);
+  return '<h3 class="sub">Price &amp; low-stock alert for ' + esc(s.name) + '</h3>' +
+    rsPriceBoxHtml({ cost: s.avg, costLabel: 'Average cost', costNote: s.qty + ' in stock', sell: rsSellOf(s), inputAttr: 'id="rsSell"', minusAttr: 'data-sellstep="-1"', plusAttr: 'data-sellstep="1"',
+      rec: rsRecOf(s), useAttr: 'data-userec="1"', checkAttr: 'id="rsMarketBtn"', mkt: rsMarket.code === s.code ? (rsMarket.loading ? { loading: true } : rsMarket.error ? { error: rsMarket.error } : null) : null, infoId: 'rsSellInfo' }) +
+    '<div class="grid" style="margin-top:12px"><label class="f">Alert when qty is at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + s.min + '"></label></div>' +
+    '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsPrice" style="grid-column:1 / -1">Save price &amp; alert level</button></div>' + rsMarketHtml(s);
 }
 function rsSellRefresh(){ const s = stockOf(rsOut.code), el = document.getElementById("rsSellInfo"); if(s && el) el.innerHTML = rsSellInfo(s); }
 async function rsCheckMarket(){
@@ -2645,6 +2648,54 @@ async function rsCheckMarket(){
     rsMarket = out.result === "success" ? { code: s.code, loading: false, data: out, error: "" } : { code: s.code, loading: false, data: null, error: out.message };
   }catch(e){ rsMarket = { code: s.code, loading: false, data: null, error: "Price check failed (no connection?). Try again." }; }
   renderRs();
+}
+
+// ----- One pricing box, used on Purchase items and on the selected Stock item -----
+// o: { cost, costLabel, costNote, sell, inputAttr, minusAttr, plusAttr, rec: {price, why}, useAttr, checkAttr, mkt: {loading, error, data}, keepNote, infoId }
+const rsFloorOf = cost => cost ? Math.ceil(cost / (1 - RS.target) * 10) / 10 : 0;
+function rsPriceInfo(cost, sell, rec){
+  if(!sell) return 'No sell price yet.' + (rec.price ? ' Recommended: <b>$' + money(rec.price) + '</b>.' : '');
+  const m = cost ? (sell - cost) / sell : null, d = rec.price ? sell - rec.price : 0;
+  return (m === null ? '' : 'Margin <b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b>' + (m < RS.target ? ' ⚠ below ' + Math.round(RS.target * 100) + '%' : '') + ' · profit $' + money(sell - cost) + ' each') +
+    (rec.price ? ' · ' + (Math.abs(d) < 0.005 ? 'same as recommended' : '<b>' + (d > 0 ? '+' : '−') + '$' + money(Math.abs(d)) + '</b> ' + (d > 0 ? 'above' : 'below') + ' recommended') : '');
+}
+function rsPriceBoxHtml(o){
+  const sell = Number(o.sell) || 0, mk = o.mkt || {};
+  const market = mk.loading ? '<p class="pb-mkt">🔎 Checking Shopee, Lazada, Carousell and the official store...</p>'
+    : mk.error ? '<p class="pb-mkt up">' + esc(mk.error) + '</p>'
+    : mk.data ? '<p class="pb-mkt">' + [mk.data.median ? 'Market typical $' + money(mk.data.median) + (mk.data.low ? ' (lowest $' + money(mk.data.low) + ')' : '') : 'No Singapore listings found',
+        (mk.data.direct || mk.data.bambu) ? 'direct from ' + esc((mk.data.direct || mk.data.bambu).brand || 'Bambu Lab') + ' $' + money((mk.data.direct || mk.data.bambu).trueCost) : ''].filter(Boolean).join(' · ') + '</p>' : '';
+  return '<div class="pbox">' +
+    '<div class="pb-cost"><span>' + esc(o.costLabel || 'Cost') + '</span><b>' + (o.cost ? '$' + money(o.cost) : '–') + '</b>' + (o.costNote ? '<small>' + o.costNote + '</small>' : '') + '</div>' +
+    '<label class="pb-sell"><span>Selling at (SGD)</span><span class="stepper"><button type="button" class="mini" ' + o.minusAttr + ' aria-label="Lower by $1">−</button>' +
+      '<input type="number" inputmode="decimal" step="any" ' + o.inputAttr + ' value="' + esc(o.sell) + '"><button type="button" class="mini" ' + o.plusAttr + ' aria-label="Raise by $1">+</button></span></label>' +
+    (o.keepNote ? '<small class="pb-keep">' + esc(o.keepNote) + '</small>' : '') +
+    '<p class="pb-info"' + (o.infoId ? ' id="' + o.infoId + '"' : '') + '>' + rsPriceInfo(o.cost, sell, o.rec) + '</p>' +
+    '<div class="pb-rec">' + (o.rec.price ? '<div><span>Recommended</span><b>$' + money(o.rec.price) + '</b><small>' + esc(o.rec.why) + '</small></div>' +
+      '<button type="button" class="mini" ' + o.useAttr + '>Use $' + money(o.rec.price) + '</button>' : '<div><small>Enter the cost to get a recommended price.</small></div>') +
+      '<button type="button" class="mini" ' + o.checkAttr + (mk.loading ? ' disabled' : '') + '>🔎 Market</button></div>' + market +
+  '</div>';
+}
+// Purchase item: fresh market check > last saved check on the Stock row > target-margin price; never below the margin floor.
+function rsItemRec(it, unit){
+  const floor = rsFloorOf(unit), st = stockOf(it.code), d = it.market && it.market.data;
+  if(d && d.recommended) return d.recommended >= floor ? { price: d.recommended, why: d.why } : { price: floor, why: 'the market is lower; this keeps your ' + Math.round(RS.target * 100) + '% margin' };
+  if(st && st.mktRec) return st.mktRec >= floor ? { price: st.mktRec, why: 'from the market check on ' + st.mktChecked } : { price: floor, why: 'keeps your ' + Math.round(RS.target * 100) + '% margin (market check on ' + st.mktChecked + ' was lower)' };
+  return { price: floor, why: floor ? 'keeps your ' + Math.round(RS.target * 100) + '% margin. Tap 🔎 Market to compare' : '' };
+}
+async function rsItemMarket(i){
+  const it = rs.items[i]; if(!it || !(it.name || it.raw)) return;
+  it.market = { loading: true }; renderRs();
+  try{
+    const out = await rsCall({ action: "priceResearch", code: it.isNew ? "" : it.code, name: it.name || it.raw, cost: rsCalc().units[i] || 0 });
+    it.market = out.result === "success" ? { data: out } : { error: out.message };
+    if(out.result === "success" && it.isNew && it.sellPrice === "") it.sellAuto = true; // follows the recommendation until someone changes it
+  }catch(e){ it.market = { error: "Market check failed (no connection?)." }; }
+  renderRs();
+}
+// New items get a market check straight after a scan, one at a time (the free AI tier has a rate limit).
+async function rsAutoMarketNew(){
+  for(let i = 0; i < rs.items.length; i++) if(rs.items[i].isNew && !rs.items[i].market) await rsItemMarket(i);
 }
 function rsStatus(kind, msg){ const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 
@@ -2712,6 +2763,7 @@ async function rsScan(){
     if(r.paidSGD > 0) rs.paidSGD = r.paidSGD; // printed on the receipt; staff still check it against the card / bank
     rs.fxManual = false; rsAutoFx();
     rsDirty = true; renderRs();
+    setTimeout(rsAutoMarketNew, 0);
     const fresh = rs.items.filter(it => it.isNew).length, blank = rs.items.filter(it => !it.code || !it.name).length;
     rsStatus("ok", "Read " + rs.items.length + " item(s). Check every number against the receipt" +
       (fresh ? ". " + fresh + " new item(s) got a suggested code and name: check them, or pick an existing item instead" : "") +
@@ -2730,16 +2782,15 @@ function renderRs(){
     RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === it.code && !it.isNew ? " selected" : "") + '>' + esc(s.code + " · " + s.name) + '</option>').join("") +
     '<option value="__new"' + (it.isNew ? " selected" : "") + '>+ New item...</option></select>';
   const items = rs.items.map((it, i) => {
-    const unit = c.units[i] || 0, st = stockOf(it.code), sell = Number(it.sellPrice) || (st ? st.sell : 0);
+    const unit = c.units[i] || 0, st = stockOf(it.code);
+    if(it.sellAuto){ const r = rsItemRec(it, unit); if(r.price) it.sellPrice = String(r.price); }
     const h = it.code && !it.isNew ? rsHistory(it.code, rs.merchant) : {};
-    const notes = [];
-    if(unit && h.same) notes.push('Last time from this seller: $' + money(h.same.unit) + (unit > h.same.unit * 1.005 ? ' <b class="up">▲ ' + Math.round((unit / h.same.unit - 1) * 100) + '% dearer</b>' : unit < h.same.unit * 0.995 ? ' <b class="down">▼ ' + Math.round((1 - unit / h.same.unit) * 100) + '% cheaper</b>' : ' (same)'));
-    if(unit && h.cheapest && h.cheapest.merchant !== rs.merchant && h.cheapest.unit < unit) notes.push('Cheapest so far: $' + money(h.cheapest.unit) + ' from ' + esc(h.cheapest.merchant));
-    if(unit && sell){
-      const m = (sell - unit) / sell;
-      notes.push('Sell $' + money(sell) + ' → margin <b class="' + (m < RS.target ? "up" : "down") + '">' + Math.round(m * 100) + '%</b>' +
-        (m < RS.target ? ' (below ' + Math.round(RS.target * 100) + '%: suggest $' + Math.ceil(unit / (1 - RS.target)) + ')' : ''));
-    } else if(unit) notes.push('Suggested sell price for ' + Math.round(RS.target * 100) + '% margin: $' + Math.ceil(unit / (1 - RS.target)));
+    const costNote = unit && h.same ? (unit > h.same.unit * 1.005 ? '<b class="up">▲ ' + Math.round((unit / h.same.unit - 1) * 100) + '%</b> vs last time from this seller ($' + money(h.same.unit) + ')'
+      : unit < h.same.unit * 0.995 ? '<b class="down">▼ ' + Math.round((1 - unit / h.same.unit) * 100) + '%</b> vs last time from this seller ($' + money(h.same.unit) + ')' : 'same as last time from this seller') : (it.isNew ? 'new item' : '');
+    const cheaper = unit && h.cheapest && h.cheapest.merchant !== rs.merchant && h.cheapest.unit < unit ? 'Cheapest so far: $' + money(h.cheapest.unit) + ' from ' + esc(h.cheapest.merchant) : '';
+    const box = rsPriceBoxHtml({ cost: unit, costLabel: "Cost (this buy)", costNote, sell: it.sellPrice !== "" ? it.sellPrice : (st && st.sell ? String(st.sell) : ""),
+      inputAttr: 'data-rsi="' + i + '" data-k="sellPrice"', minusAttr: 'data-rsstep="' + i + '" data-d="-1"', plusAttr: 'data-rsstep="' + i + '" data-d="1"',
+      rec: rsItemRec(it, unit), useAttr: 'data-rsuse="' + i + '"', checkAttr: 'data-rsmkt="' + i + '"', mkt: it.market, keepNote: st && st.sell && it.sellPrice === "" ? "current price, kept unless you change it" : "" });
     return `<div class="rsitem">
       ${it.raw ? '<div class="rsraw">Receipt: ' + esc(it.raw) + '</div>' : ''}
       <div class="grid">
@@ -2748,10 +2799,9 @@ function renderRs(){
           '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label>' : ''}
         <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
         <label class="f">Unit price (${esc(cur)})<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="unitPrice" value="${esc(it.unitPrice)}"></label>
-        <label class="f">Sell price (SGD, optional)<span class="stepper"><button type="button" class="mini" data-rsstep="${i}" data-d="-1" aria-label="Lower sell price by $1">−</button><input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="sellPrice" value="${esc(it.sellPrice)}" placeholder="${st && st.sell ? money(st.sell) : unit ? String(Math.ceil(unit / (1 - RS.target))) : ""}"><button type="button" class="mini" data-rsstep="${i}" data-d="1" aria-label="Raise sell price by $1">+</button></span></label>
-        <div class="rscost"><span>Landed cost / unit</span><b>${unit ? "$" + money(unit) : "–"}</b></div>
       </div>
-      ${notes.length ? '<div class="rsnotes">' + notes.join("<br>") + '</div>' : ''}
+      ${box}
+      ${cheaper ? '<div class="rsnotes">' + cheaper + '</div>' : ''}
       <button type="button" class="mini" data-rsdel="${i}">Remove item</button>
     </div>`;
   }).join("");
@@ -2860,7 +2910,7 @@ const rsPane = document.getElementById("rsPane");
 rsPane.addEventListener("input", e => {
   const t = e.target;
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
-  else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
+  else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
   else if(t.dataset.rso && t.type !== "radio" && t.tagName !== "SELECT"){ rsOut[t.dataset.rso] = t.value; }
   else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
@@ -2908,12 +2958,14 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.rsimgdel !== undefined){ rs.images.splice(+b.dataset.rsimgdel, 1); renderRs(); return; }
   if(b.id === "rsRead"){ rsScan(); return; }
   if(b.dataset.rsstep !== undefined){ const it = rs.items[+b.dataset.rsstep], st = stockOf(it.code), base = Number(it.sellPrice) || (st && st.sell) || Math.ceil((rsCalc().units[+b.dataset.rsstep] || 0) / (1 - RS.target));
-    it.sellPrice = String(Math.max(0, Math.round((base + Number(b.dataset.d)) * 100) / 100)); rsDirty = true; renderRs(); return; }
+    it.sellAuto = false; it.sellPrice = String(Math.max(0, Math.round((base + Number(b.dataset.d)) * 100) / 100)); rsDirty = true; renderRs(); return; }
   if(b.dataset.sellstep){ const s = stockOf(rsOut.code); if(!s) return; const base = Number(rsSellOf(s)) || rsRecOf(s).price || 0;
     rsOut.sell = String(Math.max(0, Math.round((base + Number(b.dataset.sellstep)) * 100) / 100)); rsOut.sellCode = s.code;
     const box = document.getElementById("rsSell"); if(box) box.value = rsOut.sell; rsSellRefresh(); return; }
   if(b.id === "rsMarketBtn"){ rsCheckMarket(); return; }
-  if(b.dataset.userec){ const s = stockOf(rsOut.code); if(s && rsMarket.data){ rsOut.sell = String(rsMarket.data.recommended); rsOut.sellCode = s.code; renderRs(); rsStatus2("ok", "Price set to $" + money(rsMarket.data.recommended) + ". Press Save price to keep it."); } return; }
+  if(b.dataset.userec){ const s = stockOf(rsOut.code), r = s ? rsRecOf(s) : null; if(r && r.price){ rsOut.sell = String(r.price); rsOut.sellCode = s.code; renderRs(); rsStatus2("ok", "Price set to $" + money(r.price) + ". Press Save price to keep it."); } return; }
+  if(b.dataset.rsuse !== undefined){ const i = +b.dataset.rsuse, r = rsItemRec(rs.items[i], rsCalc().units[i] || 0); if(r.price){ rs.items[i].sellPrice = String(r.price); rs.items[i].sellAuto = false; rsDirty = true; renderRs(); } return; }
+  if(b.dataset.rsmkt !== undefined){ rsItemMarket(+b.dataset.rsmkt); return; }
   if(b.dataset.rsadd){ rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rsdel !== undefined){ rs.items.splice(+b.dataset.rsdel, 1); if(!rs.items.length) rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rseadd){ rs.extras.push({ label: "", amount: "" }); renderRs(); return; }
