@@ -109,7 +109,16 @@
   .rssum{margin-top:14px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;display:grid;gap:8px;font-size:14px}
   .rssum div{display:flex;justify-content:space-between;align-items:center;gap:12px} .rssum div input{max-width:160px;text-align:right}
   .rssum .big b{font-size:18px} .rssum .rscheck{font-size:13px}
-  .rstable{overflow-x:auto;margin-top:10px} .cllist td.low{color:var(--red-ink);font-weight:700}
+  .rsdemo{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 14px;padding:10px 12px;border-radius:10px;background:var(--amber-wash);border:1px solid #F0D9A0;color:#6B4700;font-size:13.5px}
+  .rsdemo .mini{margin-left:auto}
+  button.addph{background:transparent;font:inherit}
+  .rstable{overflow-x:auto;margin-top:10px}
+  .subtabs{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+  .subtabs .mini{margin-left:auto}
+  .seg{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
+  .seg button{height:36px;padding:0 18px;border:0;background:transparent;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:600;border-radius:7px;cursor:pointer}
+  .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
   #clView{display:none}
   body.mode-cl #clView{display:block}
   body.mode-cl .layout,body.mode-cl .mobiletabs,body.mode-cl #saveStatus,body.mode-cl #hoView,body.locked #clView{display:none!important}
@@ -522,7 +531,7 @@
     <button type="button" id="modeHo" aria-pressed="false">Handover</button>
     <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
     <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
-    <button type="button" id="modeRs" aria-pressed="false">Restock</button>
+    <button type="button" id="modeRs" aria-pressed="false">Inventory</button>
   </div>
   <button id="btnLogout">Log out</button>
   <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
@@ -710,7 +719,7 @@ async function callSheet(body){
 function lock(msg){
   STAFF_PIN = ""; JOBS = [];
   if(typeof CL === "object"){ CL.jobs = []; CL.claims = []; CL.loaded = false; }
-  if(typeof RS === "object"){ RS.stock = []; RS.history = []; RS.loaded = false; rs = rsBlank(); rsDirty = false; }
+  if(typeof RS === "object"){ RS.stock = []; RS.history = []; RS.loaded = false; rs = rsBlank(); rsDirty = false; rsDemo = null; }
   if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; for(const k in hoStash) delete hoStash[k]; }
   try{ localStorage.removeItem(PIN_KEY); }catch(e){}
   document.body.classList.add("locked");
@@ -2266,6 +2275,7 @@ function setMode(m){
   if(isForm) renderHo();
   if(m === "claim"){ renderCl(); loadClaims(); }
   if(m === "restock"){ renderRs(); loadStock(); }
+  else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
 }
 document.getElementById("modeReport").addEventListener("click", () => setMode("report"));
@@ -2463,14 +2473,15 @@ hoPane.addEventListener("click", e => {
 // Purchases (typed or scanned from receipt photos) -> landed cost per unit in SGD -> Stock tab.
 // Backend: handleStockData / handleRestockScan / handleRestockSave / handleStockMove / handleStockPrice.
 const RS_PLATFORMS = ["Taobao", "Shopee", "Lazada", "AliExpress", "Carousell", "Amazon", "Local shop", "Other"];
-const RS_CURRENCIES = ["SGD", "CNY", "USD", "MYR", "HKD", "EUR"];
+// Common first; the rate lookup covers all of these (TWD / VND use the market rate of the day).
+const RS_CURRENCIES = ["SGD", "CNY", "USD", "MYR", "HKD", "EUR", "GBP", "JPY", "KRW", "TWD", "THB", "IDR", "PHP", "VND", "INR", "AUD", "NZD", "CAD", "CHF"];
 const RS_EXTRAS = ["Shipping", "Agent fee", "Forwarder fee", "GST", "Import tax", "Service fee", "Discount"];
 let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loaded: false, loading: false };
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
 const rsItem = () => ({ code: "", name: "", raw: "", qty: 1, unitPrice: "", sellPrice: "", isNew: false });
 function rsBlank(){
   let by = ""; try{ by = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){}
-  return { date: clToday(), merchant: "", platform: "Taobao", currency: "CNY", paidSGD: "", fxRate: "", by,
+  return { date: clToday(), merchant: "", merchantNew: !(RS && RS.merchants.length), platform: "Taobao", currency: "CNY", paidSGD: "", fxRate: "", by,
     items: [rsItem()], extras: [], receiptTotal: "", images: [] };
 }
 rs = rsBlank();
@@ -2480,11 +2491,13 @@ async function loadStock(){
   if(RS.loading) return;
   RS.loading = true;
   try{
-    const out = await callSheet({ action: "stockData" });
+    const out = await rsCall({ action: "stockData" });
     if(out.result !== "success"){ if(out.message === "Wrong password.") lock("Password changed. Log in again."); return; }
     RS = { stock: out.stock || [], history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
       target: out.targetMargin || 0.3, loaded: true, loading: false };
     if(out.staff && out.staff.length) STAFF = out.staff;
+    if(!rs.merchant) rs.merchantNew = !RS.merchants.length; // dropdown once saved merchants exist
+    if(!rs.fxRate) rsAutoFx(); // rate for the default currency, before any scan
     fillStockNames();
     if(document.body.classList.contains("mode-rs")) renderRs();
   }catch(err){ rsStatus("err", "Could not load stock. Check the connection and press Refresh."); }
@@ -2495,6 +2508,77 @@ function fillStockNames(){
   let dl = document.getElementById("stockNames");
   if(!dl){ dl = document.createElement("datalist"); dl.id = "stockNames"; document.body.appendChild(dl); }
   dl.innerHTML = RS.stock.map(s => '<option value="' + esc(s.name) + '">').join("");
+}
+
+// ----- Demo mode: the real Restock screens on sample data, answered in the browser. Nothing reaches the Sheet. -----
+let rsDemo = null;
+let rsView = "purchase"; // Inventory sub-tab: "purchase" (record a buy) or "stock" (what we have)
+function rsDemoStart(){
+  rsDemo = {
+    stock: [
+      { code: "PART-BL-P2S-BUFFER", name: "Bambu Lab Buffer, P2S", qty: 2, avg: 31, last: 31, merchant: "拓竹旗舰店", sell: 50, min: 1, aliases: ["拓竹 P2S 缓冲器"] },
+      { code: "FIL-LBL-ASACF-BLK", name: "Layer By Layer ASA Carbon Fibre Filament 1.75mm, Black", qty: 6, avg: 21.2, last: 21.2, merchant: "Supplier C", sell: 29.9, min: 2, aliases: [] }
+    ],
+    history: [
+      { date: "2026-09-10", merchant: "Shop B", code: "PART-BL-P2S-BUFFER", unit: 38 },
+      { date: "2026-10-01", merchant: "拓竹旗舰店", code: "PART-BL-P2S-BUFFER", unit: 31 },
+      { date: "2026-10-02", merchant: "Supplier C", code: "FIL-LBL-ASACF-BLK", unit: 21.2 }
+    ],
+    seq: 0
+  };
+  rs = rsBlank(); rsDirty = false; rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" };
+  loadStock();
+}
+function rsDemoStop(){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; renderRs(); loadStock(); }
+async function rsCall(body){
+  if(!rsDemo) return callSheet(body);
+  await new Promise(r => setTimeout(r, body.action === "restockScan" ? 900 : 250)); // feels like the real thing
+  const d = rsDemo, find = c => d.stock.find(s => s.code === c);
+  if(body.action === "stockData") return { result: "success", stock: JSON.parse(JSON.stringify(d.stock)), history: d.history.slice(),
+    merchants: d.history.map(x => x.merchant).filter((m, i, a) => a.indexOf(m) === i), staff: STAFF,
+    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair (manual)", "Own use", "Damaged / lost"], targetMargin: 0.3 };
+  if(body.action === "restockScan") return { result: "success", receipt: { merchant: "拓竹旗舰店", platform: "Taobao", date: clToday(), currency: "CNY",
+    items: [ { raw: "拓竹 P2S 缓冲器", qty: 3, unitPrice: 160, code: "PART-BL-P2S-BUFFER", name: "Bambu Lab Buffer, P2S" },
+             { raw: "拓竹 X1C 完整热端 0.4mm 硬化钢", qty: 1, unitPrice: 189, code: "PART-BL-X1C-COMPLETEHOTEND-HS04", name: "Bambu Lab Complete Hotend, Hardened Steel 0.4mm, X1C" } ],
+    extras: [ { label: "Overseas shipping", amount: 60 }, { label: "GST", amount: 54 }, { label: "Coupon", amount: -25 } ], orderTotal: 758, paidSGD: 0 } };
+  if(body.action === "restockSave"){
+    const p = body.purchase, c = rsCalc();
+    if(!c.sgd) return { result: "error", message: "Enter the total you paid in SGD (or the exchange rate)." };
+    p.items.forEach((it, i) => {
+      const unit = c.units[i], q = Number(it.qty), s = find(it.code);
+      if(s){ const held = Math.max(s.qty, 0); s.avg = (held * s.avg + q * unit) / (held + q); s.qty += q; s.last = unit; s.merchant = p.merchant; if(Number(it.sellPrice)) s.sell = Number(it.sellPrice); if(it.raw && !s.aliases.includes(it.raw)) s.aliases.push(it.raw); }
+      else d.stock.push({ code: it.code, name: it.name, qty: q, avg: unit, last: unit, merchant: p.merchant, sell: Number(it.sellPrice) || 0, min: 1, aliases: it.raw ? [it.raw] : [] });
+      d.history.push({ date: p.date, merchant: p.merchant, code: it.code, unit });
+    });
+    return { result: "success", purchaseId: "DEMO-" + String(++d.seq).padStart(2, "0"), sgdTotal: c.sgd };
+  }
+  if(body.action === "stockMove"){
+    const s = find(body.code), q = Number(body.qty);
+    if(!s) return { result: "error", message: "Item not found." };
+    const before = s.qty;
+    s.qty = body.kind === "count" ? q : s.qty - q;
+    if(s.qty <= s.min && before > s.min) toast("📣 Telegram (demo): ⚠️ Low stock: " + s.name + ", " + s.qty + " left.");
+    return { result: "success", qty: s.qty };
+  }
+  if(body.action === "fxRate") return { result: "success", rate: { CNY: 0.1912, USD: 1.29, MYR: 0.3134, HKD: 0.166, EUR: 1.46 }[body.from] || 1, date: body.date, source: "ECB rate (demo)" };
+  if(body.action === "stockPrice"){
+    const s = find(body.code); if(!s) return { result: "error", message: "Item not found." };
+    s.sell = Number(body.sellPrice) || 0; s.min = body.minQty === "" ? 1 : Number(body.minQty) || 0;
+    return { result: "success" };
+  }
+  return { result: "error", message: "Not available in demo." };
+}
+// Fetches the exchange rate for the receipt currency on the purchase date (script: handleFxRate).
+async function rsAutoFx(){
+  if(rs.currency === "SGD" || rs.fxManual) return;
+  const want = rs.currency + "|" + rs.date;
+  try{
+    const out = await rsCall({ action: "fxRate", from: rs.currency, date: rs.date });
+    if(out.result !== "success" || rs.currency + "|" + rs.date !== want || rs.fxManual) return;
+    rs.fxRate = String(Math.round(out.rate * 1e6) / 1e6);
+    rs.fxNote = out.source + (out.date ? " on " + out.date : "");
+    renderRs();
+  }catch(e){}
 }
 function rsStatus(kind, msg){ const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 
@@ -2523,22 +2607,33 @@ function rsMatch(raw){
   return RS.stock.find(s => s.name.toLowerCase() === n || s.code.toLowerCase() === n || s.aliases.some(a => a.toLowerCase() === n)) || null;
 }
 
-async function rsScan(files){
-  const imgs = [];
-  for(const f of Array.from(files || []).slice(0, 4)){
-    try{ imgs.push(await shrinkPhoto(f)); }catch(e){ toast(f.name + " is not an image."); }
+const RS_MAX_IMAGES = 15; // same limit as the script
+// Adds photos / screenshots to the receipt; nothing is read until "Read receipt" is pressed.
+async function rsAddImages(files){
+  const room = RS_MAX_IMAGES - rs.images.length;
+  const list = Array.from(files || []);
+  for(const f of list.slice(0, room)){
+    try{ rs.images.push(await shrinkPhoto(f)); }catch(e){ toast(f.name + " is not an image."); }
   }
-  if(!imgs.length) return;
-  rs.images = imgs; renderRs();
-  rsStatus("busy", "Reading the receipt...");
+  if(list.length > room) toast("Up to " + RS_MAX_IMAGES + " photos per receipt.");
+  rsDirty = true; renderRs();
+}
+async function rsScan(){
+  const imgs = rs.images.slice();
+  if(!imgs.length){ rsStatus("err", "Add a photo or screenshot of the receipt first."); return; }
+  rsStatus("busy", "Reading " + imgs.length + " photo(s)...");
+  const rb = document.getElementById("rsRead"); if(rb){ rb.disabled = true; rb.textContent = "Reading..."; }
   try{
-    const out = await callSheet({ action: "restockScan", images: imgs.map(d => ({ base64: d.split(",")[1], mime: "image/jpeg" })) });
+    const out = await rsCall({ action: "restockScan", images: imgs.map(d => ({ base64: d.split(",")[1], mime: "image/jpeg" })) });
     if(out.result !== "success"){ rsStatus("err", out.message); return; }
     const r = out.receipt;
-    if(r.merchant) rs.merchant = r.merchant;
+    if(r.merchant){
+      const known = RS.merchants.find(m => m.replace(/\s+/g, "").toLowerCase() === r.merchant.replace(/\s+/g, "").toLowerCase());
+      rs.merchant = known || r.merchant; rs.merchantNew = !known;
+    }
     if(RS_PLATFORMS.includes(r.platform)) rs.platform = r.platform;
     if(r.date) rs.date = r.date;
-    if(r.currency) rs.currency = RS_CURRENCIES.includes(r.currency) ? r.currency : rs.currency;
+    if(/^[A-Z]{3}$/.test(r.currency || "")) rs.currency = r.currency;
     rs.items = (r.items.length ? r.items : [{ raw: "", qty: 1, unitPrice: "" }]).map(it => {
       // Known item (receipt name, item name or the AI's suggested code) -> that item; otherwise a new item
       // pre-filled with the AI's suggested code and English name, which staff can change.
@@ -2549,12 +2644,14 @@ async function rsScan(files){
     rs.extras = r.extras.map(e => ({ label: e.label, amount: e.amount }));
     rs.receiptTotal = r.orderTotal || "";
     if(r.paidSGD > 0) rs.paidSGD = r.paidSGD; // printed on the receipt; staff still check it against the card / bank
+    rs.fxManual = false; rsAutoFx();
     rsDirty = true; renderRs();
     const fresh = rs.items.filter(it => it.isNew).length, blank = rs.items.filter(it => !it.code || !it.name).length;
     rsStatus("ok", "Read " + rs.items.length + " item(s). Check every number against the receipt" +
       (fresh ? ". " + fresh + " new item(s) got a suggested code and name: check them, or pick an existing item instead" : "") +
       (blank ? ". " + blank + " line(s) still need a code / name" : "") + "." + (r.paidSGD > 0 ? " SGD paid was read from the receipt: check it against your card / bank." : " Then enter the SGD you actually paid."));
   }catch(err){ rsStatus("err", "Could not read the receipt (no connection?). Type the items in instead."); }
+  finally{ const b = document.getElementById("rsRead"); if(b){ b.disabled = false; b.textContent = "🔍 Read receipt (" + rs.images.length + " photo" + (rs.images.length > 1 ? "s" : "") + ")"; } }
 }
 
 function renderRs(){
@@ -2609,27 +2706,40 @@ function renderRs(){
   const itemOpts = '<option value="">Choose item...</option>' + RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === rsOut.code ? " selected" : "") + '>' + esc(s.code + " · " + s.name + " (" + s.qty + ")") + '</option>').join("");
   const selOut = stockOf(rsOut.code);
 
+  p.dataset.view = rsView;
   p.innerHTML = `
-    <div class="stage">
-      <h2><span class="n">1</span>Scan receipt</h2>
-      <p class="hint" style="margin-top:0">Take a photo or pick screenshots of the order or invoice (up to 4). The AI fills in the items; you check them.</p>
-      <div class="photos">${rs.images.map(d => '<div class="ph"><img src="' + d + '" alt="Receipt"></div>').join("")}
-        <label class="addph">📷 Scan receipt<input type="file" accept="image/*" multiple data-rsscan="1"></label></div>
+    <div class="subtabs">
+      <div class="seg" role="tablist" aria-label="Inventory">
+        <button type="button" role="tab" data-rsview="purchase" aria-selected="${rsView === "purchase"}">Purchase</button>
+        <button type="button" role="tab" data-rsview="stock" aria-selected="${rsView === "stock"}">Stock</button>
+      </div>
+      ${rsDemo ? '' : '<button type="button" class="mini" data-rsdemo="on">Try demo</button>'}
     </div>
-    <div class="stage">
+    ${rsDemo ? '<div class="rsdemo"><b>Demo mode.</b> Sample stock and a sample receipt; nothing is saved to the Sheet. <button type="button" class="mini" data-rsdemo="off">Exit demo</button></div>' : ''}
+    <div class="stage rs-p">
+      <h2><span class="n">1</span>Scan receipt</h2>
+      <p class="hint" style="margin-top:0">Add photos or screenshots of the order or invoice (up to ${RS_MAX_IMAGES}), remove any wrong ones with ✕, then tap Read receipt. The AI fills in the details; you check them.</p>
+      <div class="photos">${rs.images.map((d, i) => '<div class="ph"><img src="' + d + '" alt="Receipt photo ' + (i + 1) + '"><button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
+        ${rs.images.length < RS_MAX_IMAGES ? '<label class="addph">📷 ' + (rs.images.length ? 'Add more' : 'Add photos') + '<input type="file" accept="image/*" multiple data-rsscan="1"></label>' : ''}${rsDemo ? '<button type="button" class="addph" data-rsdemoscan="1">Use sample Taobao receipt</button>' : ''}</div>
+      ${rs.images.length ? '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsRead" style="grid-column:1 / -1">🔍 Read receipt (' + rs.images.length + ' photo' + (rs.images.length > 1 ? 's' : '') + ')</button></div>' : ''}
+    </div>
+    <div class="stage rs-p">
       <h2><span class="n">2</span>Purchase</h2>
       <div class="grid">
         <label class="f">Date<input type="date" data-rs="date" value="${esc(rs.date)}"></label>
         <label class="f">Entered by<select data-rsby="1"><option value="">Choose...</option>${opt(names, rs.byOther ? "" : rs.by)}<option value="__other"${rs.byOther ? " selected" : ""}>Other...</option></select></label>
         ${rs.byOther ? '<label class="f">Your name<input data-rs="by" value="' + esc(rs.by) + '" placeholder="Type your name"></label>' : ""}
-        <label class="f span2">Merchant / seller<input list="rsMerchants" data-rs="merchant" value="${esc(rs.merchant)}" placeholder="Shop name"></label>
+        <label class="f span2">Merchant / seller<select data-rsmerch="1"><option value="">Choose...</option>${RS.merchants.map(m => '<option' + (!rs.merchantNew && m === rs.merchant ? " selected" : "") + '>' + esc(m) + '</option>').join("")}<option value="__new"${rs.merchantNew ? " selected" : ""}>+ New merchant...</option></select></label>
+        ${rs.merchantNew ? '<label class="f span2">New merchant name<input data-rs="merchant" value="' + esc(rs.merchant) + '" placeholder="Shop / seller name"></label>' : ""}
         <label class="f">Platform<select data-rs="platform">${opt(RS_PLATFORMS, rs.platform)}</select></label>
-        <label class="f">Receipt currency<select data-rs="currency">${opt(RS_CURRENCIES, rs.currency)}</select></label>
+        <label class="f">Receipt currency<select data-rs="currency">${opt(RS_CURRENCIES.includes(rs.currency) ? RS_CURRENCIES : RS_CURRENCIES.concat([rs.currency]), rs.currency)}</select></label>
         <label class="f span2">Total you actually paid (SGD)<input type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="From your card / bank statement${cur === "SGD" ? " (blank = receipt total)" : ""}"></label>
-        ${cur !== "SGD" && !(Number(rs.paidSGD) > 0) ? '<label class="f span2">Or exchange rate (1 ' + esc(cur) + ' = ? SGD)<input type="number" inputmode="decimal" step="any" data-rs="fxRate" value="' + esc(rs.fxRate) + '" placeholder="Only if you don\'t know the SGD paid yet"></label>' : ''}
+        ${cur !== "SGD" && !(Number(rs.paidSGD) > 0) ? '<label class="f span2">Exchange rate (1 ' + esc(cur) + ' = ? SGD)<input type="number" inputmode="decimal" step="any" data-rs="fxRate" value="' + esc(rs.fxRate) + '" placeholder="Fetching..."></label>' +
+          '<p class="hint span2" style="margin:-4px 0 0">' + (rs.fxRate && !rs.fxManual && rs.fxNote ? 'Filled in automatically (' + esc(rs.fxNote) + '). ' : rs.fxManual ? 'Rate typed by hand. ' : '') +
+          'Card charges are usually 1–3% higher than this rate, so for the exact cost enter the SGD you paid above.</p>' : ''}
       </div>
     </div>
-    <div class="stage">
+    <div class="stage rs-p">
       <h2><span class="n">3</span>Items</h2>
       ${items}
       <button type="button" class="mini" data-rsadd="1">+ Add item</button>
@@ -2647,8 +2757,8 @@ function renderRs(){
       <div class="hoactions" style="margin-top:14px"><button type="button" class="primary" id="rsSave" style="grid-column:1 / -1">Save purchase &amp; add to stock</button></div>
       <p class="hostatus" id="rsStatus" role="status"></p>
     </div>
-    <div class="stage">
-      <h2><span class="n">4</span>Stock <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">Refresh</button></h2>
+    <div class="stage rs-s">
+      <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">Refresh</button></h2>
       <label class="f"><input data-rsfind="1" value="${esc(rsFind)}" placeholder="Search item or code" aria-label="Search stock"></label>
       ${RS.stock.length ? '<div class="rstable"><table class="cllist"><thead><tr><th>Item</th><th class="amt">Qty</th><th class="amt">Avg cost</th><th class="amt">Sell</th><th class="amt">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
         : '<p class="hint">' + (RS.loaded ? 'No stock yet. Save a purchase to start.' : 'Loading stock...') + '</p>'}
@@ -2670,7 +2780,6 @@ function renderRs(){
         '<div class="hoactions" style="margin-top:12px"><button type="button" id="rsPrice" style="grid-column:1 / -1">Save price &amp; alert level</button></div>' : ''}
       <p class="hostatus" id="rsStatus2" role="status"></p>
     </div>
-    <datalist id="rsMerchants">${RS.merchants.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
 }
 function rsStatus2(kind, msg){ const el = document.getElementById("rsStatus2"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
@@ -2678,7 +2787,7 @@ function rsStatus2(kind, msg){ const el = document.getElementById("rsStatus2"); 
 const rsPane = document.getElementById("rsPane");
 rsPane.addEventListener("input", e => {
   const t = e.target;
-  if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; }
+  if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
   else if(t.dataset.rso && t.type !== "radio" && t.tagName !== "SELECT"){ rsOut[t.dataset.rso] = t.value; }
@@ -2686,7 +2795,13 @@ rsPane.addEventListener("input", e => {
 });
 rsPane.addEventListener("change", e => {
   const t = e.target;
-  if(t.dataset.rsscan){ rsScan(t.files); return; }
+  if(t.dataset.rsscan){ rsAddImages(t.files); t.value = ""; return; }
+  if(t.dataset.rsmerch){
+    rs.merchantNew = t.value === "__new"; rs.merchant = rs.merchantNew ? "" : t.value;
+    rsDirty = true; renderRs();
+    if(rs.merchantNew){ const box = rsPane.querySelector('[data-rs="merchant"]'); if(box) box.focus(); }
+    return;
+  }
   if(t.dataset.rsby){ // staff list (Script Property STAFF_NAMES) or "Other..." to type a name
     rs.byOther = t.value === "__other"; rs.by = rs.byOther ? "" : t.value;
     if(!rs.byOther){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
@@ -2705,6 +2820,7 @@ rsPane.addEventListener("change", e => {
     if(t.dataset.rso === "code" || t.dataset.rso === "kind") renderRs();
     return;
   }
+  if(t.dataset.rs === "currency" || t.dataset.rs === "date"){ rs[t.dataset.rs] = t.value; rs.fxManual = false; rs.fxRate = ""; rs.fxNote = ""; rsAutoFx(); }
   if(t.dataset.rs || t.dataset.rsi !== undefined || t.dataset.rse !== undefined){
     renderRs(); // refresh landed costs and price comparisons
   }
@@ -2712,6 +2828,11 @@ rsPane.addEventListener("change", e => {
 rsPane.addEventListener("click", async e => {
   const b = e.target.closest("button");
   if(!b) return;
+  if(b.dataset.rsview){ rsView = b.dataset.rsview; renderRs(); scrollTo(0, 0); return; }
+  if(b.dataset.rsdemo){ b.dataset.rsdemo === "on" ? rsDemoStart() : rsDemoStop(); return; }
+  if(b.dataset.rsdemoscan){ const c = document.createElement("canvas"); c.width = c.height = 8; c.toBlob(async bl => { await rsAddImages([new File([bl], "sample.png", { type: "image/png" })]); rsScan(); }); return; }
+  if(b.dataset.rsimgdel !== undefined){ rs.images.splice(+b.dataset.rsimgdel, 1); renderRs(); return; }
+  if(b.id === "rsRead"){ rsScan(); return; }
   if(b.dataset.rsadd){ rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rsdel !== undefined){ rs.items.splice(+b.dataset.rsdel, 1); if(!rs.items.length) rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rseadd){ rs.extras.push({ label: "", amount: "" }); renderRs(); return; }
@@ -2730,7 +2851,7 @@ rsPane.addEventListener("click", async e => {
     try{
       const purchase = Object.assign({}, rs); delete purchase.images; delete purchase.receiptTotal;
       purchase.items = rs.items.map(it => ({ code: it.code, name: it.name, raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, sellPrice: it.sellPrice }));
-      const out = await callSheet({ action: "restockSave", purchase });
+      const out = await rsCall({ action: "restockSave", purchase });
       if(out.result !== "success"){
         if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); return; }
         rsStatus("err", "NOT saved: " + out.message); return;
@@ -2748,7 +2869,7 @@ rsPane.addEventListener("click", async e => {
     if(rsOut.kind === "out" && !rsOut.channel){ rsStatus2("err", "Pick where it went."); return; }
     b.disabled = true;
     try{
-      const out = await callSheet({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by });
+      const out = await rsCall({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by });
       if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
       const name = (stockOf(rsOut.code) || {}).name || rsOut.code;
       rsOut = { code: "", kind: rsOut.kind, qty: 1, channel: "", note: "" };
@@ -2761,7 +2882,7 @@ rsPane.addEventListener("click", async e => {
   if(b.id === "rsPrice"){
     b.disabled = true;
     try{
-      const out = await callSheet({ action: "stockPrice", code: rsOut.code, sellPrice: document.getElementById("rsSell").value, minQty: document.getElementById("rsMin").value });
+      const out = await rsCall({ action: "stockPrice", code: rsOut.code, sellPrice: document.getElementById("rsSell").value, minQty: document.getElementById("rsMin").value });
       if(out.result !== "success"){ rsStatus2("err", out.message); return; }
       await loadStock(); rsStatus2("ok", "Saved.");
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
