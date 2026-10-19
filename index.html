@@ -113,6 +113,13 @@
   .rsdemo .mini{margin-left:auto}
   button.addph{background:transparent;font:inherit}
   .rstable{overflow-x:auto;margin-top:10px}
+  .stepper{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px} .stepper .mini{height:40px;padding:0;font-size:18px}
+  #rsPrice,#rsMarketBtn{white-space:normal;height:auto;min-height:44px;padding:6px 10px;line-height:1.25;min-width:0}
+  .rsmarket{margin-top:14px;display:grid;gap:12px}
+  .rsrec{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:10px;background:var(--green-wash);border:1px solid #CFE3B0}
+  .rsrec span{display:block;font-size:12.5px;color:var(--ink-2)} .rsrec b{font-size:22px} .rsrec small{display:block;font-size:12.5px;color:var(--ink-2)}
+  .rsbambu{padding:12px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);display:grid;gap:4px;font-size:13.5px}
+  .rsbambu div{display:flex;justify-content:space-between;gap:12px} .rsbambu .t{border-top:1px solid var(--line);padding-top:6px;margin-top:2px;font-weight:600}
   .subtabs{display:flex;align-items:center;gap:10px;margin:0 0 14px}
   .subtabs .mini{margin-left:auto}
   .seg{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
@@ -2560,6 +2567,10 @@ async function rsCall(body){
     if(s.qty <= s.min && before > s.min) toast("📣 Telegram (demo): ⚠️ Low stock: " + s.name + ", " + s.qty + " left.");
     return { result: "success", qty: s.qty };
   }
+  if(body.action === "priceResearch") return { result: "success", recommended: 47.9, why: "about 3% under the typical Singapore price ($49.50) (demo)", low: 42, median: 49.5, floor: Math.ceil((body.cost || 0) / 0.7 * 10) / 10, target: 0.3,
+    bambu: { price: 29.99, currency: "USD", url: "https://asia.store.bambulab.com", gstIncluded: false, itemSgd: 38.69, shippingSgd: 32.25, gstSgd: 6.39, trueCost: 77.33 },
+    listings: [ { platform: "Shopee", seller: "3dprintsg (demo)", sgd: 42, price: 42, currency: "SGD", url: "", note: "" }, { platform: "Carousell", seller: "makerSG (demo)", sgd: 48, price: 48, currency: "SGD", url: "", note: "used once" },
+      { platform: "Lazada", seller: "BL Partner (demo)", sgd: 51, price: 51, currency: "SGD", url: "", note: "" }, { platform: "Shop", seller: "Local shop (demo)", sgd: 55, price: 55, currency: "SGD", url: "", note: "" } ] };
   if(body.action === "fxRate") return { result: "success", rate: { CNY: 0.1912, USD: 1.29, MYR: 0.3134, HKD: 0.166, EUR: 1.46 }[body.from] || 1, date: body.date, source: "ECB rate (demo)" };
   if(body.action === "stockPrice"){
     const s = find(body.code); if(!s) return { result: "error", message: "Item not found." };
@@ -2579,6 +2590,61 @@ async function rsAutoFx(){
     rs.fxNote = out.source + (out.date ? " on " + out.date : "");
     renderRs();
   }catch(e){}
+}
+
+// ----- Sell price: − / + with live margin, and a market price check (script: handlePriceResearch) -----
+let rsMarket = { code: "", loading: false, data: null, error: "" };
+const rsFloor = s => s.avg ? Math.ceil(s.avg / (1 - RS.target) * 10) / 10 : 0; // lowest price keeping the target margin
+const rsSellOf = s => rsOut.sellCode === s.code ? rsOut.sell : (s.sell ? String(s.sell) : "");
+function rsRecOf(s){
+  const m = rsMarket.code === s.code && rsMarket.data ? rsMarket.data : null;
+  return m && m.recommended ? { price: m.recommended, label: "recommended" } : { price: rsFloor(s), label: Math.round(RS.target * 100) + "% margin price" };
+}
+function rsSellInfo(s){
+  const sell = Number(rsSellOf(s)) || 0, rec = rsRecOf(s);
+  if(!sell) return 'Set a sell price.' + (rec.price ? ' Suggested: <b>$' + money(rec.price) + '</b> (' + rec.label + ').' : '');
+  const m = s.avg ? (sell - s.avg) / sell : null, d = rec.price ? sell - rec.price : 0;
+  return (m === null ? '' : 'Margin <b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b> · profit $' + money(sell - s.avg) + ' per unit') +
+    (rec.price ? ' · ' + (Math.abs(d) < 0.005 ? 'same as' : '<b>' + (d > 0 ? '+' : '−') + '$' + money(Math.abs(d)) + '</b> ' + (d > 0 ? 'above' : 'below')) + ' the ' + rec.label + ' ($' + money(rec.price) + ')' : '');
+}
+function rsMarketHtml(s){
+  if(rsMarket.code !== s.code) return '';
+  if(rsMarket.loading) return '<p class="hint">Searching Shopee, Lazada, Carousell, other Singapore sellers and the Bambu Lab store... (about 10–20 seconds)</p>';
+  if(rsMarket.error) return '<p class="hostatus err">' + esc(rsMarket.error) + '</p>';
+  const m = rsMarket.data; if(!m) return '';
+  const link = (u, t) => u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : esc(t);
+  return '<div class="rsmarket">' +
+    '<div class="rsrec"><div><span>Recommended price</span><b>$' + money(m.recommended) + '</b><small>' + esc(m.why) + '</small></div>' +
+      '<button type="button" class="mini" data-userec="1">Use $' + money(m.recommended) + '</button></div>' +
+    (m.bambu ? '<div class="rsbambu"><b>Buying direct from Bambu Lab</b> ' + link(m.bambu.url, '(store page)') +
+      '<div><span>Item (' + esc(m.bambu.currency) + ' ' + m.bambu.price + ')</span><b>$' + money(m.bambu.itemSgd) + '</b></div>' +
+      '<div><span>Shipping (US$25)</span><b>$' + money(m.bambu.shippingSgd) + '</b></div>' +
+      '<div><span>GST 9%' + (m.bambu.gstIncluded ? ' (already included)' : '') + '</span><b>$' + money(m.bambu.gstSgd) + '</b></div>' +
+      '<div class="t"><span>True cost to a customer</span><b>$' + money(m.bambu.trueCost) + '</b></div></div>' : '') +
+    (m.listings.length ? '<div class="rstable"><table class="cllist"><thead><tr><th>Where</th><th>Seller</th><th class="amt">Price (SGD)</th></tr></thead><tbody>' +
+      m.listings.map(l => '<tr><td>' + link(l.url, l.platform || 'Link') + '</td><td>' + esc(l.seller) + (l.note ? '<span class="x">' + esc(l.note) + '</span>' : '') +
+        '</td><td class="amt">$' + money(l.sgd) + (l.currency !== 'SGD' ? '<span class="x">' + esc(l.currency) + ' ' + l.price + '</span>' : '') + '</td></tr>').join('') +
+      '</tbody></table></div><p class="hint">Lowest $' + money(m.low) + ' · typical $' + money(m.median) + '. Found by an AI web search: a snapshot, not every listing. Open the links to check before repricing.</p>'
+      : '<p class="hint">No Singapore listings found for this exact item.</p>') + '</div>';
+}
+function rsPriceBlock(s){
+  return '<h3 class="sub">Sell price &amp; low-stock alert for ' + esc(s.name) + '</h3><div class="grid">' +
+    '<label class="f span2">Sell price (SGD)<span class="stepper"><button type="button" class="mini" data-sellstep="-1" aria-label="Lower by $1">−</button>' +
+      '<input type="number" inputmode="decimal" step="any" id="rsSell" value="' + esc(rsSellOf(s)) + '"><button type="button" class="mini" data-sellstep="1" aria-label="Raise by $1">+</button></span></label>' +
+    '<p class="hint span2" id="rsSellInfo" style="margin-top:-4px">' + rsSellInfo(s) + '</p>' +
+    '<label class="f">Alert when qty is at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + s.min + '"></label></div>' +
+    '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsPrice">Save price &amp; alert level</button>' +
+      '<button type="button" id="rsMarketBtn"' + (rsMarket.loading ? ' disabled' : '') + '>🔎 Check market prices</button></div>' + rsMarketHtml(s);
+}
+function rsSellRefresh(){ const s = stockOf(rsOut.code), el = document.getElementById("rsSellInfo"); if(s && el) el.innerHTML = rsSellInfo(s); }
+async function rsCheckMarket(){
+  const s = stockOf(rsOut.code); if(!s) return;
+  rsMarket = { code: s.code, loading: true, data: null, error: "" }; renderRs();
+  try{
+    const out = await rsCall({ action: "priceResearch", code: s.code, name: s.name, cost: s.avg });
+    rsMarket = out.result === "success" ? { code: s.code, loading: false, data: out, error: "" } : { code: s.code, loading: false, data: null, error: out.message };
+  }catch(e){ rsMarket = { code: s.code, loading: false, data: null, error: "Price check failed (no connection?). Try again." }; }
+  renderRs();
 }
 function rsStatus(kind, msg){ const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 
@@ -2642,7 +2708,7 @@ async function rsScan(){
         : Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: it.code || "", name: it.name || "", isNew: true });
     });
     rs.extras = r.extras.map(e => ({ label: e.label, amount: e.amount }));
-    rs.receiptTotal = r.orderTotal || "";
+    rs.receiptTotal = r.orderTotal && !(rs.currency !== "SGD" && r.paidSGD > 0 && Math.abs(r.orderTotal - r.paidSGD) < 0.01) ? r.orderTotal : "";
     if(r.paidSGD > 0) rs.paidSGD = r.paidSGD; // printed on the receipt; staff still check it against the card / bank
     rs.fxManual = false; rsAutoFx();
     rsDirty = true; renderRs();
@@ -2682,7 +2748,7 @@ function renderRs(){
           '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label>' : ''}
         <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
         <label class="f">Unit price (${esc(cur)})<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="unitPrice" value="${esc(it.unitPrice)}"></label>
-        <label class="f">Sell price (SGD, optional)<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="sellPrice" value="${esc(it.sellPrice)}" placeholder="${st && st.sell ? money(st.sell) : ""}"></label>
+        <label class="f">Sell price (SGD, optional)<span class="stepper"><button type="button" class="mini" data-rsstep="${i}" data-d="-1" aria-label="Lower sell price by $1">−</button><input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="sellPrice" value="${esc(it.sellPrice)}" placeholder="${st && st.sell ? money(st.sell) : unit ? String(Math.ceil(unit / (1 - RS.target))) : ""}"><button type="button" class="mini" data-rsstep="${i}" data-d="1" aria-label="Raise sell price by $1">+</button></span></label>
         <div class="rscost"><span>Landed cost / unit</span><b>${unit ? "$" + money(unit) : "–"}</b></div>
       </div>
       ${notes.length ? '<div class="rsnotes">' + notes.join("<br>") + '</div>' : ''}
@@ -2693,8 +2759,16 @@ function renderRs(){
       <input list="rsExtraNames" data-rse="${i}" data-k="label" value="${esc(e.label)}" placeholder="e.g. Shipping" aria-label="Charge">
       <input type="number" inputmode="decimal" step="any" data-rse="${i}" data-k="amount" value="${esc(e.amount)}" placeholder="Amount (${esc(cur)}), minus for discount" aria-label="Amount">
       <button type="button" class="mini" data-rsedel="${i}" aria-label="Remove charge">✕</button></div>`).join("");
+  // Receipt check: our items + charges should add up to the receipt's own total (same currency).
   const rt = Number(rs.receiptTotal) || 0, diff = rt ? c.order - rt : 0;
-  const check = !rt ? "" : Math.abs(diff) < 0.01 ? '<span class="down">✓ matches the receipt total</span>' : '<span class="up">⚠ differs from the receipt total by ' + money(Math.abs(diff)) + ' ' + esc(cur) + '. Check the items and charges.</span>';
+  const looksSgd = rt && cur !== "SGD" && c.sgd > 0 && Math.abs(rt - c.sgd) < 0.01;
+  const check = !rt ? ""
+    : Math.abs(diff) < 0.01 ? '<span class="down">✓ Items and charges add up to the receipt total. Nothing missed.</span>'
+    : looksSgd ? '<span>That number is the SGD you paid, not the ' + esc(cur) + ' total, so this check is skipped. Type the ' + esc(cur) + ' total from the receipt to check, or leave it empty.</span>'
+    : '<span class="up">⚠ Items and charges add up to ' + money(c.order) + ' ' + esc(cur) + ', but the receipt says ' + money(rt) + ' ' + esc(cur) + ' (' + money(Math.abs(diff)) + ' ' + (diff > 0 ? 'more' : 'less') + '). An item, price or charge may be misread or missing.</span>';
+  // The rate the card / bank really gave, against the official rate (shows bank charges).
+  const eff = cur !== "SGD" && Number(rs.paidSGD) > 0 && c.order > 0 ? Number(rs.paidSGD) / c.order : 0;
+  const ref = Number(rs.fxRate) || 0;
 
   const q = rsFind.trim().toLowerCase();
   const rows = RS.stock.filter(s => !q || (s.code + " " + s.name).toLowerCase().includes(q)).map(s => {
@@ -2747,12 +2821,13 @@ function renderRs(){
       ${extras || '<p class="hint" style="margin-top:0">None.</p>'}
       <button type="button" class="mini" data-rseadd="1">+ Add charge</button>
       <div class="rssum">
-        <div><span>Items</span><b>${money(c.value)} ${esc(cur)}</b></div>
-        <div><span>Extra charges</span><b>${money(c.extras)} ${esc(cur)}</b></div>
-        <div><span>Order total</span><b>${money(c.order)} ${esc(cur)}</b></div>
-        <div><span>Receipt total</span><input type="number" inputmode="decimal" step="any" data-rs="receiptTotal" value="${esc(rs.receiptTotal)}" aria-label="Receipt total"></div>
+        <div><span>Items (${esc(cur)})</span><b>${money(c.value)}</b></div>
+        <div><span>Shipping, tax, fees &amp; discounts (${esc(cur)})</span><b>${(c.extras < 0 ? "−" : "") + money(Math.abs(c.extras))}</b></div>
+        <div><span>Order total (${esc(cur)})</span><b>${money(c.order)}</b></div>
+        <div><label for="rsRT">Receipt total (${esc(cur)}), to check</label><input id="rsRT" type="number" inputmode="decimal" step="any" data-rs="receiptTotal" value="${esc(rs.receiptTotal)}" placeholder="optional"></div>
         ${check ? '<div class="rscheck">' + check + '</div>' : ''}
-        <div class="big"><span>Landed in SGD</span><b>${c.sgd ? "$" + money(c.sgd) : "enter SGD paid"}</b></div>
+        <div class="big"><span>${Number(rs.paidSGD) > 0 || cur === "SGD" ? "You paid (SGD)" : "Estimated cost (SGD)"}</span><b>${c.sgd ? "$" + money(c.sgd) : "enter SGD paid"}</b></div>
+        ${eff ? '<div class="rscheck"><span>Your card / bank rate: 1 ' + esc(cur) + ' = ' + eff.toFixed(4) + ' SGD' + (ref ? ' (' + (eff >= ref ? '+' : '−') + Math.abs(Math.round((eff / ref - 1) * 1000) / 10) + '% vs the official ' + ref + ': bank charges and fees)' : '') + '</span></div>' : ''}
       </div>
       <div class="hoactions" style="margin-top:14px"><button type="button" class="primary" id="rsSave" style="grid-column:1 / -1">Save purchase &amp; add to stock</button></div>
       <p class="hostatus" id="rsStatus" role="status"></p>
@@ -2774,10 +2849,7 @@ function renderRs(){
         <label class="f span2">Note / order no. (optional)<input data-rso="note" value="${esc(rsOut.note)}" placeholder="e.g. Shopee order 2610xxxx"></label>
       </div>
       <div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">${rsOut.kind === "count" ? "Save count" : "Take off stock"}</button></div>
-      ${selOut ? '<h3 class="sub">Sell price &amp; low-stock alert for ' + esc(selOut.name) + '</h3><div class="grid">' +
-        '<label class="f">Sell price (SGD)<input type="number" inputmode="decimal" step="any" id="rsSell" value="' + (selOut.sell || "") + '"></label>' +
-        '<label class="f">Alert when qty is at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + selOut.min + '"></label></div>' +
-        '<div class="hoactions" style="margin-top:12px"><button type="button" id="rsPrice" style="grid-column:1 / -1">Save price &amp; alert level</button></div>' : ''}
+      ${selOut ? rsPriceBlock(selOut) : ''}
       <p class="hostatus" id="rsStatus2" role="status"></p>
     </div>
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
@@ -2791,6 +2863,7 @@ rsPane.addEventListener("input", e => {
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
   else if(t.dataset.rso && t.type !== "radio" && t.tagName !== "SELECT"){ rsOut[t.dataset.rso] = t.value; }
+  else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
 });
 rsPane.addEventListener("change", e => {
@@ -2817,6 +2890,7 @@ rsPane.addEventListener("change", e => {
   }
   if(t.dataset.rso){
     rsOut[t.dataset.rso] = t.value;
+    if(t.dataset.rso === "code"){ rsOut.sellCode = ""; rsMarket = { code: "", loading: false, data: null, error: "" }; }
     if(t.dataset.rso === "code" || t.dataset.rso === "kind") renderRs();
     return;
   }
@@ -2833,6 +2907,13 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.rsdemoscan){ const c = document.createElement("canvas"); c.width = c.height = 8; c.toBlob(async bl => { await rsAddImages([new File([bl], "sample.png", { type: "image/png" })]); rsScan(); }); return; }
   if(b.dataset.rsimgdel !== undefined){ rs.images.splice(+b.dataset.rsimgdel, 1); renderRs(); return; }
   if(b.id === "rsRead"){ rsScan(); return; }
+  if(b.dataset.rsstep !== undefined){ const it = rs.items[+b.dataset.rsstep], st = stockOf(it.code), base = Number(it.sellPrice) || (st && st.sell) || Math.ceil((rsCalc().units[+b.dataset.rsstep] || 0) / (1 - RS.target));
+    it.sellPrice = String(Math.max(0, Math.round((base + Number(b.dataset.d)) * 100) / 100)); rsDirty = true; renderRs(); return; }
+  if(b.dataset.sellstep){ const s = stockOf(rsOut.code); if(!s) return; const base = Number(rsSellOf(s)) || rsRecOf(s).price || 0;
+    rsOut.sell = String(Math.max(0, Math.round((base + Number(b.dataset.sellstep)) * 100) / 100)); rsOut.sellCode = s.code;
+    const box = document.getElementById("rsSell"); if(box) box.value = rsOut.sell; rsSellRefresh(); return; }
+  if(b.id === "rsMarketBtn"){ rsCheckMarket(); return; }
+  if(b.dataset.userec){ const s = stockOf(rsOut.code); if(s && rsMarket.data){ rsOut.sell = String(rsMarket.data.recommended); rsOut.sellCode = s.code; renderRs(); rsStatus2("ok", "Price set to $" + money(rsMarket.data.recommended) + ". Press Save price to keep it."); } return; }
   if(b.dataset.rsadd){ rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rsdel !== undefined){ rs.items.splice(+b.dataset.rsdel, 1); if(!rs.items.length) rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rseadd){ rs.extras.push({ label: "", amount: "" }); renderRs(); return; }
@@ -2846,7 +2927,8 @@ rsPane.addEventListener("click", async e => {
       !c.sgd && "the SGD you paid (or exchange rate)"].filter(Boolean);
     if(missing.length){ rsStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
     const rt = Number(rs.receiptTotal) || 0;
-    if(rt && Math.abs(c.order - rt) >= 0.01 && !confirm("The items and charges add up to " + money(c.order) + " " + rs.currency + ", but the receipt total is " + money(rt) + ". Save anyway?")) return;
+    const sgdInBox = rs.currency !== "SGD" && c.sgd > 0 && Math.abs(rt - c.sgd) < 0.01;
+    if(rt && !sgdInBox && Math.abs(c.order - rt) >= 0.01 && !confirm("Items and charges add up to " + money(c.order) + " " + rs.currency + ", but the receipt says " + money(rt) + " " + rs.currency + ". Save anyway?")) return;
     b.disabled = true; b.textContent = "Saving...";
     try{
       const purchase = Object.assign({}, rs); delete purchase.images; delete purchase.receiptTotal;
@@ -2884,7 +2966,7 @@ rsPane.addEventListener("click", async e => {
     try{
       const out = await rsCall({ action: "stockPrice", code: rsOut.code, sellPrice: document.getElementById("rsSell").value, minQty: document.getElementById("rsMin").value });
       if(out.result !== "success"){ rsStatus2("err", out.message); return; }
-      await loadStock(); rsStatus2("ok", "Saved.");
+      rsOut.sellCode = ""; await loadStock(); rsStatus2("ok", "Saved.");
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
     finally{ const s = document.getElementById("rsPrice"); if(s) s.disabled = false; }
   }
