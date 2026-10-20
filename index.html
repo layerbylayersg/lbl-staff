@@ -197,6 +197,34 @@
   #gate .peek,#gate .peek:hover{position:absolute;right:5px;top:5px;width:auto;height:32px;padding:0 12px;font-size:13px;font-weight:600;
     background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);border-radius:7px}
   #gateMsg{color:var(--red-ink);min-height:1.2em;font-size:14px}
+  #gate .linkbtn,#gate .linkbtn:hover{height:auto;width:auto;padding:2px 0;border:0;background:none;color:var(--muted);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:2px;justify-self:center}
+  #gate [hidden]{display:none!important}
+
+  /* ---------- sync: saves wait on the phone and send in the background ---------- */
+  .syncchip{display:inline-flex;align-items:center;gap:6px;height:30px!important;padding:0 10px!important;border-radius:999px!important;font-size:12.5px!important;font-weight:600!important;
+    background:var(--surface-2)!important;border:1px solid var(--line)!important;color:var(--ink-2)!important}
+  .syncchip[hidden]{display:none!important}
+  .syncchip::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--green-600)}
+  .syncchip.busy::before{background:var(--amber-ink);animation:pulse 1.2s ease-in-out infinite}
+  .syncchip.bad{background:var(--red-wash)!important;border-color:#F2C4C4!important;color:var(--red-ink)!important}
+  .syncchip.bad::before{background:var(--red-ink)}
+  @keyframes pulse{50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.syncchip.busy::before{animation:none}}
+  .bar #btnLogout{margin-left:0}
+  @media (max-width:480px){ .bar .who{display:none} .bar #btnLogout{margin-left:auto} .bar .syncchip:not([hidden]){margin-left:auto} .bar .syncchip:not([hidden]) ~ #btnLogout{margin-left:0} }
+  .bar .who{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+  #syncDlg .list{padding:6px 0}
+  #syncDlg .row{align-items:flex-start}
+  #syncDlg .row .t .e{color:var(--red-ink)}
+  #syncDlg .row .acts{display:flex;gap:6px;flex:none}
+  #syncDlg footer{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  /* My jobs / All jobs */
+  .whose{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+  .whose .seg button{height:30px;padding:0 12px;font-size:13px}
+  .whose small{color:var(--muted);font-size:12.5px}
+  /* photo upload state */
+  .photos .ph .up{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:6px;background:rgba(20,24,20,.7);color:#fff;font-size:11px;font-weight:600}
+  .photos .ph .up.bad{background:var(--red-ink)}
 
   /* ---------- top bar ---------- */
   .bar{
@@ -531,12 +559,17 @@
     <img id="gateLogo" alt="Layer By Layer">
     <h1>Staff dashboard</h1>
     <p>Service reports, handovers, takeovers and petrol claims. Layer By Layer staff only.</p>
-    <label>Staff password
-      <span class="pwrow"><input type="password" id="gatePw" autocomplete="current-password" required>
-        <button type="button" class="peek" id="gatePeek" aria-pressed="false" aria-label="Show password">Show</button></span>
+    <label id="gateNameRow">Your name
+      <input id="gateName" autocomplete="username" autocapitalize="words" list="gateNames" required>
+    </label>
+    <datalist id="gateNames"></datalist>
+    <label><span id="gatePwLabel">Your PIN</span>
+      <span class="pwrow"><input type="password" id="gatePw" autocomplete="current-password" inputmode="numeric" required>
+        <button type="button" class="peek" id="gatePeek" aria-pressed="false" aria-label="Show PIN">Show</button></span>
     </label>
     <button type="submit" id="gateBtn">Log in</button>
     <div id="gateMsg" role="alert"></div>
+    <button type="button" class="linkbtn" id="gateMode">Use the team password instead</button>
   </form>
 </div>
 
@@ -549,6 +582,8 @@
     <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
     <button type="button" id="modeRs" aria-pressed="false">Inventory</button>
   </div>
+  <span class="who" id="barWho"></span>
+  <button type="button" class="syncchip" id="syncChip" hidden aria-live="polite"></button>
   <button id="btnLogout">Log out</button>
   <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
 </div>
@@ -594,6 +629,11 @@
   </form>
 </dialog>
 
+<dialog id="syncDlg" aria-labelledby="syncTitle">
+  <header><h2 id="syncTitle">Waiting to sync</h2><button type="button" id="syncClose">Close</button></header>
+  <div class="list" id="syncList"></div>
+  <footer><span id="syncNote">Saves wait safely on this phone and send by themselves when there is signal.</span><button type="button" id="syncRetry" class="primary">Retry now</button></footer>
+</dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -721,19 +761,35 @@ function stdFor(s){
 const groupsFor = (groups, s) => groups.filter(g => g[2] === "mfms" ? hasMfms(s) : hasPrinter(s));
 
 /* ---------- staff login + Sheet ---------- */
-// The password is checked by the Apps Script backend (Script Property REPORT_PIN) before any
-// job data is returned, and again on every save. It is kept in memory only, so a refresh or a
-// closed tab logs out. PIN_KEY is only used to wipe what older versions stored on the device.
-const PIN_KEY = "mdr-staff-pin";
+// Each person logs in with their name and PIN (Staff tab in the Sheet). The backend returns a
+// sign-in token, kept on this device and renewed once a day while in use, so it lasts 30 days
+// since last use. The token stops working if the person's PIN changes or they are set inactive.
+// The old team password still works (legacy mode) until the backend switches it off.
+const PIN_KEY = "mdr-staff-pin";            // only used to wipe what older versions stored
+const SESSION_KEY = "lbl-session";          // { token, name, exp, api }
+const JOBS_KEY = "lbl-jobs";                // last job list, so the app opens instantly
+const NAMES_KEY = "lbl-staff-names";        // for the name box on the login screen
 let STAFF_PIN = "";
+let SESSION = null;
 let JOBS = [], STAFF = [];
+const isNew = () => !!(SESSION && SESSION.token);   // signed in with name + PIN (new backend features)
+const ME = () => (SESSION && SESSION.name) || "";
+const AUTH_MSGS = ["Wrong password.", "Your sign-in has expired. Log in again.", "Log in with your own name and PIN."];
+const isAuthMsg = m => AUTH_MSGS.includes(m);
+const authText = (m, tail) => (m === "Wrong password." ? "Password changed. Log in again" : m === AUTH_MSGS[2] ? "Log in with your own name and PIN" : "Your sign-in has expired. Log in again") + (tail || ".");
+
+function lsGet(k){ try{ return JSON.parse(localStorage.getItem(k) || "null"); }catch(e){ return null; } }
+function lsSet(k, v){ try{ v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 
 async function callSheet(body){
-  const res = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(Object.assign({ pin: STAFF_PIN }, body)) });
+  const auth = isNew() ? { token: SESSION.token } : { pin: STAFF_PIN };
+  const res = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(Object.assign(auth, body)) });
   return res.json();
 }
-function lock(msg){
+// Locks the screen. forget = also wipe the job list kept on this device (log out / sign-in expired).
+function lock(msg, forget){
   STAFF_PIN = ""; JOBS = [];
+  if(forget !== false){ SESSION = null; lsSet(SESSION_KEY, null); lsSet(JOBS_KEY, null); lsSet("lbl-claims", null); }
   if(typeof CL === "object"){ CL.jobs = []; CL.claims = []; CL.loaded = false; }
   if(typeof RS === "object"){ RS.stock = []; RS.history = []; RS.loaded = false; rs = rsBlank(); rsDirty = false; rsDemo = null; }
   if(typeof hoBlank === "function"){ ho = hoBlank(); hoPhotos = []; hoDirty = false; hoFile = null; for(const k in hoStash) delete hoStash[k]; }
@@ -741,28 +797,139 @@ function lock(msg){
   document.body.classList.add("locked");
   if(typeof setPeek === "function") setPeek(false); // never leave the password showing
   document.getElementById("gateMsg").textContent = msg || "";
+  showWho();
+}
+function showWho(){
+  const el = document.getElementById("barWho");
+  if(el) el.textContent = ME() ? ME() : "";
+}
+// Keeps the last job list on this device, so the next visit opens straight away.
+function keepJobs(){ if(isNew()) lsSet(JOBS_KEY, { at: Date.now(), name: ME(), jobs: JOBS, staff: STAFF }); }
+function takeJobs(out){
+  JOBS = out.jobs || []; STAFF = out.staff || STAFF;
+  overlayPending();
+  if(STAFF.length) lsSet(NAMES_KEY, STAFF);
+  if(out.api && SESSION){ SESSION.api = out.api; lsSet(SESSION_KEY, SESSION); }
+  keepJobs();
+}
+// Saves still on their way from this phone are not in the Sheet yet: keep showing them in the job list.
+function overlayPending(){
+  if(typeof outbox !== "object") return;
+  outbox.pending().forEach(it => {
+    if(it.kind === "report"){
+      const j = JOBS.find(x => x.quoteNo === it.snap.job.quoteNo);
+      if(j){ const r = reportPayload(it.snap); if(it.reportNo) r.job.ref = it.reportNo; j.savedReport = r; }
+    }
+    if(it.kind === "handover" || it.kind === "takeover"){
+      const j = JOBS.find(x => x.quoteNo === it.ref);
+      if(!j) return;
+      j[it.kind] = Object.assign({}, it.body.handover, { hasSignature: true });
+      if(it.kind === "handover" && j.status === "Confirmed") j.status = "In Progress";
+      if(it.kind === "takeover" && j.status === "In Progress") j.status = "Completed";
+    }
+  });
 }
 // Fetches the latest jobs and staff names from the Sheet.
 async function loadJobs(){
-  const out = await callSheet({ action:"staffJobs" });
-  if(out.result !== "success"){ lock(out.message); return false; }
-  JOBS = out.jobs || []; STAFF = out.staff || [];
-  if(!state.shop.tech){ try{ state.shop.tech = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){} }
+  const out = await callSheet({ action:"staffJobs", lite: isNew() });
+  if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(out.message); else showStatus("err", out.message); return false; }
+  takeJobs(out);
+  defaultNames();
   return true;
 }
-async function login(pw){
-  STAFF_PIN = pw;
-  if(!await loadJobs()) return false;
+// Signed-in staff are the specialist / representative / claimant unless someone picks another name.
+function defaultNames(){
+  const me = ME();
+  if(!state.shop.tech) state.shop.tech = me || (function(){ try{ return localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){ return ""; } })();
+  if(me && typeof cl === "object" && !cl.claimant) cl.claimant = me;
+  if(me && typeof rs === "object" && rs && !rs.by) rs.by = me;
+}
+function unlock(){
   document.body.classList.remove("locked");
+  showWho();
+  defaultNames();
   loadStock(); // part-name suggestions in the service report
   render();
+  if(typeof outbox === "object") outbox.kick();
+  setTimeout(() => { loadJsPDF().catch(()=>{}); }, 1500); // so the first save or PDF does not wait for the download
+}
+async function login(name, pw){
+  if(gateLegacy){
+    STAFF_PIN = pw;
+    if(!await loadJobs()) return false;
+  } else {
+    const res = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify({ action:"login", staff: name, pin: pw }) });
+    const out = await res.json();
+    if(out.result !== "success" || !out.token){
+      lock(out.result === "success" ? "This server does not support name + PIN login yet. Use the team password." : out.message);
+      return false;
+    }
+    SESSION = { token: out.token, name: out.name, exp: out.exp, api: out.api || 2, renewed: Date.now() };
+    lsSet(SESSION_KEY, SESSION);
+    takeJobs(out);
+    state.shop.tech = state.shop.tech || out.name;
+  }
+  unlock();
   return true;
 }
+// Opening the app with a saved sign-in: show the jobs kept on this device at once, refresh behind.
+async function resume(){
+  const s = lsGet(SESSION_KEY);
+  if(!s || !s.token || !(s.exp > Date.now())) return false;
+  SESSION = s;
+  const kept = lsGet(JOBS_KEY);
+  if(kept && kept.name === s.name){ JOBS = kept.jobs || []; STAFF = kept.staff || []; }
+  unlock();
+  refreshJobsQuietly();
+  renewIfDue();
+  return true;
+}
+// Once a day while in use, swap the token for a fresh 30-day one.
+async function renewIfDue(){
+  if(!isNew() || !(SESSION.api >= 3) || Date.now() - (SESSION.renewed || 0) < 24 * 3600 * 1000) return;
+  try{
+    const out = await callSheet({ action:"renew" });
+    if(out.result === "success" && out.token){ SESSION = Object.assign(SESSION, { token: out.token, exp: out.exp, renewed: Date.now() }); lsSet(SESSION_KEY, SESSION); }
+    else if(isAuthMsg(out.message)) lock(out.message);
+  }catch(e){}
+}
+// Background refresh of the job list. Reopens the open job only if nothing was changed on it.
+let refreshing = null;
+function refreshJobsQuietly(){
+  if(refreshing) return refreshing;
+  refreshing = (async () => {
+    try{
+      if(!await loadJobs()) return;
+      if(state.job.quoteNo && !dirty && !outbox.hasFor(state.job.quoteNo)){ const j = JOBS.find(x => x.quoteNo === state.job.quoteNo); if(j) openJob(j, true); }
+      if(ho.quoteNo && !hoDirty && !hoBusy()){ const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(j) openHo(j, true); }
+      if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); }
+    }catch(e){} finally { refreshing = null; }
+  })();
+  return refreshing;
+}
+// Login screen: name + PIN, or the old team password.
+let gateLegacy = false;
+function setGateMode(legacy){
+  gateLegacy = legacy;
+  document.getElementById("gateNameRow").hidden = legacy;
+  document.getElementById("gateName").required = !legacy;
+  document.getElementById("gatePwLabel").textContent = legacy ? "Team password" : "Your PIN";
+  document.getElementById("gatePw").inputMode = legacy ? "text" : "numeric";
+  document.getElementById("gateMode").textContent = legacy ? "Log in with your name and PIN instead" : "Use the team password instead";
+  document.getElementById("gateMsg").textContent = "";
+}
+document.getElementById("gateMode").addEventListener("click", () => setGateMode(!gateLegacy));
 document.getElementById("gateForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const b = document.getElementById("gateBtn");
   b.disabled = true; document.getElementById("gateMsg").textContent = "";
-  try{ await login(document.getElementById("gatePw").value.trim()); }
+  const name = document.getElementById("gateName").value.trim();
+  try{
+    if(await login(name, document.getElementById("gatePw").value.trim())){
+      document.getElementById("gatePw").value = "";
+      if(!gateLegacy) try{ localStorage.setItem(SPECIALIST_KEY, name); }catch(err){}
+    }
+  }
   catch(err){ lock("Could not reach the server. Check the connection and try again."); }
   finally{ b.disabled = false; }
 });
@@ -775,7 +942,18 @@ function setPeek(show){
   gatePeek.setAttribute("aria-label", show ? "Hide password" : "Show password");
 }
 gatePeek.addEventListener("click", e => { e.preventDefault(); setPeek(document.getElementById("gatePw").type === "password"); document.getElementById("gatePw").focus(); });
-document.getElementById("btnLogout").addEventListener("click", ()=>{ lock(); document.getElementById("gatePw").value = ""; });
+document.getElementById("btnLogout").addEventListener("click", ()=>{
+  const n = typeof outbox === "object" ? outbox.count() : 0;
+  if(n && !confirm(n + (n === 1 ? " save is" : " saves are") + " still waiting to sync. They stay on this phone and send after the next login. Log out?")) return;
+  lock(); document.getElementById("gatePw").value = "";
+});
+function fillGateNames(){
+  const names = lsGet(NAMES_KEY) || [];
+  document.getElementById("gateNames").innerHTML = names.map(n => '<option value="' + esc(n) + '">').join("");
+  let last = ""; try{ last = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){}
+  const box = document.getElementById("gateName");
+  if(!box.value && last) box.value = last;
+}
 
 // Copies the read-only job details from the Sheet into the report.
 function applyJob(j){
@@ -795,8 +973,8 @@ function applyJob(j){
   }
 }
 // Opens a job: its saved report if it has one, otherwise a fresh report with the standard checklist.
-function openJob(j){
-  const tech = state.shop.tech;
+function openJob(j, quiet){
+  const tech = state.shop.tech, localId = state.job.quoteNo === j.quoteNo ? state.job.localId : "";
   if(j.savedReport){
     state = Object.assign(blank(), JSON.parse(JSON.stringify(j.savedReport)));
     state.machine = Object.assign(blank().machine, state.machine);
@@ -810,13 +988,17 @@ function openJob(j){
     applyJob(j);
     state.std = stdFor(state);
   }
-  NOTES_OPEN.clear(); AI = null;
+  if(localId) state.job.localId = localId; // same report on this phone (its report number may still be on the way)
+  const lid = state.job.localId;
+  if(!state.job.ref && lid && REPORT_NOS[lid]) state.job.ref = REPORT_NOS[lid];
   if(state.parts.some(p => p.name)) OPEN.add("extra|Parts replaced");
+  if(quiet) return;
+  NOTES_OPEN.clear(); AI = null;
   dirty = false; clearStatus();
 }
 // What gets saved: the standard checklist is folded into Work Performed and Not done for the Sheet.
-function reportPayload(){
-  const r = JSON.parse(JSON.stringify(state));
+function reportPayload(from){
+  const r = JSON.parse(JSON.stringify(from || state));
   r.work = r.std.filter(x => x.done).map(x => x.item).concat(r.extra);
   r.workCustom = r.extraCustom;
   r.notDone = r.std.filter(x => !x.done).map(x => x.item + (x.reason ? " (" + x.reason + ")" : ""));
@@ -829,7 +1011,7 @@ async function saveToSheet(report){
   try{
     const out = await callSheet({ action:"serviceReport", report:report, pdf:pdf });
     if(out.result !== "success"){
-      if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); }
+      if(isAuthMsg(out.message)){ lock(authText(out.message, ", then save again.")); }
       return "NOT saved to the Sheet: " + out.message;
     }
     const j = JOBS.find(x=>x.quoteNo===report.job.quoteNo);
@@ -894,13 +1076,31 @@ const naButton = (key, v) => String(v).toUpperCase() === "NA" ? "" :
   '<button type="button" class="mini na" data-setna="'+key+'">Set to NA</button>';
 
 // Confirmed jobs are still waiting for their handover, so they are not reported on yet.
-const reportJobs = () => JOBS.filter(j => j.status !== "Confirmed");
+const reportJobs = () => mineOnly(JOBS.filter(j => j.status !== "Confirmed"));
+// My jobs / All jobs: each job has one technician (Technician column in the Sheet). Signed-in staff
+// see their own jobs first; All jobs shows everyone's, with who has it (or Unassigned).
+let WHOSE = lsGet("lbl-whose") || "mine";
+const canFilter = () => isNew() && JOBS.some(j => j.technician !== undefined);
+const isMine = j => String(j.technician || "").trim().toLowerCase() === ME().toLowerCase();
+function setWhose(w){ WHOSE = w; lsSet("lbl-whose", w); }
+function mineOnly(list){ return canFilter() && WHOSE === "mine" ? list.filter(isMine) : list; }
+const techTag = j => canFilter() && WHOSE !== "mine" ? " · " + (j.technician || "Unassigned") : "";
+function whoseBar(all){
+  if(!canFilter()) return "";
+  const mine = all.filter(isMine).length;
+  return '<div class="span2 whose"><div class="seg" role="tablist" aria-label="Whose jobs">' +
+    '<button type="button" role="tab" data-whose="mine" aria-selected="' + (WHOSE === "mine") + '">My jobs (' + mine + ')</button>' +
+    '<button type="button" role="tab" data-whose="all" aria-selected="' + (WHOSE !== "mine") + '">All jobs (' + all.length + ')</button></div>' +
+    (WHOSE === "mine" && !mine && all.length ? '<small>None assigned to you. Tap All jobs.</small>' : '') + '</div>';
+}
 function renderForm(){
   const s = state, custom = s.job.custom, picked = !!(s.job.quoteNo || custom);
-  const pick = '<label class="f span2 jobpick">Job<span class="pickrow"><select data-pickjob="1"><option value="">'+
-    (reportJobs().length ? "Pick the job you are reporting on..." : "No jobs are In Progress on the job sheet") + '</option>' +
-    reportJobs().map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===s.job.quoteNo?" selected":"")+'>'+
-      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.savedReport?" · has report":""))+'</option>').join("") +
+  const shown = reportJobs(), allRep = JOBS.filter(j => j.status !== "Confirmed");
+  const cur = s.job.quoteNo && !shown.some(j => j.quoteNo === s.job.quoteNo) ? JOBS.find(j => j.quoteNo === s.job.quoteNo) : null;
+  const pick = whoseBar(allRep) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-pickjob="1"><option value="">'+
+    (shown.length ? "Pick the job you are reporting on..." : allRep.length ? "No jobs here" : "No jobs are In Progress on the job sheet") + '</option>' +
+    (cur ? [cur] : []).concat(shown).map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===s.job.quoteNo?" selected":"")+'>'+
+      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.savedReport?" · has report":"")+techTag(j))+'</option>').join("") +
     '<option value="__custom"'+(s.job.custom?" selected":"")+'>Custom job (not on the job sheet)</option>' +
     '</select><button type="button" class="mini" data-refresh="1" title="Reload jobs from the Sheet">Refresh</button></span></label>';
   const names = STAFF.slice(); if(s.shop.tech && !names.includes(s.shop.tech)) names.unshift(s.shop.tech);
@@ -1096,7 +1296,7 @@ async function runAi(mode, path){
   try{
     const out = await callSheet({ action:"aiText", mode, field:path, text, context: aiContext(state) });
     if(out.result !== "success"){
-      if(out.message === "Wrong password."){ AI = null; lock("Password changed. Log in again."); return; }
+      if(isAuthMsg(out.message)){ AI = null; lock(authText(out.message, ".")); return; }
       AI = { path, error: out.message };
     } else AI = { path, text: out.text };
   }catch(e){ AI = { path, error: "No connection? Try again." }; }
@@ -1273,21 +1473,175 @@ function showStatus(kind, msg){
 function clearStatus(){ document.getElementById("saveStatus").hidden = true; lastSaved = ""; syncSend(); }
 document.getElementById("saveStatus").addEventListener("click", e=>{ if(e.target.dataset.dismiss) document.getElementById("saveStatus").hidden = true; });
 
+/* ---------- sync queue: save on the phone at once, send to the Sheet in the background ----------
+   Every save gets an id. It is kept in this browser (IndexedDB) until the Sheet confirms it, sent one
+   at a time in the order made, and retried when the signal comes back. The backend remembers each id
+   for 6 hours, so a save that is retried after a dropped connection is never written twice.
+   Only used when signed in with name + PIN (the team password keeps the old wait-for-the-Sheet saves). */
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const REPORT_NOS = lsGet("lbl-reportnos") || {}; // report on this phone -> its number, once the Sheet gave one
+const nowHM = () => new Date().toLocaleTimeString("en-SG", { hour:"2-digit", minute:"2-digit" });
+const outbox = (() => {
+  let db = null, items = [], running = false, timer = null, ready = null;
+  const results = {}; // id -> server answer, for this session (an email can use the PDF a save just made)
+  const DONE = {}, FAIL = {}; // kind -> what to do when a save lands or is refused
+  function idb(){
+    return new Promise(ok => {
+      try{
+        const rq = indexedDB.open("lbl-staff", 1);
+        rq.onupgradeneeded = () => rq.result.createObjectStore("outbox", { keyPath:"id" });
+        rq.onsuccess = () => ok(rq.result); rq.onerror = () => ok(null); rq.onblocked = () => ok(null);
+      }catch(e){ ok(null); }
+    });
+  }
+  function tx(mode, fn){
+    if(!db) return Promise.resolve();
+    return new Promise(ok => { try{ const t = db.transaction("outbox", mode); fn(t.objectStore("outbox")); t.oncomplete = ok; t.onerror = ok; t.onabort = ok; }catch(e){ ok(); } });
+  }
+  const put = it => tx("readwrite", st => st.put(it));
+  const del = id => tx("readwrite", st => st.delete(id));
+  async function start(){
+    db = await idb();
+    if(db) await tx("readonly", st => { const r = st.getAll(); r.onsuccess = () => { items = (r.result || []).sort((a, b) => a.at - b.at); }; });
+    items.forEach(it => { if(it.status === "sending") it.status = "pending"; });
+    chip();
+  }
+  ready = start();
+  window.addEventListener("online", () => kick());
+  document.addEventListener("visibilitychange", () => { if(!document.hidden) kick(); });
+
+  async function add(it){
+    await ready;
+    it.id = it.id || uid(); it.at = Date.now(); it.status = "pending"; it.tries = 0; it.error = "";
+    // A newer save of the same report replaces one that has not gone out yet.
+    if(it.key){ const old = items.find(x => x.key === it.key && x.status !== "sending"); if(old){ items.splice(items.indexOf(old), 1); del(old.id); it.at = old.at; } }
+    items.push(it); items.sort((a, b) => a.at - b.at);
+    await put(it); chip(); kick();
+    return it.id;
+  }
+  function kick(){ clearTimeout(timer); if(!running) setTimeout(run, 0); }
+  async function run(){
+    await ready;
+    if(running || document.body.classList.contains("locked") || !isNew()) return;
+    running = true; chip();
+    try{
+      for(;;){
+        const it = items.find(x => x.status === "pending");
+        if(!it) break;
+        it.status = "sending"; chip();
+        let out;
+        try{ out = await send(it); }
+        catch(e){
+          // No signal or the server did not answer: keep it, try again soon (sooner when back online).
+          it.status = "pending"; it.tries++; it.error = "Waiting for signal"; await put(it);
+          clearTimeout(timer); timer = setTimeout(kick, Math.min(60000, 3000 * Math.pow(2, Math.min(it.tries, 5))));
+          break;
+        }
+        if(out.result === "success"){
+          results[it.id] = out;
+          items.splice(items.indexOf(it), 1); await del(it.id);
+          try{ (DONE[it.kind] || (()=>{}))(it, out); }catch(e){ console.error(e); }
+          continue;
+        }
+        if(isAuthMsg(out.message)){ it.status = "pending"; await put(it); lock(authText(out.message, ". Your saves are kept and send after you log in.")); break; }
+        it.status = "failed"; it.error = out.message || "Not saved."; await put(it);
+        try{ (FAIL[it.kind] || (()=>{}))(it, out); }catch(e){ console.error(e); }
+      }
+    } finally { running = false; chip(); }
+  }
+  // Steps before the request itself: a report number, photos, the email attachment.
+  async function send(it){
+    const body = JSON.parse(JSON.stringify(it.body));
+    body.saveId = it.id;
+    if(it.kind === "report"){
+      if(!it.reportNo) it.reportNo = REPORT_NOS[it.localId] || "";
+      if(!it.reportNo){
+        const r = await callSheet({ action:"reserveReportNo" });
+        if(r.result !== "success") return r;
+        it.reportNo = r.reportNo; REPORT_NOS[it.localId] = it.reportNo; lsSet("lbl-reportnos", REPORT_NOS); await put(it);
+      }
+      const snap = it.snap; snap.job.ref = it.reportNo;
+      body.report = reportPayload(snap);
+      body.pdf = await downloadPdf(true, snap);
+    }
+    if(it.kind === "handover" || it.kind === "takeover"){
+      const urls = [];
+      for(const ph of it.photos || []){
+        let r;
+        try{ r = await callSheet({ action:"photoUpload", saveId: ph.id, kind: it.kind, quoteNo: body.handover.quoteNo, base64: ph.base64 }); }
+        catch(e){ throw e; }
+        if(r.result === "success"){ urls.push(r.url); PHOTO_URLS[ph.id] = r.url; }
+        else if(isAuthMsg(r.message)) return r;
+        else (body.photos = body.photos || []).push({ base64: ph.base64 }); // saved with the form instead, as before
+      }
+      body.handover.photoUrls = (body.handover.photoUrls || []).concat(urls).filter((u, i, a) => a.indexOf(u) === i);
+    }
+    if(it.kind === "email" && it.pdfFrom && results[it.pdfFrom] && results[it.pdfFrom].pdfFileId){
+      body.fileId = results[it.pdfFrom].pdfFileId; delete body.pdf;
+    }
+    return callSheet(body);
+  }
+  function chip(){
+    const el = document.getElementById("syncChip");
+    if(!el) return;
+    const bad = items.filter(x => x.status === "failed").length, wait = items.length - bad;
+    el.hidden = !items.length;
+    el.className = "syncchip" + (bad ? " bad" : wait ? " busy" : "");
+    el.textContent = bad ? bad + " not saved" : wait ? (navigator.onLine === false ? "Offline · " + wait + " waiting" : "Syncing " + wait + "…") : "";
+    el.title = bad ? "Tap to see what was not saved" : "Saved on this phone, sending to the Sheet";
+    if(document.getElementById("syncDlg").open) list();
+  }
+  function list(){
+    const box = document.getElementById("syncList");
+    box.innerHTML = items.length ? items.map(it => '<div class="row"><div class="t">' + esc(it.label) +
+      '<span>' + esc(new Date(it.at).toLocaleString("en-SG", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })) + ' · ' +
+      (it.status === "failed" ? '<b class="e">Not saved: ' + esc(it.error) + '</b>' : it.status === "sending" ? "Sending..." : esc(it.error || "Waiting")) + '</span></div>' +
+      (it.status === "failed" ? '<div class="acts"><button type="button" class="mini" data-sretry="' + it.id + '">Retry</button><button type="button" class="mini" data-sdrop="' + it.id + '">Discard</button></div>' : '') + '</div>').join("")
+      : '<div class="row"><div class="t">Everything is saved to the Sheet.</div></div>';
+  }
+  document.getElementById("syncChip").addEventListener("click", () => { list(); document.getElementById("syncDlg").showModal(); });
+  document.getElementById("syncClose").addEventListener("click", () => document.getElementById("syncDlg").close());
+  document.getElementById("syncRetry").addEventListener("click", () => { items.forEach(x => { x.status = "pending"; x.tries = 0; }); kick(); list(); });
+  document.getElementById("syncList").addEventListener("click", async e => {
+    const b = e.target.closest("button"); if(!b) return;
+    const it = items.find(x => x.id === (b.dataset.sretry || b.dataset.sdrop)); if(!it) return;
+    if(b.dataset.sretry){ it.status = "pending"; it.error = ""; await put(it); kick(); }
+    else if(confirm("Discard \"" + it.label + "\"? It was not saved to the Sheet and will be lost.")){ items.splice(items.indexOf(it), 1); await del(it.id); }
+    chip(); list();
+  });
+  return {
+    add, kick, ready, results, DONE, FAIL,
+    count: () => items.length,
+    pending: (kind, ref) => items.filter(x => (!kind || x.kind === kind) && (!ref || x.ref === ref)),
+    hasFor: ref => items.some(x => x.ref === ref)
+  };
+})();
+const PHOTO_URLS = {}; // photo id -> Drive link, once uploaded
+
 /* ---------- events ---------- */
 const pane = document.getElementById("pane");
 
-// Picking (or refreshing) a job always reloads it from the Sheet, so Sheet edits show up.
-async function pickJob(quoteNo){
+// Picking a job opens it at once from the list on this phone, then refreshes from the Sheet
+// behind the scenes (Sheet edits show up a moment later). Refresh forces a reload now.
+async function pickJob(quoteNo, force){
   if(dirty && quoteNo !== state.job.quoteNo &&
      !confirm("Open " + quoteNo + "? Unsaved changes to the current report will be lost.")){ render(); return; }
+  const j = JOBS.find(x => x.quoteNo === quoteNo);
+  if(j && !force){
+    openJob(j); render();
+    toast(j.savedReport ? "Opened the saved report for " + quoteNo + "." : "New report for " + quoteNo + ".");
+    refreshJobsQuietly();
+    return;
+  }
   showStatus("busy", "Loading " + quoteNo + " from the Sheet...");
   try{
     if(!await loadJobs()) return;
-    const j = JOBS.find(x => x.quoteNo === quoteNo);
-    if(!j){ showStatus("err", quoteNo + " is no longer In Progress on the job sheet."); render(); return; }
-    openJob(j);
+    const k = JOBS.find(x => x.quoteNo === quoteNo);
+    if(!k){ showStatus("err", quoteNo + " is no longer In Progress on the job sheet."); render(); return; }
+    if(force && dirty){ clearStatus(); render(); toast("Job list refreshed. Your unsaved changes are kept."); return; }
+    openJob(k);
     render();
-    toast(j.savedReport ? "Opened the saved report for " + quoteNo + "." : "New report for " + quoteNo + ".");
+    toast(k.savedReport ? "Opened the saved report for " + quoteNo + "." : "New report for " + quoteNo + ".");
   }catch(e){ showStatus("err", "Could not reach the Sheet. Check the connection and try again."); }
 }
 
@@ -1384,7 +1738,8 @@ function filterGroups(input){
 pane.addEventListener("click", e=>{
   const t = e.target.closest("button");
   if(!t) return;
-  if(t.dataset.refresh){ if(state.job.quoteNo) pickJob(state.job.quoteNo); else loadJobs().then(render); return; }
+  if(t.dataset.refresh){ if(state.job.quoteNo) pickJob(state.job.quoteNo, true); else loadJobs().then(render); return; }
+  if(t.dataset.whose){ setWhose(t.dataset.whose); render(); return; }
   if(t.dataset.setna){
     const k = t.dataset.setna; state.machine[k] = "NA"; state.machine[k + "Corrected"] = true;
     markDirty(); render(); toast("Set to NA. It updates in the MDR Sheet when you save."); return;
@@ -1447,6 +1802,7 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
   if(b.disabled) return;
   if(!state.job.quoteNo && !state.job.custom){ showStatus("err", "Pick a confirmed job first."); return; }
   if(state.job.custom && !String(state.cust.name).trim()){ showStatus("err", "Custom job: enter the customer name first."); return; }
+  if(isNew()){ queueReport(); return; }
   b.disabled = true; b.textContent = "Saving...";
   showStatus("busy", "Saving " + (state.job.ref || "report") + " to the Sheet and Drive...");
   try{
@@ -1457,7 +1813,7 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
       try{ out = await callSheet({ action:"reserveReportNo" }); }
       catch(err){ out = { result:"error", message:"no connection? Try Save job again." }; }
       if(out.result !== "success"){
-        if(out.message === "Wrong password.") lock("Password changed. Log in again, then save again.");
+        if(isAuthMsg(out.message)) lock(authText(out.message, ", then save again."));
         showStatus("err", "NOT saved to the Sheet: " + out.message);
         return;
       }
@@ -1477,6 +1833,42 @@ document.getElementById("btnSave").addEventListener("click", async e=>{
     b.disabled = false; b.textContent = "Save job";
   }
 });
+
+// Name + PIN sign-in: the report is saved on this phone at once and sent in the background.
+// A new report gets its number from the Sheet when it syncs (shown here a moment later).
+async function queueReport(){
+  if(!state.job.localId) state.job.localId = uid();
+  if(!state.job.ref && REPORT_NOS[state.job.localId]) state.job.ref = REPORT_NOS[state.job.localId];
+  const snap = JSON.parse(JSON.stringify(state));
+  const label = "Service report " + (state.job.ref || "(new)") + " · " + (state.job.quoteNo || state.cust.name || "custom job");
+  state.job.pdfFileId = ""; // the Drive copy is replaced by this save's PDF
+  state.job.lastSaveId = await outbox.add({ kind:"report", key:"report:" + state.job.localId, localId: state.job.localId, ref: state.job.quoteNo || state.job.localId,
+    reportNo: state.job.ref || "", snap, label, body:{ action:"serviceReport" } });
+  const j = JOBS.find(x => x.quoteNo === state.job.quoteNo);
+  if(j){ j.savedReport = reportPayload(snap); keepJobs(); } // the takeover can go ahead on this phone straight away
+  dirty = false; lastSaved = nowHM();
+  state.machine.serialCorrected = state.machine.mfmsSerialCorrected = false;
+  showStatus("busy", "Saved on this phone at " + lastSaved + ". Sending to the Sheet" + (state.job.ref ? "" : " (the report number comes with it)") + "...");
+  render();
+  if(state.job.ref) prepareSend(); else { sendFile = null; syncSend(); }
+}
+outbox.DONE.report = (it, out) => {
+  const ref = out.reportNo || it.reportNo;
+  const j = JOBS.find(x => x.quoteNo === it.snap.job.quoteNo);
+  if(j){ const r = reportPayload(it.snap); r.job.ref = ref; j.savedReport = r; if(out.tagged) j.report = ref; keepJobs(); }
+  if(state.job.localId === it.localId){
+    state.job.ref = state.job.ref || ref; state.job.pdfFileId = out.pdfFileId || "";
+    if(!dirty){
+      showStatus("ok", "Saved to the Sheet at " + nowHM() + " as " + ref + "." + (out.pdfUrl ? " PDF saved to Drive." : " (PDF copy NOT saved to Drive.)"));
+      render(); prepareSend();
+    } else renderReport();
+  }
+  laterRefresh();
+};
+outbox.FAIL.report = (it, out) => {
+  if(state.job.localId === it.localId) showStatus("err", "NOT saved to the Sheet: " + out.message + " Fix it and press Save job again.");
+  else toast("A service report was not saved. Tap the red sync button at the top.");
+};
 
 document.getElementById("tabForm").addEventListener("click", ()=>switchTab(true));
 document.getElementById("tabPrev").addEventListener("click", ()=>switchTab(false));
@@ -1508,7 +1900,8 @@ function loadJsPDF(){
 }
 
 // asData: return {name, base64} for saving to Drive instead of downloading.
-async function downloadPdf(asData){
+// snap: build from a saved copy of the report (background sync) instead of the screen.
+async function downloadPdf(asData, snap){
   let jsPDF;
   try{ jsPDF = await loadJsPDF(); }
   catch(e){
@@ -1518,7 +1911,7 @@ async function downloadPdf(asData){
     return;
   }
 
-  const s = state;
+  const s = snap || state;
   const st = STATUS.find(x=>x[0]===s.job.status); // no stamp until an outcome is chosen
   const partRows = s.parts.filter(p=>p.name);
   const dateStr = s.job.date ? new Date(s.job.date+"T00:00:00").toLocaleDateString("en-SG",{day:"numeric",month:"long",year:"numeric"}) : "";
@@ -1798,13 +2191,27 @@ function openMail(ctx){
 document.getElementById("btnMail").addEventListener("click", ()=>{
   if(!sendFile || !readyForCustomer()) return;
   openMail({ to: state.cust.email, subject: fillTemplate(EMAIL_SUBJECT), body: fillTemplate(EMAIL_BODY), file: sendFile,
-    extra: { reportNo: state.job.ref, quoteNo: state.job.quoteNo, tech: state.shop.tech }, done: "Report emailed to " });
+    extra: { reportNo: state.job.ref, quoteNo: state.job.quoteNo, tech: state.shop.tech }, done: "Report emailed to ", fileId: state.job.pdfFileId || "", pdfFrom: state.job.lastSaveId || "" });
 });
+outbox.DONE.email = it => toast(it.done || "Email sent.");
+outbox.FAIL.email = (it, out) => toast("Email NOT sent: " + out.message);
 document.getElementById("mailCancel").addEventListener("click", ()=>mailDlg.close());
 document.getElementById("mailForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const b = document.getElementById("mailSend"), msg = document.getElementById("mailMsg");
   const to = document.getElementById("mailTo").value.trim();
+  if(isNew()){
+    // Queued like a save: the dialog closes at once and the email goes out in the background,
+    // attaching the PDF already saved to Drive when there is one (nothing uploaded again).
+    const f = mailCtx.file, extra = mailCtx.extra || {};
+    const body = Object.assign({ action:"emailReport", to, subject: document.getElementById("mailSubject").value, body: document.getElementById("mailBody").value }, extra);
+    const fileId = mailCtx.fileId || "";
+    if(fileId) body.fileId = fileId; else body.pdf = { name: f.name, base64: await fileToBase64(f) };
+    if(fileId) body.pdf = { name: f.name };
+    await outbox.add({ kind:"email", ref: extra.quoteNo || extra.reportNo || "", label: "Email to " + to + " (" + f.name + ")", pdfFrom: mailCtx.pdfFrom || "", done: mailCtx.done + to + ".", body });
+    mailDlg.close(); toast("Sending to " + to + "...");
+    return;
+  }
   b.disabled = true; b.textContent = "Sending..."; msg.textContent = "";
   try{
     const f = mailCtx.file;
@@ -1812,7 +2219,7 @@ document.getElementById("mailForm").addEventListener("submit", async e=>{
       subject: document.getElementById("mailSubject").value, body: document.getElementById("mailBody").value,
       pdf: { name: f.name, base64: await fileToBase64(f) } }, mailCtx.extra));
     if(out.result !== "success"){
-      if(out.message === "Wrong password."){ mailDlg.close(); lock("Password changed. Log in again."); return; }
+      if(isAuthMsg(out.message)){ mailDlg.close(); lock(authText(out.message, ".")); return; }
       msg.textContent = "Not sent: " + out.message; return;
     }
     mailDlg.close(); toast(mailCtx.done + to + ".");
@@ -1864,13 +2271,17 @@ function hoBlank(){
 }
 // Handover: Confirmed jobs (plus In Progress ones with a handover, to reopen and resend).
 // Takeover: In Progress jobs with a handover (Completed ones drop off the list).
-const hoJobs = () => hoKind === "takeover" ? JOBS.filter(j => j.status === "In Progress" && j.handover)
+const hoAllJobs = () => hoKind === "takeover" ? JOBS.filter(j => j.status === "In Progress" && j.handover)
   : JOBS.filter(j => j.status === "Confirmed" || j.handover);
+const hoJobs = () => mineOnly(hoAllJobs());
+// Something on this form is still on its way to the Sheet (photos uploading, or a save waiting).
+const hoBusy = () => hoPhotos.length > 0 || outbox.hasFor(ho.quoteNo);
+const SIGS = {}; // kind|job -> saved signature, fetched when a saved form is opened (the job list leaves them out)
 // Each form keeps its own unsaved work when switching between them.
 const hoStash = {};
 const dmy = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso||"") ? iso.slice(8,10)+"/"+iso.slice(5,7)+"/"+iso.slice(0,4) : (iso||"");
 
-function openHo(j){
+function openHo(j, quiet){
   ho = hoBlank(); hoPhotos = []; hoFile = null;
   Object.assign(ho, {
     quoteNo: j.quoteNo, custName: j.name || "", custContact: j.contact || "", custEmail: j.email || "",
@@ -1878,7 +2289,7 @@ function openHo(j){
     mfms: j.mfms && j.mfms !== "No" ? j.mfms : "",
     method: hoKind === "takeover" ? (/^y/i.test(j.needTransport||"") ? "Delivery" : "Collection")
       : (/^y/i.test(j.needTransport||"") ? "Pick-up" : "Drop-off"), // customer asked for transport on the MDR form
-    rep: state.shop.tech || ""
+    rep: ME() || state.shop.tech || ""
   });
   const saved = hoKind === "takeover" ? j.takeover : j.handover;
   if(saved){ Object.assign(ho, saved, { quoteNo: j.quoteNo }); ho.saved = true; } // older forms stored the quotation number
@@ -1893,8 +2304,30 @@ function openHo(j){
     ho.noReport = !j.savedReport; // the service report must be saved before the printer goes back
   }
   hoDirty = false;
+  delete ho.hasSignature;
+  // The job list leaves signatures out (they are large); fetch this form's when it is opened.
+  const sigKey = hoKind + "|" + j.quoteNo;
+  if(ho.saved && !ho.signature && saved && saved.hasSignature){
+    if(SIGS[sigKey]) ho.signature = SIGS[sigKey];
+    else { ho.sigLoading = true; fetchSignature(hoKind, j.quoteNo); }
+  }
+  if(ho.signature) SIGS[sigKey] = ho.signature;
   renderHo();
-  if(ho.saved) hoPdf().then(f => { if(!hoDirty && ho.quoteNo === j.quoteNo){ hoFile = f; hoSyncSend(); } }).catch(console.error);
+  if(ho.saved && !ho.sigLoading) hoPdf().then(f => { if(!hoDirty && ho.quoteNo === j.quoteNo){ hoFile = f; hoSyncSend(); } }).catch(console.error);
+}
+async function fetchSignature(kind, quoteNo){
+  try{
+    const out = await callSheet({ action:"formDetail", kind, quoteNo });
+    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message)); return; }
+    const sig = out.form && out.form.signature || "";
+    if(sig) SIGS[kind + "|" + quoteNo] = sig;
+    if(hoKind === kind && ho.quoteNo === quoteNo && ho.sigLoading){
+      ho.sigLoading = false;
+      if(!ho.signature) ho.signature = sig;
+      renderHo();
+      if(!hoDirty) hoPdf().then(f => { if(!hoDirty && ho.quoteNo === quoteNo){ hoFile = f; hoSyncSend(); } }).catch(console.error);
+    }
+  }catch(e){ if(ho.quoteNo === quoteNo && ho.sigLoading){ ho.sigLoading = false; hoStatus("err", "Could not load the saved signature (no signal?). Press Refresh to try again."); renderHo(); } }
 }
 function hoMark(){ hoDirty = true; hoFile = null; hoSyncSend(); }
 function hoSyncSend(){
@@ -1917,12 +2350,12 @@ function hoDerived(h){
 
 function renderHo(){
   const p = document.getElementById("hoPane");
-  const jobs = hoJobs();
-  const pick = '<label class="f span2 jobpick">Job<span class="pickrow"><select data-hopick="1"><option value="">'+
-    (jobs.length ? W().pickPh : W().empty) + '</option>' +
+  const jobs = hoJobs(), allJobs = hoAllJobs();
+  const pick = whoseBar(allJobs) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-hopick="1"><option value="">'+
+    (jobs.length ? W().pickPh : allJobs.length ? "No jobs here" : W().empty) + '</option>' +
     (ho.quoteNo && !jobs.some(j => j.quoteNo === ho.quoteNo) ? '<option value="'+esc(ho.quoteNo)+'" selected>'+esc(ho.quoteNo+" · "+ho.custName)+'</option>' : "") +
     jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===ho.quoteNo?" selected":"")+'>'+
-      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+((hoKind === "takeover" ? j.takeover : j.handover) ? W().doneTag : ""))+'</option>').join("") +
+      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+((hoKind === "takeover" ? j.takeover : j.handover) ? W().doneTag : "")+techTag(j))+'</option>').join("") +
     '</select><button type="button" class="mini" data-horefresh="1" title="Reload jobs from the Sheet">Refresh</button></span></label>';
   if(!ho.quoteNo){
     p.innerHTML = `<div class="stage"><h2><span class="n">1</span>Job</h2><div class="grid">${pick}</div>
@@ -1937,7 +2370,9 @@ function renderHo(){
   const hasPrinterHo = !/^No printer/.test(ho.printer);
   const chipBox = (attr, val, on, label) => '<label class="chip"><input type="checkbox" '+attr+'="'+esc(val)+'"'+(on?" checked":"")+'>'+esc(label||val)+'</label>';
   const sigLocked = ho.handedBy === "Authorised person" && !ho.authConfirmed && !ho.signature;
-  const sigHtml = sigLocked
+  const sigHtml = ho.sigLoading
+    ? '<div class="sigbox"><p class="siglocked">Loading the saved signature...</p></div>'
+    : sigLocked
     ? '<div class="sigbox"><p class="siglocked">Tick the authorisation box above before the authorised person signs.</p></div>'
     : ho.signature
     ? '<div class="sigbox"><img src="'+ho.signature+'" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>'
@@ -1985,9 +2420,9 @@ function renderHo(){
       </div>
       <h3 class="sub">Photos &amp; videos<small>${ho.photoUrls.length + hoPhotos.length} of ${HO_MAX_PHOTOS}</small></h3>
       <div class="photos">
-        ${hoPhotos.map((ph,i)=>'<div class="ph">'+(ph.kind === "video"
+        ${hoPhotos.map((ph,i)=>'<div class="ph" data-phid="'+esc(ph.id||"")+'">'+(ph.kind === "video"
             ? '<video src="'+ph.url+'" muted playsinline preload="metadata"></video><span class="vtag">Video</span>'
-            : '<img src="'+ph.dataUrl+'" alt="Handover photo '+(i+1)+'">')+
+            : '<img src="'+ph.dataUrl+'" alt="Handover photo '+(i+1)+'">'+(ph.state === "up" ? '<span class="up">Uploading</span>' : ph.state === "bad" ? '<span class="up bad">Will retry</span>' : ""))+
           '<button type="button" data-hophotodel="'+i+'" aria-label="Remove item '+(i+1)+'">&times;</button></div>').join("")}
         ${ho.photoUrls.length + hoPhotos.length < HO_MAX_PHOTOS ? '<label class="addph"><input type="file" accept="image/*,video/*" multiple data-hophotos="1">+ Add photos / videos</label>' : ""}
       </div>
@@ -2023,7 +2458,7 @@ function renderHo(){
       </div>
       <p class="hostatus" id="hoStatus" role="status" aria-live="polite"></p>
     </div>`;
-  if(!ho.signature) initSigPad();
+  if(!ho.signature && !ho.sigLoading) initSigPad();
   hoSyncSend();
 }
 // Dropdown with "Other" (then a text box), same behaviour as the Job dropdown: pick again any time.
@@ -2195,7 +2630,7 @@ const fileToBase64 = f => new Promise((ok, fail) => { const fr = new FileReader(
 async function uploadVideo(file, progress){
   const CHUNK = 4 * 1024 * 1024;
   const start = await callSheet({ action:"handoverUpload", kind: hoKind, quoteNo: ho.quoteNo, name: file.name, mimeType: file.type, size: file.size });
-  if(start.result !== "success") throw new Error(start.message === "Wrong password." ? "Password changed. Log in again." : "Video upload: " + start.message);
+  if(start.result !== "success") throw new Error(isAuthMsg(start.message) ? start.message : "Video upload: " + start.message);
   for(let offset = 0; offset < file.size; offset += CHUNK){
     progress(Math.round(offset / file.size * 100));
     const data = await fileToBase64(file.slice(offset, Math.min(offset + CHUNK, file.size)));
@@ -2216,9 +2651,11 @@ async function saveHo(b){
     if(!ho.authContact.trim()) missing.push("their contact number");
     if(!ho.authConfirmed) missing.push("tick that the customer authorised them");
   }
+  if(ho.sigLoading){ hoStatus("busy", "Still loading the saved signature. Try again in a moment."); return; }
   if(!ho.signature) missing.push("signature");
   if(ho.noReport){ hoStatus("err", "Save the service report for " + ho.quoteNo + " first."); return; }
   if(missing.length){ hoStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+  if(isNew()){ return saveHoQueued(b); }
   b.disabled = true; b.textContent = "Saving...";
   try{
     const videos = hoPhotos.filter(p => p.kind === "video");
@@ -2235,7 +2672,7 @@ async function saveHo(b){
     const out = await callSheet({ action:"handover", kind: hoKind, handover:h, signature: ho.signature,
       photos: hoPhotos.filter(p => p.kind !== "video").map(p => ({ base64: p.dataUrl.split(",")[1] })), pdf: { name: file.name, base64: await fileToBase64(file) } });
     if(out.result !== "success"){
-      if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); return; }
+      if(isAuthMsg(out.message)){ lock(authText(out.message, ", then save again.")); return; }
       hoStatus("err", "NOT saved: " + out.message); return;
     }
     ho.photoUrls = out.photoUrls || ho.photoUrls; hoPhotos = []; ho.saved = true; hoDirty = false; hoFile = file;
@@ -2244,9 +2681,98 @@ async function saveHo(b){
     renderHo();
     hoStatus("ok", "Saved." + (out.moved ? " " + q + " is now " + out.newStatus + (hoKind === "handover" ? " and ready for its service report." : ".") : "") +
       (out.pdfUrl ? " Signed PDF saved to Drive." : " (PDF copy NOT saved to Drive.)"));
-  }catch(err){ console.error(err); hoStatus("err", "NOT saved: " + (err.message || "no connection?") + " Try again; videos already uploaded will not upload twice."); renderHo(); }
+  }catch(err){ console.error(err); renderHo(); hoStatus("err", "NOT saved: " + (err.message || "no connection?") + " Try again; videos already uploaded will not upload twice."); }
   finally{ const s = document.getElementById("hoSave"); if(s){ s.disabled = false; s.textContent = ho.saved ? "Save changes" : W().save; } }
 }
+
+// Photos go up as soon as they are added (name + PIN sign-in), while the rest of the form is filled.
+// Each has an id, so the save never uploads the same photo twice.
+async function uploadPhotoNow(ph, kind, quoteNo){
+  ph.state = "up"; photoBadge(ph);
+  try{
+    const out = await callSheet({ action:"photoUpload", saveId: ph.id, kind, quoteNo, base64: ph.dataUrl.split(",")[1] });
+    if(out.result === "success"){ ph.url = out.url; ph.state = "done"; PHOTO_URLS[ph.id] = out.url; }
+    else ph.state = "bad";
+  }catch(e){ ph.state = "bad"; }
+  photoBadge(ph);
+}
+function photoBadge(ph){
+  const el = document.querySelector('#hoPane .ph[data-phid="' + ph.id + '"]');
+  if(!el) return;
+  let tag = el.querySelector(".up");
+  if(ph.state === "done"){ if(tag) tag.remove(); return; }
+  if(!tag){ tag = document.createElement("span"); el.appendChild(tag); }
+  tag.className = "up" + (ph.state === "bad" ? " bad" : ""); tag.textContent = ph.state === "bad" ? "Will retry" : "Uploading";
+}
+// Name + PIN sign-in: the form is saved on this phone at once and sent in the background.
+async function saveHoQueued(b){
+  b.disabled = true; b.textContent = "Saving...";
+  try{
+    const videos = hoPhotos.filter(p => p.kind === "video");
+    for(let i = 0; i < videos.length; i++){ // videos are big: they still upload now, with progress
+      const v = videos[i];
+      const url = await uploadVideo(v.file, pct => hoStatus("busy", "Uploading video " + (i+1) + " of " + videos.length + ": " + pct + "%. Keep this page open."));
+      ho.photoUrls.push(url);
+      hoPhotos.splice(hoPhotos.indexOf(v), 1); URL.revokeObjectURL(v.url);
+    }
+    // Photos already uploaded become links; the rest go with the save and upload first.
+    hoPhotos.filter(p => p.url).forEach(p => { if(!ho.photoUrls.includes(p.url)) ho.photoUrls.push(p.url); });
+    hoPhotos = hoPhotos.filter(p => !p.url);
+    const file = await hoPdf();
+    const d = hoDerived(ho);
+    const h = Object.assign({}, ho, d);
+    ["signature","saved","pdfUrl","sigLoading","hasSignature","pdfFileId","lastSaveId"].forEach(k => delete h[k]);
+    const pending = hoPhotos.map(p => ({ id: p.id, base64: p.dataUrl.split(",")[1] }));
+    const kind = hoKind, q = ho.quoteNo;
+    ho.lastSaveId = await outbox.add({ kind, key: kind + ":" + q, ref: q, photos: pending,
+      label: W().title + " " + q + " · " + (ho.custName || ""),
+      body: { action:"handover", kind, handover: h, signature: ho.signature, photos: [], pdf: { name: file.name, base64: await fileToBase64(file) } } });
+    ho.saved = true; hoDirty = false; hoFile = file; ho.pdfFileId = "";
+    SIGS[kind + "|" + q] = ho.signature;
+    // This phone moves the job on straight away (Handover: In Progress, Takeover: Completed).
+    const j = JOBS.find(x => x.quoteNo === q);
+    if(j){
+      j[kind] = Object.assign({}, h, { hasSignature: true });
+      if(kind === "handover" && j.status === "Confirmed") j.status = "In Progress";
+      if(kind === "takeover" && j.status === "In Progress") j.status = "Completed";
+      keepJobs();
+    }
+    const t = nowHM();
+    renderHo(); render();
+    hoStatus("busy", "Saved on this phone at " + t + ". Sending to the Sheet" + (pending.length ? " with " + pending.length + " photo" + (pending.length > 1 ? "s" : "") : "") + "...");
+  }catch(err){ console.error(err); renderHo(); hoStatus("err", "NOT saved: " + (err.message || "no connection?") + " Try again; videos already uploaded will not upload twice."); }
+  finally{ const s = document.getElementById("hoSave"); if(s){ s.disabled = false; s.textContent = ho.saved ? "Save changes" : W().save; } }
+}
+function hoSynced(it, out){
+  const j = JOBS.find(x => x.quoteNo === it.ref);
+  if(j){
+    if(out.newStatus) j.status = out.newStatus;
+    if(j[it.kind]) Object.assign(j[it.kind], { pdfUrl: out.pdfUrl || j[it.kind].pdfUrl, photoUrls: out.photoUrls || j[it.kind].photoUrls });
+    keepJobs();
+  }
+  if(hoKind === it.kind && ho.quoteNo === it.ref){
+    if(out.photoUrls) ho.photoUrls = out.photoUrls;
+    hoPhotos = hoPhotos.filter(p => p.kind === "video" || !PHOTO_URLS[p.id]);
+    if(out.pdfUrl) ho.pdfUrl = out.pdfUrl;
+    if(ho.lastSaveId === it.id) ho.pdfFileId = out.pdfFileId || "";
+    if(!hoDirty){
+      renderHo();
+      hoStatus("ok", "Saved to the Sheet at " + nowHM() + "." + (out.moved ? " " + it.ref + " is now " + out.newStatus + (it.kind === "handover" ? " and ready for its service report." : ".") : "") +
+        (out.pdfUrl ? " Signed PDF saved to Drive." : " (PDF copy NOT saved to Drive.)"));
+    }
+  } else toast(it.label + ": saved to the Sheet.");
+  laterRefresh();
+}
+function hoRefused(it, out){
+  if(hoKind === it.kind && ho.quoteNo === it.ref) hoStatus("err", "NOT saved to the Sheet: " + out.message + " Fix it and save again.");
+  else toast(it.label + " was NOT saved. Tap the red sync button at the top.");
+}
+outbox.DONE.handover = outbox.DONE.takeover = hoSynced;
+outbox.FAIL.handover = outbox.FAIL.takeover = hoRefused;
+// After saves land, reload the job list once things are quiet (the Sheet is the source of truth).
+let laterT = null;
+function laterRefresh(){ clearTimeout(laterT); laterT = setTimeout(() => { if(!outbox.count()) refreshJobsQuietly(); }, 4000); }
+const driveId = url => (/\/d\/([A-Za-z0-9_-]{20,})/.exec(String(url || "")) || [])[1] || "";
 
 // Handover email / WhatsApp wording. Same placeholders as the report email.
 const HO_EMAIL_SUBJECT = "Your printer handover form for {quote} | Layer By Layer";
@@ -2289,7 +2815,10 @@ function setMode(m){
   document.getElementById("modeCl").setAttribute("aria-pressed", String(m === "claim"));
   document.getElementById("modeRs").setAttribute("aria-pressed", String(m === "restock"));
   if(isForm) renderHo();
-  if(m === "claim"){ renderCl(); loadClaims(); }
+  if(m === "claim"){
+    if(!CL.loaded && isNew()){ const k = lsGet("lbl-claims"); if(k && k.name === ME()) CL = { jobs: k.jobs, claims: outbox.pending("petrol").map(it => it.claim).filter(Boolean).concat(k.claims), perTrip: k.perTrip, loaded: true, loading: false }; }
+    renderCl(); loadClaims();
+  }
   if(m === "restock"){ renderRs(); loadStock(); }
   else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
@@ -2324,10 +2853,13 @@ async function loadClaims(){
   CL.loading = true;
   try{
     const out = await callSheet({ action:"petrolClaims" });
-    if(out.result !== "success"){ if(out.message === "Wrong password.") lock("Password changed. Log in again."); else clStatus("err", out.message); return; }
-    CL = { jobs: out.jobs || [], claims: out.claims || [], perTrip: out.perTrip || 15, loaded: true, loading: false };
+    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); else clStatus("err", out.message); return; }
+    // Claims still on their way from this phone stay on the list until the Sheet has them.
+    const mine = outbox.pending("petrol").map(it => it.claim).filter(Boolean);
+    CL = { jobs: out.jobs || [], claims: mine.concat(out.claims || []), perTrip: out.perTrip || 15, loaded: true, loading: false };
+    if(isNew()) lsSet("lbl-claims", { name: ME(), jobs: out.jobs || [], claims: out.claims || [], perTrip: out.perTrip || 15 }); // opens at once next time
     if(out.staff && out.staff.length) STAFF = out.staff;
-    if(!cl.claimant){ try{ cl.claimant = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){} }
+    if(!cl.claimant) cl.claimant = ME() || (function(){ try{ return localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){ return ""; } })();
     renderCl();
   }catch(err){ clStatus("err", "Could not load claims. Check the connection and press Refresh."); }
   finally{ CL.loading = false; }
@@ -2398,11 +2930,12 @@ clPane.addEventListener("click", async e => {
   const missing = [!cl.claimant && "your name", !cl.date && "trip date", !cl.quoteNo && "job", !cl.trip && "trip",
     cl.trip === "Other job trip" && !cl.note.trim() && "note"].filter(Boolean);
   if(missing.length){ clStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+  if(isNew()){ queueClaim(); return; }
   b.disabled = true; b.textContent = "Submitting...";
   try{
     const out = await callSheet({ action:"petrolClaim", claim: cl });
     if(out.result !== "success"){
-      if(out.message === "Wrong password."){ lock("Password changed. Log in again, then submit again."); return; }
+      if(isAuthMsg(out.message)){ lock(authText(out.message, ", then submit again.")); return; }
       clStatus("err", "NOT claimed: " + out.message); return;
     }
     const done = cl.trip + " for " + cl.quoteNo;
@@ -2415,14 +2948,47 @@ clPane.addEventListener("click", async e => {
   finally{ const s = document.getElementById("clSave"); if(s){ s.disabled = false; s.textContent = "Submit claim ($" + CL.perTrip * clLegs() + ")"; } }
 });
 
+// Name + PIN sign-in: the claim shows straight away and is sent in the background.
+// A pickup or return is paid once per job: checked here first, and again by the Sheet.
+const CL_CLASH = { "Pickup from customer": ["Pickup from customer", "Pickup and return"], "Return to customer": ["Return to customer", "Pickup and return"],
+  "Pickup and return": ["Pickup from customer", "Return to customer", "Pickup and return"], "Other job trip": [] };
+async function queueClaim(){
+  const dup = CL.claims.find(c => c.quoteNo === cl.quoteNo && CL_CLASH[cl.trip].includes(c.trip) && !c.bad);
+  if(dup){ clStatus("err", "NOT claimed: " + dup.trip + " for " + cl.quoteNo + " was already claimed by " + dup.claimant + "."); return; }
+  const job = CL.jobs.find(j => j.quoteNo === cl.quoteNo) || {};
+  const id = uid();
+  const claim = { id, date: cl.date, claimant: cl.claimant, quoteNo: cl.quoteNo, customer: job.name || "", trip: cl.trip,
+    amount: CL.perTrip * clLegs(), note: cl.note.trim(), xero: "Sending to the Sheet...", pending: true };
+  await outbox.add({ id, kind:"petrol", ref: cl.quoteNo, claim, label: "Petrol claim · " + cl.trip + " · " + cl.quoteNo,
+    body: { action:"petrolClaim", claim: Object.assign({}, cl) } });
+  CL.claims.unshift(claim);
+  const done = cl.trip + " for " + cl.quoteNo;
+  cl = { claimant: cl.claimant, date: clToday(), quoteNo: "", trip: "", note: "" };
+  renderCl();
+  clStatus("ok", "Claimed: " + done + ". Saved on this phone; it goes to the Sheet and your Xero bill by itself.");
+}
+outbox.DONE.petrol = (it, out) => {
+  const c = CL.claims.find(x => x.id === it.id);
+  if(c) Object.assign(c, out.claim || {}, { pending: false, xero: out.claim ? out.claim.xero : (out.xeroError ? "NOT in Xero: " + out.xeroError : "Added to Xero") });
+  if(document.body.classList.contains("mode-cl")) renderCl();
+};
+outbox.FAIL.petrol = (it, out) => {
+  const c = CL.claims.find(x => x.id === it.id);
+  if(c){ c.bad = true; c.pending = false; c.xero = "NOT saved: " + out.message; }
+  if(document.body.classList.contains("mode-cl")){ renderCl(); clStatus("err", "NOT claimed: " + out.message); }
+  else toast("A petrol claim was NOT saved. Tap the red sync button at the top.");
+};
+
 const hoPane = document.getElementById("hoPane");
 hoPane.addEventListener("change", async e => {
   const t = e.target;
   if(t.dataset.hopick !== undefined){
     if(!t.value) return;
     if(hoDirty && t.value !== ho.quoteNo && !confirm("Open " + t.value + "? Unsaved handover changes will be lost.")){ renderHo(); return; }
+    let j = JOBS.find(x => x.quoteNo === t.value);
+    if(j){ openHo(j); refreshJobsQuietly(); return; } // opens at once from this phone; Sheet edits follow
     try{ await loadJobs(); }catch(err){}
-    const j = JOBS.find(x => x.quoteNo === t.value);
+    j = JOBS.find(x => x.quoteNo === t.value);
     if(j) openHo(j); else { toast(t.value + " is no longer on the list."); renderHo(); }
     return;
   }
@@ -2450,7 +3016,11 @@ hoPane.addEventListener("change", async e => {
         if(f.size > HO_MAX_VIDEO){ toast(f.name + " is over 300 MB. Record a shorter clip."); continue; }
         hoPhotos.push({ kind:"video", file: f, name: f.name, url: URL.createObjectURL(f) });
       } else {
-        try{ hoPhotos.push({ kind:"photo", name: f.name, dataUrl: await shrinkPhoto(f) }); }catch(err){ toast(f.name + " is not a photo or video."); }
+        try{
+          const ph = { kind:"photo", id: uid(), name: f.name, dataUrl: await shrinkPhoto(f) };
+          hoPhotos.push(ph);
+          if(isNew()) uploadPhotoNow(ph, hoKind, ho.quoteNo);
+        }catch(err){ toast(f.name + " is not a photo or video."); }
       }
     }
     if((t.files || []).length > room) toast("Only " + HO_MAX_PHOTOS + " photos and videos per handover.");
@@ -2462,6 +3032,7 @@ hoPane.addEventListener("input", e => { const t = e.target; if(t.dataset.h){ ho[
 hoPane.addEventListener("click", e => {
   const t = e.target.closest("button");
   if(!t) return;
+  if(t.dataset.whose){ setWhose(t.dataset.whose); renderHo(); return; }
   if(t.dataset.horefresh){ loadJobs().then(() => { const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(j && !hoDirty) openHo(j); else renderHo(); }); return; }
   if(t.dataset.hosigclear){ ho.signature = ""; hoMark(); renderHo(); return; }
   if(t.dataset.hophotodel !== undefined){
@@ -2480,7 +3051,8 @@ hoPane.addEventListener("click", e => {
     if(!hoFile) return;
     const tk = hoKind === "takeover";
     openMail({ to: ho.custEmail, subject: hoFill(tk ? TO_EMAIL_SUBJECT : HO_EMAIL_SUBJECT), body: hoFill(tk ? TO_EMAIL_BODY : HO_EMAIL_BODY), file: hoFile,
-      extra: { kind: hoKind, quoteNo: ho.quoteNo, tech: ho.rep }, done: W().form + " emailed to " });
+      extra: { kind: hoKind, quoteNo: ho.quoteNo, tech: ho.rep }, done: W().form + " emailed to ",
+      fileId: outbox.hasFor(ho.quoteNo) ? "" : (ho.pdfFileId || driveId(ho.pdfUrl)), pdfFrom: ho.lastSaveId || "" });
   }
 });
 
@@ -2508,7 +3080,7 @@ async function loadStock(){
   RS.loading = true;
   try{
     const out = await rsCall({ action: "stockData" });
-    if(out.result !== "success"){ if(out.message === "Wrong password.") lock("Password changed. Log in again."); return; }
+    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); return; }
     RS = { stock: out.stock || [], history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
       target: out.targetMargin || 0.3, loaded: true, loading: false };
     if(out.staff && out.staff.length) STAFF = out.staff;
@@ -2987,7 +3559,7 @@ rsPane.addEventListener("click", async e => {
       purchase.items = rs.items.map(it => ({ code: it.code, name: it.name, raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, sellPrice: it.sellPrice }));
       const out = await rsCall({ action: "restockSave", purchase });
       if(out.result !== "success"){
-        if(out.message === "Wrong password."){ lock("Password changed. Log in again, then save again."); return; }
+        if(isAuthMsg(out.message)){ lock(authText(out.message, ", then save again.")); return; }
         rsStatus("err", "NOT saved: " + out.message); return;
       }
       const keepBy = rs.by;
@@ -3030,7 +3602,10 @@ rsPane.addEventListener("click", async e => {
   document.getElementById("gateLogo").src = LOGO;
   render();
   try{ localStorage.removeItem(PIN_KEY); }catch(e){} // forget passwords older versions remembered
-  // A refresh logs out, so warn before throwing away an unsaved report.
+  setGateMode(false); fillGateNames();
+  // Signed in on this phone in the last 30 days: straight in, with the jobs kept here.
+  try{ await resume(); }catch(e){ console.error(e); }
+  // Warn before throwing away unsaved changes (saves waiting to sync are kept on this phone).
   window.addEventListener("beforeunload", e=>{ if(dirty || hoDirty || rsDirty || Object.values(hoStash).some(x => x.hoDirty)){ e.preventDefault(); e.returnValue = ""; } });
 })();
 </script>
