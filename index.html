@@ -584,9 +584,8 @@
     <h1>Staff dashboard</h1>
     <p>Service reports, handovers, takeovers and petrol claims. Layer By Layer staff only.</p>
     <label id="gateNameRow">Your name
-      <input id="gateName" autocomplete="username" autocapitalize="words" list="gateNames" required>
+      <input id="gateName" autocomplete="username" autocapitalize="words" required>
     </label>
-    <datalist id="gateNames"></datalist>
     <label id="gateCodeRow" hidden>Setup code
       <input id="gateCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digits">
     </label>
@@ -597,7 +596,6 @@
     <label id="gatePw2Row" hidden>Type the new PIN again
       <input type="password" id="gatePw2" autocomplete="new-password" inputmode="numeric">
     </label>
-    <p id="gateHint" class="hint" hidden style="margin:-4px 0 0">6 to 8 digits. Not one digit repeated, and not a run like 123456.</p>
     <button type="submit" id="gateBtn">Log in</button>
     <div id="gateMsg" role="alert"></div>
     <button type="button" class="linkbtn" id="gateSetup">First time, or forgot your PIN?</button>
@@ -655,7 +653,6 @@
     <label class="f">Current PIN<input type="password" id="acctCur" inputmode="numeric" autocomplete="current-password" required></label>
     <label class="f">New PIN<input type="password" id="acctNew" inputmode="numeric" autocomplete="new-password" required></label>
     <label class="f">Type the new PIN again<input type="password" id="acctNew2" inputmode="numeric" autocomplete="new-password" required></label>
-    <p class="hint" style="margin:-4px 0 0">6 to 8 digits. Not one digit repeated, and not a run like 123456.</p>
     <p class="msg" id="acctMsg" role="alert"></p>
     <button type="submit" class="primary" id="acctSave">Change PIN</button>
   </form>
@@ -975,7 +972,7 @@ function setGateMode(legacy, kind){
   const setup = gateKind === "setup", $ = id => document.getElementById(id);
   $("gateNameRow").hidden = legacy; $("gateName").required = !legacy;
   $("gateCodeRow").hidden = !setup; $("gateCode").required = setup;
-  $("gatePw2Row").hidden = !setup; $("gatePw2").required = setup; $("gateHint").hidden = !setup;
+  $("gatePw2Row").hidden = !setup; $("gatePw2").required = setup;
   $("gatePwLabel").textContent = legacy ? "Team password" : setup ? "New PIN" : "Your PIN";
   $("gatePw").inputMode = legacy ? "text" : "numeric";
   $("gatePw").autocomplete = setup ? "new-password" : "current-password";
@@ -1021,7 +1018,6 @@ document.getElementById("btnLogout").addEventListener("click", ()=>{
 });
 function fillGateNames(){
   const names = lsGet(NAMES_KEY) || [];
-  document.getElementById("gateNames").innerHTML = names.map(n => '<option value="' + esc(n) + '">').join("");
   let last = ""; try{ last = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){}
   const box = document.getElementById("gateName");
   if(!box.value && last) box.value = last;
