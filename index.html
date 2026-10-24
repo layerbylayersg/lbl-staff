@@ -210,6 +210,16 @@
   .syncchip.bad::before{background:var(--red-ink)}
   @keyframes pulse{50%{opacity:.35}}
   @media (prefers-reduced-motion:reduce){.syncchip.busy::before{animation:none}}
+  /* Log in button while waiting: four layers printing bottom-up, like the logo. */
+  .layers{display:inline-flex;flex-direction:column-reverse;gap:2px;width:18px;margin-right:10px;vertical-align:middle}
+  .layers i{display:block;height:3px;border-radius:2px;background:currentColor;opacity:0;animation:lay 1.4s infinite ease-out}
+  .layers i:nth-child(2){animation-delay:.15s;width:88%}.layers i:nth-child(3){animation-delay:.3s;width:76%}.layers i:nth-child(4){animation-delay:.45s;width:64%}
+  @keyframes lay{0%{opacity:0;transform:translateX(-5px)}18%,70%{opacity:1;transform:none}100%{opacity:0}}
+  /* Placeholder rows while lists load. */
+  .skel{display:block;border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--line) 25%,var(--surface-2) 50%,var(--line) 75%);background-size:200% 100%;animation:shim 1.3s infinite linear}
+  .skel-pick{height:44px}.skel-row{height:16px;margin:10px 0}.skel-row:nth-child(2){width:82%}.skel-row:nth-child(3){width:64%}
+  @keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  @media (prefers-reduced-motion:reduce){.layers i{animation:none;opacity:1}.skel{animation:none}}
   .bar #btnLogout{margin-left:0}
   .bar .who,.bar .who:hover{margin-left:auto;height:32px!important;padding:0 10px!important;border:1px solid var(--line)!important;border-radius:999px!important;background:var(--surface)!important;
     font-size:13px!important;font-weight:600!important;color:var(--ink-2)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw;display:inline-block!important;line-height:30px}
@@ -832,7 +842,7 @@ async function callSheet(body){
 }
 // Locks the screen. forget = also wipe the job list kept on this device (log out / sign-in expired).
 function lock(msg, forget){
-  STAFF_PIN = ""; JOBS = [];
+  STAFF_PIN = ""; JOBS = []; JOBS_STATE = "ready";
   if(forget !== false){
     SESSION = null; lsSet(SESSION_KEY, null); lsSet(JOBS_KEY, null); lsSet("lbl-claims", null);
     // The next person on this phone gets their own name, not the last person's.
@@ -858,8 +868,12 @@ function showWho(){
 }
 // Keeps the last job list on this device, so the next visit opens straight away.
 function keepJobs(){ if(isNew()) lsSet(JOBS_KEY, { at: Date.now(), name: ME(), jobs: JOBS, staff: STAFF }); }
+// "ready" (list in hand), "loading" (fresh login, list on its way), "failed" (could not fetch it).
+let JOBS_STATE = "ready";
+const skelPick = (label) => '<label class="f span2 jobpick">' + (label || "Job") + '<span class="skel skel-pick" aria-label="Loading jobs"></span></label>';
+const skelRows = () => '<div aria-label="Loading"><span class="skel skel-row"></span><span class="skel skel-row"></span><span class="skel skel-row"></span></div>';
 function takeJobs(out){
-  JOBS = out.jobs || []; STAFF = out.staff || STAFF;
+  JOBS = out.jobs || []; STAFF = out.staff || STAFF; JOBS_STATE = "ready";
   overlayPending();
   if(STAFF.length) lsSet(NAMES_KEY, STAFF);
   if(out.api && SESSION){ SESSION.api = out.api; if(out.admin !== undefined) SESSION.admin = !!out.admin; lsSet(SESSION_KEY, SESSION); showWho(); }
@@ -885,7 +899,7 @@ function overlayPending(){
 // Fetches the latest jobs and staff names from the Sheet.
 async function loadJobs(){
   const out = await callSheet({ action:"staffJobs", lite: isNew() });
-  if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(out.message); else showStatus("err", out.message); return false; }
+  if(out.result !== "success"){ if(JOBS_STATE === "loading") JOBS_STATE = "failed"; if(isAuthMsg(out.message)) lock(out.message); else showStatus("err", out.message); return false; }
   takeJobs(out);
   defaultNames();
   return true;
@@ -914,7 +928,7 @@ async function login(name, pw){
   } else {
     const body = gateKind === "setup"
       ? { action:"pinSetup", staff: name, code: document.getElementById("gateCode").value.trim(), pin: pw }
-      : { action:"login", staff: name, pin: pw };
+      : { action:"login", staff: name, pin: pw, noJobs: true };
     const res = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(body) });
     const out = await res.json();
     if(out.result !== "success" || !out.token){
@@ -923,7 +937,14 @@ async function login(name, pw){
     }
     SESSION = { token: out.token, name: out.name, exp: out.exp, api: out.api || 2, admin: !!out.admin, renewed: Date.now() };
     lsSet(SESSION_KEY, SESSION);
-    takeJobs(out);
+    if(out.jobs) takeJobs(out); // older script: the list came with the login
+    else {
+      // In at once: show the list kept on this phone for this person, or placeholders, and fetch it behind.
+      const kept = lsGet(JOBS_KEY);
+      if(kept && kept.name === out.name){ JOBS = kept.jobs || []; STAFF = kept.staff || STAFF; overlayPending(); JOBS_STATE = "ready"; }
+      else { JOBS = []; JOBS_STATE = "loading"; }
+      setTimeout(refreshJobsQuietly, 0);
+    }
     state.shop.tech = state.shop.tech || out.name;
     if(gateKind === "setup"){ setGateMode(false); setTimeout(() => toast("PIN set. You are logged in."), 300); }
   }
@@ -961,7 +982,9 @@ function refreshJobsQuietly(){
       if(state.job.quoteNo && !dirty && !outbox.hasFor(state.job.quoteNo)){ const j = JOBS.find(x => x.quoteNo === state.job.quoteNo); if(j) openJob(j, true); }
       if(ho.quoteNo && !hoDirty && !hoBusy()){ const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(j) openHo(j, true); }
       if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); }
-    }catch(e){} finally { refreshing = null; }
+    }catch(e){
+      if(JOBS_STATE === "loading"){ JOBS_STATE = "failed"; if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); } }
+    } finally { refreshing = null; }
   })();
   return refreshing;
 }
@@ -989,10 +1012,12 @@ document.getElementById("gateForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const b = document.getElementById("gateBtn");
   b.disabled = true; document.getElementById("gateMsg").textContent = "";
+  const label = b.textContent;
   const name = document.getElementById("gateName").value.trim();
   if(gateKind === "setup" && document.getElementById("gatePw").value.trim() !== document.getElementById("gatePw2").value.trim()){
     document.getElementById("gateMsg").textContent = "The two PINs are not the same."; b.disabled = false; return;
   }
+  b.innerHTML = '<span class="layers" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' + (gateKind === "setup" ? "Setting PIN" : "Logging in");
   try{
     if(await login(name, document.getElementById("gatePw").value.trim())){
       ["gatePw","gatePw2","gateCode"].forEach(id => document.getElementById(id).value = "");
@@ -1000,7 +1025,7 @@ document.getElementById("gateForm").addEventListener("submit", async e=>{
     }
   }
   catch(err){ lock("Could not reach the server. Check the connection and try again."); }
-  finally{ b.disabled = false; }
+  finally{ b.disabled = false; if(b.querySelector(".layers")) b.textContent = label; }
 });
 // Show / hide the password while typing it.
 const gatePeek = document.getElementById("gatePeek");
@@ -1165,8 +1190,8 @@ function renderForm(){
   const s = state, custom = s.job.custom, picked = !!(s.job.quoteNo || custom);
   const shown = reportJobs(), allRep = JOBS.filter(j => j.status !== "Confirmed");
   const cur = s.job.quoteNo && !shown.some(j => j.quoteNo === s.job.quoteNo) ? JOBS.find(j => j.quoteNo === s.job.quoteNo) : null;
-  const pick = whoseBar(allRep) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-pickjob="1"><option value="">'+
-    (shown.length ? "Pick the job you are reporting on..." : allRep.length ? "No jobs here" : "No jobs are In Progress on the job sheet") + '</option>' +
+  const pick = JOBS_STATE === "loading" && !s.job.quoteNo ? skelPick() : whoseBar(allRep) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-pickjob="1"><option value="">'+
+    (JOBS_STATE === "failed" ? "Could not load jobs. Press Refresh" : shown.length ? "Pick the job you are reporting on..." : allRep.length ? "No jobs here" : "No jobs are In Progress on the job sheet") + '</option>' +
     (cur ? [cur] : []).concat(shown).map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===s.job.quoteNo?" selected":"")+'>'+
       esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(j.savedReport?" · has report":"")+techTag(j))+'</option>').join("") +
     '<option value="__custom"'+(s.job.custom?" selected":"")+'>Custom job (not on the job sheet)</option>' +
@@ -2419,8 +2444,8 @@ function hoDerived(h){
 function renderHo(){
   const p = document.getElementById("hoPane");
   const jobs = hoJobs(), allJobs = hoAllJobs();
-  const pick = whoseBar(allJobs) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-hopick="1"><option value="">'+
-    (jobs.length ? W().pickPh : allJobs.length ? "No jobs here" : W().empty) + '</option>' +
+  const pick = JOBS_STATE === "loading" && !ho.quoteNo ? skelPick() : whoseBar(allJobs) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-hopick="1"><option value="">'+
+    (JOBS_STATE === "failed" ? "Could not load jobs. Press Refresh" : jobs.length ? W().pickPh : allJobs.length ? "No jobs here" : W().empty) + '</option>' +
     (ho.quoteNo && !jobs.some(j => j.quoteNo === ho.quoteNo) ? '<option value="'+esc(ho.quoteNo)+'" selected>'+esc(ho.quoteNo+" · "+ho.custName)+'</option>' : "") +
     jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===ho.quoteNo?" selected":"")+'>'+
       esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+((hoKind === "takeover" ? j.takeover : j.handover) ? W().doneTag : "")+techTag(j))+'</option>').join("") +
@@ -2921,6 +2946,7 @@ let cl = { claimant: "", date: clToday(), quoteNo: "", trip: "", note: "" };
 async function loadClaims(){
   if(CL.loading) return;
   CL.loading = true;
+  if(!CL.loaded && document.body.classList.contains("mode-cl")) renderCl(); // placeholders while it loads
   try{
     const out = await callSheet({ action:"petrolClaims" });
     if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); else clStatus("err", out.message); return; }
@@ -2942,7 +2968,7 @@ function renderCl(){
   const who = names.length
     ? '<label class="f">Your name<select data-cl="claimant"><option value="">Choose...</option>'+names.map(n=>'<option'+(n===cl.claimant?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select></label>'
     : '<label class="f">Your name<input data-cl="claimant" value="'+esc(cl.claimant)+'"></label>';
-  const jobs = '<label class="f span2 jobpick">Job<span class="pickrow"><select data-cl="quoteNo"><option value="">'+
+  const jobs = !CL.loaded && CL.loading ? skelPick() : '<label class="f span2 jobpick">Job<span class="pickrow"><select data-cl="quoteNo"><option value="">'+
     (CL.loaded ? (CL.jobs.length ? "Choose the job..." : "No jobs found") : "Loading jobs...")+'</option>'+
     CL.jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===cl.quoteNo?" selected":"")+'>'+
       esc(j.quoteNo+" · "+j.name+(j.machine?" · "+j.machine:"")+" · "+j.status+(/^y/i.test(j.transport)?" · transport":""))+'</option>').join("")+
@@ -2957,7 +2983,7 @@ function renderCl(){
       mine.map(c=>'<tr><td>'+esc(c.date.slice(8)+"/"+c.date.slice(5,7))+'</td><td>'+esc(c.claimant)+'</td><td>'+esc(c.quoteNo+(c.customer?" · "+c.customer:""))+
         '<span class="x">'+esc(c.trip+(c.note?" · "+c.note:""))+'</span><span class="x'+(/^NOT/.test(c.xero)?" bad":"")+'">'+esc(c.xero||"")+'</span></td><td class="amt">'+c.amount+'</td></tr>').join("")+
       '</tbody></table>'
-    : '<p class="hint">No claims yet this month.</p>';
+    : !CL.loaded && CL.loading ? skelRows() : '<p class="hint">No claims yet this month.</p>';
 
   p.innerHTML = `
     <div class="stage">
@@ -3191,7 +3217,7 @@ function renderSt(){
       <p class="hint" style="margin-top:0">Give someone a setup code to set their own PIN (first time, or when they forget it). You never see their PIN. Switching someone off stops their logins straight away.</p>
       ${c ? '<div class="codebox" role="status"><span>Setup code for <b>' + esc(c.name) + '</b>, works once until ' + esc(new Date(c.exp).toLocaleString("en-SG", { weekday:"short", day:"numeric", month:"short", hour:"numeric", minute:"2-digit" })) + '</span><div class="code">' + esc(c.code) + '</div>' +
         '<div class="btns"><button type="button" class="mini primary" data-stshare="1">Send on WhatsApp</button><button type="button" class="mini" data-stcopy="1">Copy message</button><button type="button" class="mini" data-stdone="1">Done</button></div></div>' : ''}
-      ${ST.loaded ? (rows || '<p class="hint">Nobody on the Staff list yet.</p>') : '<p class="hint">Loading staff...</p>'}
+      ${ST.loaded ? (rows || '<p class="hint">Nobody on the Staff list yet.</p>') : skelRows()}
       <p class="hostatus" id="stStatus" role="status"></p>
     </div>
     <div class="stage">
@@ -3631,7 +3657,7 @@ function renderRs(){
       <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">Refresh</button></h2>
       <label class="f"><input data-rsfind="1" value="${esc(rsFind)}" placeholder="Search item or code" aria-label="Search stock"></label>
       ${RS.stock.length ? '<div class="rstable"><table class="cllist"><thead><tr><th>Item</th><th class="amt">Qty</th><th class="amt">Avg cost</th><th class="amt">Sell</th><th class="amt">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-        : '<p class="hint">' + (RS.loaded ? 'No stock yet. Save a purchase to start.' : 'Loading stock...') + '</p>'}
+        : (RS.loaded ? '<p class="hint">No stock yet. Save a purchase to start.</p>' : skelRows())}
       <h3 class="sub">Sold / used, or stock count</h3>
       <div class="grid">
         <label class="f span2">Item<select data-rso="code">${itemOpts}</select></label>
