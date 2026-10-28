@@ -138,6 +138,44 @@
   .seg button{height:36px;padding:0 18px;border:0;background:transparent;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:600;border-radius:7px;cursor:pointer}
   .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
   #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
+  /* Stock view: summary tiles that filter, a tappable list, and the item's actions opening under its row */
+  .rsstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
+  .rsstats button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:inherit;color:var(--ink-2);cursor:pointer;text-align:left;min-width:0}
+  .rsstats button b{font-size:22px;line-height:1.1;color:var(--ink)} .rsstats button span{font-size:12.5px;font-weight:600}
+  .rsstats button.low b{color:var(--amber-ink)} .rsstats button.out b{color:var(--red-ink)}
+  .rsstats button[aria-pressed="true"]{background:var(--green-wash);border-color:var(--green-600);box-shadow:inset 0 0 0 1px var(--green-600)}
+  .rstools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+  .rssearch{position:relative} .rssearch input{padding-right:40px!important}
+  .rssearch button{position:absolute;right:4px;bottom:4px;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
+  .rssearch button:hover{background:var(--surface-2);color:var(--ink)}
+  .rsgroups{margin:10px 0 0;overflow-x:auto} .rsgroups button{padding:0 12px;white-space:nowrap;flex:1} .rsgroups small{font-weight:500;color:var(--muted);margin-left:4px}
+  .rscount{margin:12px 0 6px;font-size:12.5px;color:var(--muted)}
+  .rslist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+  .rsrow{border-bottom:1px solid var(--line)}
+  .rsrow.open{background:var(--surface-2);border-radius:10px;border:1px solid var(--line-strong);margin:6px 0}
+  .rsrowbtn{display:flex;align-items:center;gap:12px;width:100%;padding:11px 8px;border:0;background:transparent;font:inherit;color:var(--ink);text-align:left;cursor:pointer;border-radius:10px}
+  .rsrowbtn:hover{background:var(--surface-2)}
+  .rsrowbtn:focus-visible{outline:2px solid var(--green-600);outline-offset:-2px}
+  .rsn{flex:1;min-width:0;font-size:14px;font-weight:600;line-height:1.35}
+  .rsn small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+  .rsm{display:block;margin-top:2px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;background:var(--amber-wash);color:var(--amber-ink);font-size:11.5px;font-weight:600}
+  .rsq{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:58px;padding:6px 8px;border-radius:10px;line-height:1.1}
+  .rsq b{font-size:18px} .rsq small{font-size:11px;font-weight:600}
+  .rsq.ok{background:var(--green-wash);color:var(--green-ink)} .rsq.low{background:var(--amber-wash);color:var(--amber-ink)} .rsq.out{background:var(--red-wash);color:var(--red-ink)}
+  .rschev{flex:none;color:var(--muted);transition:transform .15s ease} .rsrow.open .rschev{transform:rotate(90deg)}
+  .rspanel{display:grid;gap:12px;padding:4px 12px 14px}
+  .rspanel .seg button{flex:1}
+  .rspanel .f > span{font-size:13px;font-weight:500;color:var(--ink-2)} .rspanel div.f{display:flex;flex-direction:column;gap:6px}
+  .rspanel .stepper input{text-align:center;font-size:16px}
+  .rsafter{margin:0;font-size:13.5px;color:var(--ink-2)} .rsafter b{color:var(--ink)}
+  .rspanel .hostatus{margin:0}
+  .rsmore{border-top:1px dashed var(--line-strong);padding-top:10px} .rsmore summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .rsmore h3.sub{display:none}
+  .rsempty{padding:18px 8px;text-align:center;font-size:13.5px;color:var(--muted)}
+  @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
+    .rsgroups button{padding:0 6px;font-size:13px} .rsgroups small{display:none} }
+  @media (prefers-reduced-motion:reduce){ .rschev{transition:none} }
   #clView{display:none}
   body.mode-cl #clView{display:block}
   body.mode-cl .layout,body.mode-cl .mobiletabs,body.mode-cl #saveStatus,body.mode-cl #hoView,body.locked #clView{display:none!important}
@@ -3268,6 +3306,18 @@ const RS_CURRENCIES = ["SGD", "CNY", "USD", "MYR", "HKD", "EUR", "GBP", "JPY", "
 const RS_EXTRAS = ["Shipping", "Agent fee", "Forwarder fee", "GST", "Import tax", "Service fee", "Discount"];
 let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loaded: false, loading: false };
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
+// Stock list: summary-tile filter, group tab and sort order (rsOut.code is the item opened in the list).
+let rsFilter = "all", rsGroup = "all", rsSort = "sheet";
+// Demo mode is for testing only: its button shows when the address ends in ?demo, never on the normal live page.
+const RS_DEMO_ALLOWED = /[?&]demo\b/.test(location.search);
+const rsQty = s => Number(s.qty) || 0;
+const rsIsOut = s => rsQty(s) <= 0, rsIsLow = s => !rsIsOut(s) && rsQty(s) <= (Number(s.min) || 0);
+const rsGroupOf = s => /^FIL-/.test(s.code) ? "fil" : /^(PRT|PART)-/.test(s.code) ? "part" : "acc";
+const RS_FILTERS = { all: () => true, low: rsIsLow, out: rsIsOut, noprice: s => !Number(s.sell) };
+function rsAfterHtml(s){
+  const n = rsQty(s), q = Number(rsOut.qty) || 0, after = rsOut.kind === "count" ? q : n - q;
+  return n + ' in stock now → <b>' + after + '</b> after saving' + (after < 0 ? ' <b class="up">⚠ more than you have</b>' : '');
+}
 const rsItem = () => ({ code: "", name: "", raw: "", qty: 1, unitPrice: "", sellPrice: "", isNew: false });
 function rsBlank(){
   let by = ""; try{ by = localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){}
@@ -3594,15 +3644,48 @@ function renderRs(){
   const eff = cur !== "SGD" && Number(rs.paidSGD) > 0 && c.order > 0 ? Number(rs.paidSGD) / c.order : 0;
   const ref = Number(rs.fxRate) || 0;
 
+  // ----- Stock list -----
   const q = rsFind.trim().toLowerCase();
-  const rows = RS.stock.filter(s => !q || (s.code + " " + s.name).toLowerCase().includes(q)).map(s => {
-    const m = s.sell && s.avg ? (s.sell - s.avg) / s.sell : null;
-    return '<tr><td>' + esc(s.name) + '<span class="x">' + esc(s.code) + '</span></td><td class="amt' + (s.qty <= s.min ? ' low' : '') + '">' + s.qty + '</td>' +
-      '<td class="amt">$' + money(s.avg) + '</td><td class="amt">' + (s.sell ? '$' + money(s.sell) : '–') + '</td>' +
-      '<td class="amt">' + (m === null ? '–' : '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b>') + '</td></tr>';
+  const inGroup = s => rsGroup === "all" || rsGroupOf(s) === rsGroup;
+  const groupStock = RS.stock.filter(inGroup);
+  let list = groupStock.filter(s => RS_FILTERS[rsFilter](s) && (!q || (s.code + " " + s.name).toLowerCase().includes(q)));
+  if(rsSort === "qty") list = list.slice().sort((a, b) => rsQty(a) - rsQty(b));
+  else if(rsSort === "name") list = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const stat = (f, label, cls) => '<button type="button" class="' + cls + '" data-rsfilter="' + f + '" aria-pressed="' + (rsFilter === f) + '"><b>' + groupStock.filter(RS_FILTERS[f]).length + '</b><span>' + label + '</span></button>';
+  const groupTab = (g, label) => '<button type="button" role="tab" data-rsgroup="' + g + '" aria-selected="' + (rsGroup === g) + '">' + label + '<small>' + (g === "all" ? RS.stock.length : RS.stock.filter(s => rsGroupOf(s) === g).length) + '</small></button>';
+  const meta = s => {
+    const m = Number(s.sell) && Number(s.avg) ? (s.sell - s.avg) / s.sell : null;
+    return (Number(s.sell) ? 'Sells at $' + money(s.sell) : '<span class="tag">No price</span>') + (Number(s.avg) ? ' · cost $' + money(s.avg) : '') +
+      (m === null ? '' : ' · <b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b> margin');
+  };
+  const qtyBadge = s => { const st = rsIsOut(s) ? "out" : rsIsLow(s) ? "low" : "ok";
+    return '<span class="rsq ' + st + '"><b>' + rsQty(s) + '</b><small>' + { out: "Out", low: "Low", ok: "in stock" }[st] + '</small></span>'; };
+  const panel = s => '<div class="rspanel">' +
+    '<div class="seg" role="tablist" aria-label="What happened">' +
+      '<button type="button" role="tab" data-rskind="out" aria-selected="' + (rsOut.kind === "out") + '">Sold / used</button>' +
+      '<button type="button" role="tab" data-rskind="count" aria-selected="' + (rsOut.kind === "count") + '">Stock count</button></div>' +
+    '<label class="f">' + (rsOut.kind === "count" ? 'How many are on the shelf now?' : 'How many?') +
+      '<span class="stepper"><button type="button" class="mini" data-rsqty="-1" aria-label="One less">−</button>' +
+      '<input type="number" inputmode="decimal" min="0" step="any" data-rso="qty" value="' + esc(rsOut.qty) + '" aria-label="Quantity">' +
+      '<button type="button" class="mini" data-rsqty="1" aria-label="One more">+</button></span></label>' +
+    (rsOut.kind === "out" ? '<div class="f"><span>Where did it go?</span><div class="chips" role="radiogroup" aria-label="Where it went">' +
+      RS.channels.map(ch => '<label class="chip"><input type="radio" name="rschan" data-rso="channel" value="' + esc(ch) + '"' + (ch === rsOut.channel ? " checked" : "") + '>' + esc(ch) + '</label>').join("") + '</div></div>' : '') +
+    '<label class="f">Note / order no. (optional)<input data-rso="note" value="' + esc(rsOut.note) + '" placeholder="e.g. Shopee order 2610xxxx"></label>' +
+    '<p class="rsafter" id="rsAfter">' + rsAfterHtml(s) + '</p>' +
+    '<div class="hoactions"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">' + (rsOut.kind === "count" ? "Save count" : "Take off stock") + '</button></div>' +
+    '<p class="hostatus" id="rsStatus2" role="status"></p>' +
+    '<details class="rsmore"' + (rsOut.sellCode === s.code || rsMarket.code === s.code ? " open" : "") + '><summary>Price &amp; low-stock alert</summary>' + rsPriceBlock(s) + '</details>' +
+    '</div>';
+  const rows = list.map(s => { const open = s.code === rsOut.code;
+    return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' +
+      '<span class="rsn">' + esc(s.name) + '<small>' + esc(s.code) + '</small><span class="rsm">' + meta(s) + '</span></span>' +
+      qtyBadge(s) + '<span class="rschev" aria-hidden="true">›</span></button>' + (open ? panel(s) : '') + '</li>';
   }).join("");
-  const itemOpts = '<option value="">Choose item...</option>' + RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === rsOut.code ? " selected" : "") + '>' + esc(s.code + " · " + s.name + " (" + s.qty + ")") + '</option>').join("");
-  const selOut = stockOf(rsOut.code);
+  const filterName = { all: "", low: "low-stock ", out: "out-of-stock ", noprice: "unpriced " }[rsFilter];
+  const stockBody = !RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet. Save a purchase to start.</p>' : skelRows())
+    : '<p class="rscount">' + (list.length === groupStock.length && !q ? list.length + ' items' : 'Showing ' + list.length + ' ' + filterName + 'of ' + groupStock.length + ' items') + ' · tap an item to sell, count or price it</p>' +
+      (list.length ? '<ul class="rslist">' + rows + '</ul>'
+        : '<p class="rsempty">No ' + filterName + 'items' + (q ? ' match “' + esc(rsFind.trim()) + '”' : '') + '. <button type="button" class="mini" data-rsreset="1">Show all</button></p>');
 
   p.dataset.view = rsView;
   p.innerHTML = `
@@ -3611,7 +3694,7 @@ function renderRs(){
         <button type="button" role="tab" data-rsview="purchase" aria-selected="${rsView === "purchase"}">Purchase</button>
         <button type="button" role="tab" data-rsview="stock" aria-selected="${rsView === "stock"}">Stock</button>
       </div>
-      ${rsDemo ? '' : '<button type="button" class="mini" data-rsdemo="on">Try demo</button>'}
+      ${rsDemo || !RS_DEMO_ALLOWED ? '' : '<button type="button" class="mini" data-rsdemo="on">Try demo</button>'}
     </div>
     ${rsDemo ? '<div class="rsdemo"><b>Demo mode.</b> Sample stock and a sample receipt; nothing is saved to the Sheet. <button type="button" class="mini" data-rsdemo="off">Exit demo</button></div>' : ''}
     <div class="stage rs-p">
@@ -3657,24 +3740,14 @@ function renderRs(){
       <p class="hostatus" id="rsStatus" role="status"></p>
     </div>
     <div class="stage rs-s">
-      <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">Refresh</button></h2>
-      <label class="f"><input data-rsfind="1" value="${esc(rsFind)}" placeholder="Search item or code" aria-label="Search stock"></label>
-      ${RS.stock.length ? '<div class="rstable"><table class="cllist"><thead><tr><th>Item</th><th class="amt">Qty</th><th class="amt">Avg cost</th><th class="amt">Sell</th><th class="amt">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-        : (RS.loaded ? '<p class="hint">No stock yet. Save a purchase to start.</p>' : skelRows())}
-      <h3 class="sub">Sold / used, or stock count</h3>
-      <div class="grid">
-        <label class="f span2">Item<select data-rso="code">${itemOpts}</select></label>
-        <div class="chips span2" role="radiogroup" aria-label="Type">
-          <label class="chip"><input type="radio" name="rskind" data-rso="kind" value="out"${rsOut.kind === "out" ? " checked" : ""}>Sold / used</label>
-          <label class="chip"><input type="radio" name="rskind" data-rso="kind" value="count"${rsOut.kind === "count" ? " checked" : ""}>Stock count (set qty)</label>
-        </div>
-        <label class="f">${rsOut.kind === "count" ? "Counted qty" : "Qty"}<input type="number" inputmode="decimal" min="0" step="any" data-rso="qty" value="${esc(rsOut.qty)}"></label>
-        ${rsOut.kind === "out" ? '<label class="f">Where it went<select data-rso="channel"><option value="">Choose...</option>' + opt(RS.channels, rsOut.channel) + '</select></label>' : ''}
-        <label class="f span2">Note / order no. (optional)<input data-rso="note" value="${esc(rsOut.note)}" placeholder="e.g. Shopee order 2610xxxx"></label>
+      <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">↻ Refresh</button></h2>
+      ${RS.stock.length ? `<div class="rsstats">${stat("all", "Items", "")}${stat("low", "Low stock", "low")}${stat("out", "Out of stock", "out")}${stat("noprice", "No price yet", "")}</div>
+      <div class="rstools">
+        <label class="f rssearch">Search<input type="search" data-rsfind="1" value="${esc(rsFind)}" placeholder="Name or code, e.g. FAH051 or PETG" aria-label="Search stock">${rsFind ? '<button type="button" data-rsfindclear="1" aria-label="Clear search">×</button>' : ''}</label>
+        <label class="f">Sort<select data-rssort="1">${[["sheet", "As listed"], ["name", "A to Z"], ["qty", "Lowest qty first"]].map(([v, t]) => '<option value="' + v + '"' + (rsSort === v ? " selected" : "") + '>' + t + '</option>').join("")}</select></label>
       </div>
-      <div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">${rsOut.kind === "count" ? "Save count" : "Take off stock"}</button></div>
-      ${selOut ? rsPriceBlock(selOut) : ''}
-      <p class="hostatus" id="rsStatus2" role="status"></p>
+      <div class="seg rsgroups" role="tablist" aria-label="Group">${groupTab("all", "All")}${groupTab("part", "Parts")}${groupTab("fil", "Filament")}${groupTab("acc", "Accessories")}</div>` : ''}
+      ${stockBody}
     </div>
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
 }
@@ -3686,13 +3759,18 @@ rsPane.addEventListener("input", e => {
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
-  else if(t.dataset.rso && t.type !== "radio" && t.tagName !== "SELECT"){ rsOut[t.dataset.rso] = t.value; }
+  else if(t.dataset.rso && t.type !== "radio" && t.tagName !== "SELECT"){
+    rsOut[t.dataset.rso] = t.value;
+    const s = stockOf(rsOut.code), el = document.getElementById("rsAfter");
+    if(t.dataset.rso === "qty" && s && el) el.innerHTML = rsAfterHtml(s);
+  }
   else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
 });
 rsPane.addEventListener("change", e => {
   const t = e.target;
   if(t.dataset.rsscan){ rsAddImages(t.files); t.value = ""; return; }
+  if(t.dataset.rssort){ rsSort = t.value; renderRs(); return; }
   if(t.dataset.rsmerch){
     rs.merchantNew = t.value === "__new"; rs.merchant = rs.merchantNew ? "" : t.value;
     rsDirty = true; renderRs();
@@ -3728,6 +3806,29 @@ rsPane.addEventListener("click", async e => {
   if(!b) return;
   if(b.dataset.rsview){ rsView = b.dataset.rsview; renderRs(); scrollTo(0, 0); return; }
   if(b.dataset.rsdemo){ b.dataset.rsdemo === "on" ? rsDemoStart() : rsDemoStop(); return; }
+  // Stock list: open / close an item, filters, group tabs, search clear, and the item panel's controls.
+  if(b.dataset.rsopen !== undefined){
+    const code = b.dataset.rsopen;
+    rsOut = rsOut.code === code ? { code: "", kind: "out", qty: 1, channel: "", note: "" } : { code, kind: "out", qty: 1, channel: "", note: "" };
+    rsMarket = { code: "", loading: false, data: null, error: "" };
+    renderRs();
+    const row = rsPane.querySelector(".rsrow.open");
+    if(row) row.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    return;
+  }
+  if(b.dataset.rsfilter){ rsFilter = rsFilter === b.dataset.rsfilter ? "all" : b.dataset.rsfilter; renderRs(); return; }
+  if(b.dataset.rsgroup){ rsGroup = b.dataset.rsgroup; renderRs(); return; }
+  if(b.dataset.rsfindclear || b.dataset.rsreset){
+    rsFind = ""; if(b.dataset.rsreset){ rsFilter = "all"; rsGroup = "all"; }
+    renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f) f.focus(); return;
+  }
+  if(b.dataset.rskind){ rsOut.kind = b.dataset.rskind; if(rsOut.kind === "count"){ const s = stockOf(rsOut.code); rsOut.qty = s ? rsQty(s) : 0; } else rsOut.qty = 1; renderRs(); return; }
+  if(b.dataset.rsqty){
+    rsOut.qty = String(Math.max(0, (Number(rsOut.qty) || 0) + Number(b.dataset.rsqty)));
+    const box = rsPane.querySelector('[data-rso="qty"]'), s = stockOf(rsOut.code), el = document.getElementById("rsAfter");
+    if(box) box.value = rsOut.qty; if(s && el) el.innerHTML = rsAfterHtml(s);
+    return;
+  }
   if(b.dataset.rsdemoscan){ const c = document.createElement("canvas"); c.width = c.height = 8; c.toBlob(async bl => { await rsAddImages([new File([bl], "sample.png", { type: "image/png" })]); rsScan(); }); return; }
   if(b.dataset.rsimgdel !== undefined){ rs.images.splice(+b.dataset.rsimgdel, 1); renderRs(); return; }
   if(b.id === "rsRead"){ rsScan(); return; }
@@ -3780,7 +3881,7 @@ rsPane.addEventListener("click", async e => {
       const out = await rsCall({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by });
       if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
       const name = (stockOf(rsOut.code) || {}).name || rsOut.code;
-      rsOut = { code: "", kind: rsOut.kind, qty: 1, channel: "", note: "" };
+      rsOut = { code: rsOut.code, kind: rsOut.kind, qty: rsOut.kind === "count" ? out.qty : 1, channel: "", note: "" }; // keep the item open to see the result
       await loadStock();
       rsStatus2("ok", name + ": " + out.qty + " left.");
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
