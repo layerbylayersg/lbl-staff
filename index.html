@@ -3521,7 +3521,9 @@ async function rsItemMarket(i){
 async function rsAutoMarketNew(){
   for(let i = 0; i < rs.items.length; i++) if(rs.items[i].isNew && !rs.items[i].market) await rsItemMarket(i);
 }
-function rsStatus(kind, msg){ const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+// Messages are kept in state and shown again after every redraw (the background market check redraws the pane).
+let rsMsg = null, rsMsg2 = null;
+function rsStatus(kind, msg){ rsMsg = msg ? { kind, msg } : null; const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 
 // Same maths as landedCosts() in the script: extras spread by value, SGD paid absorbs FX and card fees.
 function rsCalc(){
@@ -3578,7 +3580,7 @@ async function rsScan(){
     rs.items = (r.items.length ? r.items : [{ raw: "", qty: 1, unitPrice: "" }]).map(it => {
       // Known item (receipt name, item name or the AI's suggested code) -> that item; otherwise a new item
       // pre-filled with the AI's suggested code and English name, which staff can change.
-      const m = rsMatch(it.raw) || rsMatch(it.name) || (it.code ? stockOf(it.code) : null);
+      const m = rsMatch(it.raw) || rsMatch(it.name) || (it.code ? stockOf(it.code) : null) || rsMatchPart(it.raw + " " + (it.name || ""));
       return m ? Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: m.code, name: m.name, isNew: false })
         : Object.assign(rsItem(), { raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, code: it.code || "", name: it.name || "", isNew: true });
     });
@@ -3619,7 +3621,7 @@ function renderRs(){
       ${it.raw ? '<div class="rsraw">Receipt: ' + esc(it.raw) + '</div>' : ''}
       <div class="grid">
         <label class="f span2">Item${codeSel(it, i)}</label>
-        ${it.isNew ? '<label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PART-BL-P2S-BUFFER" autocapitalize="characters"></label>' +
+        ${it.isNew ? '<label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PRT-BBL-FAH051" autocapitalize="characters" style="text-transform:uppercase"></label>' +
           '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label>' : ''}
         <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
         <label class="f">Unit price (${esc(cur)})<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="unitPrice" value="${esc(it.unitPrice)}"></label>
@@ -3648,7 +3650,8 @@ function renderRs(){
   const q = rsFind.trim().toLowerCase();
   const inGroup = s => rsGroup === "all" || rsGroupOf(s) === rsGroup;
   const groupStock = RS.stock.filter(inGroup);
-  let list = groupStock.filter(s => RS_FILTERS[rsFilter](s) && (!q || (s.code + " " + s.name).toLowerCase().includes(q)));
+  const words = q.split(/\s+/).filter(Boolean); // every word must appear, in any order ("black petg")
+  let list = groupStock.filter(s => RS_FILTERS[rsFilter](s) && words.every(w => (s.code + " " + s.name).toLowerCase().includes(w)));
   if(rsSort === "qty") list = list.slice().sort((a, b) => rsQty(a) - rsQty(b));
   else if(rsSort === "name") list = list.slice().sort((a, b) => a.name.localeCompare(b.name));
   const stat = (f, label, cls) => '<button type="button" class="' + cls + '" data-rsfilter="' + f + '" aria-pressed="' + (rsFilter === f) + '"><b>' + groupStock.filter(RS_FILTERS[f]).length + '</b><span>' + label + '</span></button>';
@@ -3674,7 +3677,7 @@ function renderRs(){
     '<p class="rsafter" id="rsAfter">' + rsAfterHtml(s) + '</p>' +
     '<div class="hoactions"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">' + (rsOut.kind === "count" ? "Save count" : "Take off stock") + '</button></div>' +
     '<p class="hostatus" id="rsStatus2" role="status"></p>' +
-    '<details class="rsmore"' + (rsOut.sellCode === s.code || rsMarket.code === s.code ? " open" : "") + '><summary>Price &amp; low-stock alert</summary>' + rsPriceBlock(s) + '</details>' +
+    '<details class="rsmore"' + (rsOut.priceOpen || rsOut.sellCode === s.code || rsMarket.code === s.code ? " open" : "") + '><summary>Price &amp; low-stock alert</summary>' + rsPriceBlock(s) + '</details>' +
     '</div>';
   const rows = list.map(s => { const open = s.code === rsOut.code;
     return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' +
@@ -3750,8 +3753,34 @@ function renderRs(){
       ${stockBody}
     </div>
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
+  if(rsMsg) rsStatus(rsMsg.kind, rsMsg.msg);
+  if(rsMsg2 && rsMsg2.code === rsOut.code) rsStatus2(rsMsg2.kind, rsMsg2.msg);
 }
-function rsStatus2(kind, msg){ const el = document.getElementById("rsStatus2"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+function rsStatus2(kind, msg){ rsMsg2 = msg ? { kind, msg, code: rsOut.code } : null; const el = document.getElementById("rsStatus2"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+// Typing redraws the pane after a short pause instead of on leaving the box: a redraw while a button is being
+// tapped replaced that button mid-tap and the tap was lost (type "SGD paid", tap Save, nothing happened).
+let rsLater = 0;
+function rsRenderSoon(){ clearTimeout(rsLater); rsLater = setTimeout(rsRenderKeep, 400); }
+function rsRenderKeep(){
+  clearTimeout(rsLater); rsLater = 0;
+  const a = document.activeElement, sig = el => el.id || ["rs", "rsi", "k", "rse", "rso"].map(k => el.dataset[k] || "").join("|");
+  const had = a && rsPane.contains(a) ? sig(a) : null; let pos = null;
+  try{ pos = a.selectionStart; }catch(e){}
+  renderRs();
+  if(!had) return;
+  const el = [...rsPane.querySelectorAll("input,select,textarea,button")].find(x => sig(x) === had);
+  if(el){ el.focus({ preventScroll: true }); try{ if(pos !== null) el.setSelectionRange(pos, pos); }catch(e){} }
+}
+// Bambu-style part numbers on a receipt line (FAH051, DLB014, SAA038-V1) find the stock item with the same number.
+function rsMatchPart(text){
+  const parts = String(text || "").toUpperCase().match(/\b[A-Z]{2,3}\d{3}(?:-V\d)?\b/g) || [];
+  for(const pn of parts){
+    const re = new RegExp("(^|[^A-Z0-9])" + pn + "([^A-Z0-9]|$)");
+    const s = RS.stock.find(x => re.test(x.code.toUpperCase()) || re.test(x.name.toUpperCase()));
+    if(s) return s;
+  }
+  return null;
+}
 
 const rsPane = document.getElementById("rsPane");
 rsPane.addEventListener("input", e => {
@@ -3766,7 +3795,19 @@ rsPane.addEventListener("input", e => {
   }
   else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
+  // Purchase boxes: landed costs and price comparisons refresh shortly after typing stops.
+  if((t.dataset.rs || (t.dataset.rsi !== undefined && t.dataset.k !== "pick") || t.dataset.rse !== undefined) && t.tagName !== "SELECT" && t.type !== "date"){ rsMsg = null; rsRenderSoon(); }
 });
+// A pending typing redraw must not land between pressing and releasing a button, or the tap is lost.
+rsPane.addEventListener("pointerdown", e => { if(rsLater && e.target.closest("button")){ clearTimeout(rsLater); rsLater = 0; } }, true);
+// Enter in the stock item's boxes saves, like pressing its button.
+rsPane.addEventListener("keydown", e => {
+  if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
+  const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
+  if(btn){ e.preventDefault(); btn.click(); }
+});
+// Remember whether the stock item's price section is open, so saving or switching tabs keeps it open.
+rsPane.addEventListener("toggle", e => { if(e.target.classList && e.target.classList.contains("rsmore")) rsOut.priceOpen = e.target.open; }, true);
 rsPane.addEventListener("change", e => {
   const t = e.target;
   if(t.dataset.rsscan){ rsAddImages(t.files); t.value = ""; return; }
@@ -3797,7 +3838,9 @@ rsPane.addEventListener("change", e => {
     return;
   }
   if(t.dataset.rs === "currency" || t.dataset.rs === "date"){ rs[t.dataset.rs] = t.value; rs.fxManual = false; rs.fxRate = ""; rs.fxNote = ""; rsAutoFx(); }
-  if(t.dataset.rs || t.dataset.rsi !== undefined || t.dataset.rse !== undefined){
+  // Dropdowns and dates redraw at once; typed boxes already redraw shortly after typing (see the input handler),
+  // so leaving a box never redraws under a button being tapped.
+  if((t.dataset.rs || t.dataset.rsi !== undefined || t.dataset.rse !== undefined) && (t.tagName === "SELECT" || t.type === "date")){
     renderRs(); // refresh landed costs and price comparisons
   }
 });
@@ -3853,6 +3896,8 @@ rsPane.addEventListener("click", async e => {
       rs.items.some(it => !(Number(it.qty) > 0) || it.unitPrice === "") && "qty and price for every line",
       !c.sgd && "the SGD you paid (or exchange rate)"].filter(Boolean);
     if(missing.length){ rsStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+    const clash = rs.items.find(it => it.isNew && stockOf(it.code));
+    if(clash){ rsStatus("err", "Code " + clash.code + " is already used by “" + stockOf(clash.code).name + "”. Choose that item from the list instead of + New item, or use a different code."); return; }
     const rt = Number(rs.receiptTotal) || 0;
     const sgdInBox = rs.currency !== "SGD" && c.sgd > 0 && Math.abs(rt - c.sgd) < 0.01;
     if(rt && !sgdInBox && Math.abs(c.order - rt) >= 0.01 && !confirm("Items and charges add up to " + money(c.order) + " " + rs.currency + ", but the receipt says " + money(rt) + " " + rs.currency + ". Save anyway?")) return;
@@ -3876,12 +3921,17 @@ rsPane.addEventListener("click", async e => {
   if(b.id === "rsMove"){
     if(!rsOut.code){ rsStatus2("err", "Pick an item."); return; }
     if(rsOut.kind === "out" && !rsOut.channel){ rsStatus2("err", "Pick where it went."); return; }
+    const qn = Number(rsOut.qty), held = rsQty(stockOf(rsOut.code) || {});
+    if(String(rsOut.qty).trim() === "" || !isFinite(qn) || qn < 0 || (rsOut.kind === "out" && qn === 0)){
+      rsStatus2("err", rsOut.kind === "count" ? "Type how many are on the shelf (0 if none)." : "Type how many went out (1 or more)."); return;
+    }
+    if(rsOut.kind === "out" && qn > held && !confirm("Only " + held + " in stock. Take off " + qn + " anyway? Stock will go below zero.")) return;
     b.disabled = true;
     try{
       const out = await rsCall({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by });
       if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
       const name = (stockOf(rsOut.code) || {}).name || rsOut.code;
-      rsOut = { code: rsOut.code, kind: rsOut.kind, qty: rsOut.kind === "count" ? out.qty : 1, channel: "", note: "" }; // keep the item open to see the result
+      rsOut = { code: rsOut.code, kind: rsOut.kind, qty: rsOut.kind === "count" ? out.qty : 1, channel: "", note: "", priceOpen: rsOut.priceOpen }; // keep the item open to see the result
       await loadStock();
       rsStatus2("ok", name + ": " + out.qty + " left.");
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
