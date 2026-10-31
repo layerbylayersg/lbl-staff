@@ -185,15 +185,24 @@
   .rsfinal{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2);min-width:0}
   .rsfinal b{height:40px;display:flex;align-items:center;font-size:16px;color:var(--ink);white-space:nowrap} .rsfinal b small{font-size:12px;font-weight:500;color:var(--ink-2);margin-left:3px}
   .rsitem .rsraw{margin:6px 0 0} .rsitem .rsnotes{margin:8px 0 0;font-size:12.5px}
-  .rsextras{margin-top:14px;border-top:1px solid var(--line);padding-top:12px} .rsextras summary{cursor:pointer;font-size:14px;font-weight:600}
-  .rsextras .rsextra:first-of-type{margin-top:8px}
-  .rspaid{margin-top:14px}
+  .rsextras{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .rsextras summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;cursor:pointer;font-size:14px;font-weight:600;line-height:1.4}
+  .rsextras summary small.opt{margin:0;font-size:12.5px;font-weight:500;color:var(--muted)}
+  .rsextrahint{margin:10px 0 12px;font-size:13px;line-height:1.55;color:var(--ink-2);max-width:62ch}
+  .rsextras .rsextra{margin:0 0 10px}
+  .rsextras .rsextra{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) auto}
+  .linkbtn.rsaddcharge{display:inline-flex;align-items:center;min-height:36px;padding:0 2px;font-size:14px;text-decoration:none}
+  .linkbtn.rsaddcharge:hover{text-decoration:underline}
   .rscheck{font-size:13px}
   .rsdet{grid-template-columns:repeat(2,minmax(0,1fr))!important} .rsdet .span2{grid-column:1 / -1}
-  .rsbar{position:sticky;bottom:8px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-lg)}
-  .rsbar > div{flex:1;min-width:0} .rsbar small{display:block;font-size:12px;color:var(--ink-2)} .rsbar b{font-size:19px}
-  .rsbar button{height:44px;padding:0 18px;white-space:nowrap}
-  .rsbar .hostatus{flex-basis:100%;margin:0;font-size:13px}
+  .rsbar{position:sticky;bottom:10px;z-index:5;display:grid;gap:5px;margin-top:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 -2px 6px rgba(20,24,20,.04),var(--shadow-lg)}
+  .rsbarlab{font-size:13px;font-weight:500;color:var(--ink-2)}
+  .rsbarrow{display:flex;gap:8px;align-items:center}
+  .rsbarrow input{flex:1;height:44px;padding:0 12px;border:1px solid var(--line-strong);border-radius:10px;font:inherit;font-size:17px;font-weight:600;color:var(--ink);background:var(--surface);min-width:0;width:100%;box-sizing:border-box}
+  .rsbarrow input:focus{outline:2px solid var(--green-600);outline-offset:0;border-color:var(--green-600)}
+  .rsbarhint{font-size:12px;font-weight:500;color:var(--muted)}
+  .rsbar #rsSave{flex:none;height:44px;padding:0 18px;border-radius:10px;border-color:transparent;white-space:nowrap;box-shadow:none}
+  .rsbar .hostatus{margin:2px 0 0;font-size:13px}
   .rscat{margin-top:14px} .rscat h3{display:flex;align-items:baseline;gap:6px;font-size:13.5px;font-weight:700;margin:0 0 8px} .rscat h3 small{font-weight:500;color:var(--muted);font-size:12.5px}
   .rsbrands{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
   .rsbrand{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;padding:11px 28px 11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font:inherit;color:var(--ink);text-align:left;cursor:pointer}
@@ -211,6 +220,18 @@
   .rsscroll{overflow-y:auto;overscroll-behavior:contain;padding:4px 12px 20px;border-top:0}
   body.mode-rs.rs-sheet-open{overflow:hidden}
   @media (min-width:700px){ .rssheet{align-items:center;padding:24px} .rssheetbox{border-radius:16px;max-height:82vh} }
+  /* Wide screens: Inventory uses the width (the form pages keep their reading width) */
+  @media (min-width:900px){
+    #rsPane.howrap{max-width:1280px}
+    #rsPane[data-view="purchase"]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}
+    #rsPane[data-view="purchase"] > *{grid-column:1 / -1}
+    #rsPane[data-view="purchase"] > .rs-receipt{grid-column:1} #rsPane[data-view="purchase"] > .rs-details{grid-column:2}
+    .rssheetbox{max-width:920px}
+    .rsbrands{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+    /* one line per purchase item: item | qty · unit price · final cost */
+    .rsitem{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);column-gap:12px;align-items:end}
+    .rsitem > *{grid-column:1 / -1} .rsitem > .rsitop{grid-column:1;grid-row:1} .rsitem > .rsinums{grid-column:2;grid-row:1;margin-top:0}
+  }
   .rsempty{padding:18px 8px;text-align:center;font-size:13.5px;color:var(--muted)}
   @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
     .rsgroups button{padding:0 6px;font-size:13px} .rsgroups small{display:none} }
@@ -3773,13 +3794,13 @@ function renderRs(){
       ${rsDemo || !RS_DEMO_ALLOWED ? '' : '<button type="button" class="mini" data-rsdemo="on">Try demo</button>'}
     </div>
     ${rsDemo ? '<div class="rsdemo"><b>Demo mode.</b> Sample stock and a sample receipt; nothing is saved to the Sheet. <button type="button" class="mini" data-rsdemo="off">Exit demo</button></div>' : ''}
-    <div class="stage rs-p">
+    <div class="stage rs-p rs-receipt">
       <h2><span class="n">1</span>Receipt <small>photos or screenshots, up to ${RS_MAX_IMAGES}. AI fills in the rest</small></h2>
       <div class="photos">${rs.images.map((d, i) => '<div class="ph"><img src="' + d + '" alt="Receipt photo ' + (i + 1) + '"><button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
         ${rs.images.length < RS_MAX_IMAGES ? '<label class="addph">📷 ' + (rs.images.length ? 'Add more' : 'Add photos') + '<input type="file" accept="image/*" multiple data-rsscan="1"></label>' : ''}${rsDemo ? '<button type="button" class="addph" data-rsdemoscan="1">Use sample Taobao receipt</button>' : ''}</div>
       ${rs.images.length ? '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsRead" style="grid-column:1 / -1">🔍 Read receipt (' + rs.images.length + ' photo' + (rs.images.length > 1 ? 's' : '') + ')</button></div>' : ''}
     </div>
-    <div class="stage rs-p">
+    <div class="stage rs-p rs-details">
       <h2><span class="n">2</span>Details</h2>
       <div class="grid rsdet">
         <label class="f">Date<input type="date" data-rs="date" value="${esc(rs.date)}"></label>
@@ -3795,17 +3816,20 @@ function renderRs(){
       <h2><span class="n">3</span>Items</h2>
       ${items}
       <button type="button" class="mini" data-rsadd="1">+ Add item</button>
-      <details class="rsextras"${rs.extras.length || rsExtrasOpen ? " open" : ""}><summary>Shipping, tax, fees &amp; discounts${rs.extras.length ? " (" + rs.extras.length + ")" : ""} <small class="opt">optional, for records</small></summary>
-        <p class="hint" style="margin-top:8px">From the receipt, if you want them on record. The SGD you paid already includes them, so final costs are right either way.</p>
+      <details class="rsextras"${rs.extras.length || rsExtrasOpen ? " open" : ""}><summary><span>Shipping, tax, fees &amp; discounts${rs.extras.length ? " (" + rs.extras.length + ")" : ""}</span><small class="opt">Optional, for records</small></summary>
+        <p class="rsextrahint">Copy them from the receipt if you want them on record. The SGD you paid already includes them, so final costs are right either way.</p>
         ${extras}
-        <button type="button" class="mini" data-rseadd="1">+ Add charge</button>
+        <button type="button" class="linkbtn rsaddcharge" data-rseadd="1">+ Add a charge</button>
       </details>
-      <label class="f rspaid">Total you actually paid (SGD)<input type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="From your card / bank statement${cur === "SGD" ? " (blank = receipt total)" : " (blank = estimate at today's rate)"}"></label>
-      ${c.sgd && !(Number(rs.paidSGD) > 0) && cur !== "SGD" ? '<p class="hint" style="margin-top:6px">Estimated at today\'s rate. Enter the SGD you actually paid for the exact cost (it includes card charges).</p>' : ''}
       ${check && Math.abs(diff) >= 0.01 && !looksSgd ? '<p class="hint rscheck">' + check + '</p>' : ''}
     </div>
-    <div class="rsbar rs-p"><div><small>${lineCount} item${lineCount === 1 ? "" : "s"} · total paid (SGD)${Number(rs.paidSGD) > 0 || cur === "SGD" ? "" : ", est."}</small><b>${c.sgd ? "$" + money(c.sgd) : "–"}</b></div>
-      <button type="button" class="primary" id="rsSave">Save &amp; add to stock</button>
+    <div class="rsbar rs-p">
+      <label for="rsPaid" class="rsbarlab">Total you actually paid (SGD)</label>
+      <div class="rsbarrow">
+        <input id="rsPaid" type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="e.g. 125.40">
+        <button type="button" class="primary" id="rsSave">${lineCount ? "Save " + lineCount + " item" + (lineCount === 1 ? "" : "s") : "Save &amp; add to stock"}</button>
+      </div>
+      <small class="rsbarhint">${Number(rs.paidSGD) > 0 ? "Spread over the items as their final cost" : c.sgd ? (cur === "SGD" ? "Receipt total $" + money(c.sgd) : "Estimate $" + money(c.sgd) + " at today's rate") : "Includes shipping, tax and card fees"}</small>
       <p class="hostatus" id="rsStatus" role="status"></p></div>
     <div class="stage rs-s">
       <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">↻ Refresh</button></h2>
@@ -4001,7 +4025,7 @@ rsPane.addEventListener("click", async e => {
       await loadStock();
       rsStatus("ok", "Saved as " + out.purchaseId + " ($" + money(out.sgdTotal) + "). Stock updated.");
     }catch(err){ rsStatus("err", "NOT saved: no connection? Try again."); }
-    finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = "Save & add to stock"; } }
+    finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = "Save & add to stock"; } } // redrawn with the item count on the next render
     return;
   }
   if(b.id === "rsMove"){
