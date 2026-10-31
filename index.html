@@ -271,7 +271,11 @@
   .prsets{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:flex-end}
   .prfee{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
   .prfee input{width:64px;height:34px;padding:0 6px;border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-size:14px;text-align:center}
-  .pmv small b{font-size:12px} .pmv .pwarn{display:block;color:var(--red-ink);font-weight:600}
+  .pmv .pwarn{display:block;color:var(--red-ink);font-weight:600}
+  .pmarg{display:block;font-size:12.5px;color:var(--ink-2)} .pmarg b{display:inline;font-size:15px}
+  .pkeep{display:grid;gap:2px;margin-top:4px} .pkeep > small{font-size:11.5px;color:var(--muted)}
+  .pkeep > span{display:grid;grid-template-columns:62px auto 1fr;align-items:baseline;gap:6px;font-size:12.5px}
+  .pkeep i{font-style:normal;color:var(--ink-2)} .pkeep b{display:inline;font-size:13.5px} .pkeep span small{font-size:11px;color:var(--muted)}
   .prchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 8px}
   .prchip{min-height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer}
   .prchip small{color:var(--muted);margin-left:2px} .prchip[aria-pressed="true"]{background:var(--green-tint);border-color:var(--green-600);color:var(--green-ink);font-weight:600}
@@ -3485,8 +3489,10 @@ function rsPrMarginHtml(s){
   if(!v) return '<span class="tag">No price</span>';
   if(!c) return '<span class="muted">no cost yet</span>';
   const fee = rsShopeeFee() / 100, shp = v * (1 - fee) - c, car = v - c, be = c / (1 - fee), m = shp / v;
-  return '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b>' +
-    '<small>Shopee <b class="' + (shp < 0 ? 'up' : '') + '">' + rsSigned(shp) + '</b> · Carousell <b class="' + (car < 0 ? 'up' : '') + '">' + rsSigned(car) + '</b> each</small>' +
+  return '<span class="pmarg"><b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b> margin on Shopee</span>' +
+    '<span class="pkeep"><small>You keep per sale at $' + money(v) + '</small>' +
+      '<span><i>Shopee</i><b class="' + (shp < 0 ? 'up' : '') + '">' + rsSigned(shp) + '</b><small>after ' + rsShopeeFee() + '% fees</small></span>' +
+      '<span><i>Carousell</i><b class="' + (car < 0 ? 'up' : '') + '">' + rsSigned(car) + '</b><small>no fees</small></span></span>' +
     (v < be ? '<small class="pwarn">⛔ Below Shopee break-even $' + money(be) + '</small>'
       : v < rsPrSuggest(s).floor ? '<small class="pwarn">⚠ Under your ' + rsMinMargin() + '% minimum (floor $' + money(rsPrSuggest(s).floor) + ')</small>' : '') +
     (v < c ? '<small class="pwarn">⚠ Below cost: loses money everywhere</small>' : '');
@@ -3962,7 +3968,7 @@ function renderRs(){
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
       '<button type="button" class="mini prcheckall" data-prcheckall="1"' + (rsPrBusy ? ' disabled' : '') + '>' + (rsPrBusy ? '🔎 Checking ' + rsPrBusy + '…' : '🔎 Check market for these ' + Math.min(prList.filter(x => !(rsPrMkt[x.code] || {}).data).length, 20)) + '</button>' +
       '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
-    '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Shopee margin · profit each</span><span>Market / suggested</span><span></span></div>' +
+    '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin · you keep per sale</span><span>Market / suggested</span><span></span></div>' +
     (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
     '</div>';
   const folders = RS_CATS.map(([g, label]) => {
