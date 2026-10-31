@@ -175,6 +175,25 @@
   .upper{text-transform:uppercase} .upper::placeholder{text-transform:none}
   .rsdup{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--amber-wash);border:1px solid #F0D9A0;color:#6B4700;font-size:13.5px}
   .rsdup .mini{margin-left:auto}
+  h3.sub small.opt{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
+  /* Purchase: compact item rows, folded extras, Save bar pinned to the bottom of the screen */
+  .rsitem{padding:10px 12px}
+  .rsitop{display:flex;align-items:flex-end;gap:8px} .rsitop label.f{flex:1}
+  .rsidel{flex:none;width:40px;height:40px;padding:0}
+  .rsinew{margin-top:8px}
+  .rsinums{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
+  .rsfinal{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2);min-width:0}
+  .rsfinal b{height:40px;display:flex;align-items:center;font-size:16px;color:var(--ink);white-space:nowrap} .rsfinal b small{font-size:12px;font-weight:500;color:var(--ink-2);margin-left:3px}
+  .rsitem .rsraw{margin:6px 0 0} .rsitem .rsnotes{margin:8px 0 0;font-size:12.5px}
+  .rsextras{margin-top:14px;border-top:1px solid var(--line);padding-top:12px} .rsextras summary{cursor:pointer;font-size:14px;font-weight:600}
+  .rsextras .rsextra:first-of-type{margin-top:8px}
+  .rspaid{margin-top:14px}
+  .rscheck{font-size:13px}
+  .rsdet{grid-template-columns:repeat(2,minmax(0,1fr))!important} .rsdet .span2{grid-column:1 / -1}
+  .rsbar{position:sticky;bottom:8px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-lg)}
+  .rsbar > div{flex:1;min-width:0} .rsbar small{display:block;font-size:12px;color:var(--ink-2)} .rsbar b{font-size:19px}
+  .rsbar button{height:44px;padding:0 18px;white-space:nowrap}
+  .rsbar .hostatus{flex-basis:100%;margin:0;font-size:13px}
   .rsempty{padding:18px 8px;text-align:center;font-size:13.5px;color:var(--muted)}
   @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
     .rsgroups button{padding:0 6px;font-size:13px} .rsgroups small{display:none} }
@@ -3312,7 +3331,7 @@ const RS_EXTRAS = ["Shipping", "Agent fee", "Forwarder fee", "GST", "Import tax"
 let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loaded: false, loading: false };
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
 // Stock list: summary-tile filter, group tab and sort order (rsOut.code is the item opened in the list).
-let rsFilter = "all", rsGroup = "all", rsSort = "sheet";
+let rsFilter = "all", rsGroup = "all", rsSort = "sheet", rsExtrasOpen = false;
 // Demo mode is for testing only: its button shows when the address ends in ?demo, never on the normal live page.
 const RS_DEMO_ALLOWED = /[?&]demo\b/.test(location.search);
 const rsQty = s => Number(s.qty) || 0;
@@ -3594,7 +3613,6 @@ async function rsScan(){
     if(r.paidSGD > 0) rs.paidSGD = r.paidSGD; // printed on the receipt; staff still check it against the card / bank
     rs.fxManual = false; rsAutoFx();
     rsDirty = true; renderRs();
-    setTimeout(rsAutoMarketNew, 0);
     const fresh = rs.items.filter(it => it.isNew).length, blank = rs.items.filter(it => !it.code || !it.name).length;
     rsStatus("ok", "Read " + rs.items.length + " item(s). Check every number against the receipt" +
       (fresh ? ". " + fresh + " new item(s) got a suggested code and name: check them, or pick an existing item instead" : "") +
@@ -3610,32 +3628,28 @@ function renderRs(){
   const opt = (list, v) => list.map(x => '<option' + (x === v ? " selected" : "") + '>' + esc(x) + '</option>').join("");
   const names = STAFF.slice(); if(rs.by && !names.includes(rs.by)) names.unshift(rs.by);
   const codeSel = (it, i) => '<select data-rsi="' + i + '" data-k="pick"><option value="">Choose item...</option>' +
-    RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === it.code && !it.isNew ? " selected" : "") + '>' + esc(s.code + " · " + s.name) + '</option>').join("") +
+    RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === it.code && !it.isNew ? " selected" : "") + '>' + esc(s.name + " · " + s.code) + '</option>').join("") +
     '<option value="__new"' + (it.isNew ? " selected" : "") + '>+ New item...</option></select>';
   const items = rs.items.map((it, i) => {
     const unit = c.units[i] || 0, st = stockOf(it.code);
-    if(it.sellAuto){ const r = rsItemRec(it, unit); if(r.price) it.sellPrice = String(r.price); }
     const h = it.code && !it.isNew ? rsHistory(it.code, rs.merchant) : {};
     const costNote = unit && h.same ? (unit > h.same.unit * 1.005 ? '<b class="up">▲ ' + Math.round((unit / h.same.unit - 1) * 100) + '%</b> vs last time from this seller ($' + money(h.same.unit) + ')'
       : unit < h.same.unit * 0.995 ? '<b class="down">▼ ' + Math.round((1 - unit / h.same.unit) * 100) + '%</b> vs last time from this seller ($' + money(h.same.unit) + ')' : 'same as last time from this seller') : (it.isNew ? 'new item' : '');
     const cheaper = unit && h.cheapest && h.cheapest.merchant !== rs.merchant && h.cheapest.unit < unit ? 'Cheapest so far: $' + money(h.cheapest.unit) + ' from ' + esc(h.cheapest.merchant) : '';
-    const box = rsPriceBoxHtml({ cost: unit, costLabel: "Cost (this buy)", costNote, sell: it.sellPrice !== "" ? it.sellPrice : (st && st.sell ? String(st.sell) : ""),
-      inputAttr: 'data-rsi="' + i + '" data-k="sellPrice"', minusAttr: 'data-rsstep="' + i + '" data-d="-1"', plusAttr: 'data-rsstep="' + i + '" data-d="1"',
-      rec: rsItemRec(it, unit), useAttr: 'data-rsuse="' + i + '"', checkAttr: 'data-rsmkt="' + i + '"', mkt: it.market, keepNote: st && st.sell && it.sellPrice === "" ? "current price, kept unless you change it" : "" });
+    // Purchase records cost only; the selling price is set on the Stock tab (or by Seo).
     const dup = it.isNew ? (rsMatch(it.name) || rsMatchPart(it.name) || (it.code ? stockOf(it.code) : null)) : null;
     return `<div class="rsitem">
+      <div class="rsitop"><label class="f">Item ${i + 1}${codeSel(it, i)}</label><button type="button" class="mini rsidel" data-rsdel="${i}" aria-label="Remove item ${i + 1}">✕</button></div>
       ${it.raw ? '<div class="rsraw">Receipt: ' + esc(it.raw) + '</div>' : ''}
-      <div class="grid">
-        <label class="f span2">Item${codeSel(it, i)}</label>
-        ${it.isNew ? '<label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PRT-BBL-FAH051" autocapitalize="characters" class="upper"></label>' +
-          '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label>' : ''}
+      ${it.isNew ? '<div class="grid rsinew"><label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PRT-BBL-FAH051" autocapitalize="characters" class="upper"></label>' +
+        '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label></div>' : ''}
+      <div class="rsinums">
         <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
         <label class="f">Unit price (${esc(cur)})<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="unitPrice" value="${esc(it.unitPrice)}"></label>
+        <div class="rsfinal"><span>Final cost (SGD)</span><b>${unit ? '$' + money(unit) + '<small> each</small>' : '–'}</b></div>
       </div>
+      ${costNote && !it.isNew || cheaper ? '<div class="rsnotes">' + [it.isNew ? '' : costNote, cheaper].filter(Boolean).join(' · ') + '</div>' : ''}
       ${dup ? '<div class="rsdup"><span>Already in stock as <b>' + esc(dup.name) + '</b> (' + esc(dup.code) + ', ' + rsQty(dup) + ' on hand). Use it so the qty adds to the same item.</span><button type="button" class="mini" data-rsusedup="' + i + '" data-code="' + esc(dup.code) + '">Use this item</button></div>' : ''}
-      ${box}
-      ${cheaper ? '<div class="rsnotes">' + cheaper + '</div>' : ''}
-      <button type="button" class="mini" data-rsdel="${i}">Remove item</button>
     </div>`;
   }).join("");
   const extras = rs.extras.map((e, i) => `<div class="rsextra">
@@ -3649,9 +3663,7 @@ function renderRs(){
     : Math.abs(diff) < 0.01 ? '<span class="down">✓ Items and charges add up to the receipt total. Nothing missed.</span>'
     : looksSgd ? '<span>That number is the SGD you paid, not the ' + esc(cur) + ' total, so this check is skipped. Type the ' + esc(cur) + ' total from the receipt to check, or leave it empty.</span>'
     : '<span class="up">⚠ Items and charges add up to ' + money(c.order) + ' ' + esc(cur) + ', but the receipt says ' + money(rt) + ' ' + esc(cur) + ' (' + money(Math.abs(diff)) + ' ' + (diff > 0 ? 'more' : 'less') + '). An item, price or charge may be misread or missing.</span>';
-  // The rate the card / bank really gave, against the official rate (shows bank charges).
-  const eff = cur !== "SGD" && Number(rs.paidSGD) > 0 && c.order > 0 ? Number(rs.paidSGD) / c.order : 0;
-  const ref = Number(rs.fxRate) || 0;
+  const lineCount = rs.items.filter(it => it.code || it.name).length;
 
   // ----- Stock list -----
   const q = rsFind.trim().toLowerCase();
@@ -3708,15 +3720,14 @@ function renderRs(){
     </div>
     ${rsDemo ? '<div class="rsdemo"><b>Demo mode.</b> Sample stock and a sample receipt; nothing is saved to the Sheet. <button type="button" class="mini" data-rsdemo="off">Exit demo</button></div>' : ''}
     <div class="stage rs-p">
-      <h2><span class="n">1</span>Scan receipt</h2>
-      <p class="hint" style="margin-top:0">Add photos or screenshots of the order or invoice (up to ${RS_MAX_IMAGES}), remove any wrong ones with ✕, then tap Read receipt. The AI fills in the details; you check them.</p>
+      <h2><span class="n">1</span>Receipt <small>photos or screenshots, up to ${RS_MAX_IMAGES}. AI fills in the rest</small></h2>
       <div class="photos">${rs.images.map((d, i) => '<div class="ph"><img src="' + d + '" alt="Receipt photo ' + (i + 1) + '"><button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
         ${rs.images.length < RS_MAX_IMAGES ? '<label class="addph">📷 ' + (rs.images.length ? 'Add more' : 'Add photos') + '<input type="file" accept="image/*" multiple data-rsscan="1"></label>' : ''}${rsDemo ? '<button type="button" class="addph" data-rsdemoscan="1">Use sample Taobao receipt</button>' : ''}</div>
       ${rs.images.length ? '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsRead" style="grid-column:1 / -1">🔍 Read receipt (' + rs.images.length + ' photo' + (rs.images.length > 1 ? 's' : '') + ')</button></div>' : ''}
     </div>
     <div class="stage rs-p">
-      <h2><span class="n">2</span>Purchase</h2>
-      <div class="grid">
+      <h2><span class="n">2</span>Details</h2>
+      <div class="grid rsdet">
         <label class="f">Date<input type="date" data-rs="date" value="${esc(rs.date)}"></label>
         <label class="f">Entered by<select data-rsby="1"><option value="">Choose...</option>${opt(names, rs.byOther ? "" : rs.by)}<option value="__other"${rs.byOther ? " selected" : ""}>Other...</option></select></label>
         ${rs.byOther ? '<label class="f">Your name<input data-rs="by" value="' + esc(rs.by) + '" placeholder="Type your name"></label>' : ""}
@@ -3724,28 +3735,24 @@ function renderRs(){
         ${rs.merchantNew ? '<label class="f span2">New merchant name<input data-rs="merchant" value="' + esc(rs.merchant) + '" placeholder="Shop / seller name"></label>' : ""}
         <label class="f">Platform<select data-rs="platform">${opt(RS_PLATFORMS, rs.platform)}</select></label>
         <label class="f">Receipt currency<select data-rs="currency">${opt(RS_CURRENCIES.includes(rs.currency) ? RS_CURRENCIES : RS_CURRENCIES.concat([rs.currency]), rs.currency)}</select></label>
-        <label class="f span2">Total you actually paid (SGD)<input type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="From your card / bank statement${cur === "SGD" ? " (blank = receipt total)" : " (blank = estimate at today's rate)"}"></label>
       </div>
     </div>
     <div class="stage rs-p">
       <h2><span class="n">3</span>Items</h2>
       ${items}
       <button type="button" class="mini" data-rsadd="1">+ Add item</button>
-      <h3 class="sub">Extra charges (shipping, fees, tax, discounts)</h3>
-      ${extras || '<p class="hint" style="margin-top:0">None.</p>'}
-      <button type="button" class="mini" data-rseadd="1">+ Add charge</button>
-      <div class="rssum">
-        <div><span>Items (${esc(cur)})</span><b>${money(c.value)}</b></div>
-        <div><span>Shipping, tax, fees &amp; discounts (${esc(cur)})</span><b>${(c.extras < 0 ? "−" : "") + money(Math.abs(c.extras))}</b></div>
-        <div><span>Order total (${esc(cur)})</span><b>${money(c.order)}</b></div>
-        <div><label for="rsRT">Receipt total (${esc(cur)}), to check</label><input id="rsRT" type="number" inputmode="decimal" step="any" data-rs="receiptTotal" value="${esc(rs.receiptTotal)}" placeholder="optional"></div>
-        ${check ? '<div class="rscheck">' + check + '</div>' : ''}
-        <div class="big"><span>${Number(rs.paidSGD) > 0 || cur === "SGD" ? "You paid (SGD)" : "Estimated cost (SGD)"}</span><b>${c.sgd ? "$" + money(c.sgd) : "enter SGD paid"}</b></div>
-        ${eff ? '<div class="rscheck"><span>Your card / bank rate: 1 ' + esc(cur) + ' = ' + eff.toFixed(4) + ' SGD' + (ref ? ' (' + (eff >= ref ? '+' : '−') + Math.abs(Math.round((eff / ref - 1) * 1000) / 10) + '% vs the official ' + ref + ': bank charges and fees)' : '') + '</span></div>' : ''}
-      </div>
-      <div class="hoactions" style="margin-top:14px"><button type="button" class="primary" id="rsSave" style="grid-column:1 / -1">Save purchase &amp; add to stock</button></div>
-      <p class="hostatus" id="rsStatus" role="status"></p>
+      <details class="rsextras"${rs.extras.length || rsExtrasOpen ? " open" : ""}><summary>Shipping, tax, fees &amp; discounts${rs.extras.length ? " (" + rs.extras.length + ")" : ""} <small class="opt">optional, for records</small></summary>
+        <p class="hint" style="margin-top:8px">From the receipt, if you want them on record. The SGD you paid already includes them, so final costs are right either way.</p>
+        ${extras}
+        <button type="button" class="mini" data-rseadd="1">+ Add charge</button>
+      </details>
+      <label class="f rspaid">Total you actually paid (SGD)<input type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="From your card / bank statement${cur === "SGD" ? " (blank = receipt total)" : " (blank = estimate at today's rate)"}"></label>
+      ${c.sgd && !(Number(rs.paidSGD) > 0) && cur !== "SGD" ? '<p class="hint" style="margin-top:6px">Estimated at today\'s rate. Enter the SGD you actually paid for the exact cost (it includes card charges).</p>' : ''}
+      ${check && Math.abs(diff) >= 0.01 && !looksSgd ? '<p class="hint rscheck">' + check + '</p>' : ''}
     </div>
+    <div class="rsbar rs-p"><div><small>${lineCount} item${lineCount === 1 ? "" : "s"} · total paid (SGD)${Number(rs.paidSGD) > 0 || cur === "SGD" ? "" : ", est."}</small><b>${c.sgd ? "$" + money(c.sgd) : "–"}</b></div>
+      <button type="button" class="primary" id="rsSave">Save &amp; add to stock</button>
+      <p class="hostatus" id="rsStatus" role="status"></p></div>
     <div class="stage rs-s">
       <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">↻ Refresh</button></h2>
       ${RS.stock.length ? `<div class="rsstats">${stat("all", "Items", "")}${stat("low", "Low stock", "low")}${stat("out", "Out of stock", "out")}${stat("noprice", "No price yet", "")}</div>
@@ -3811,7 +3818,11 @@ rsPane.addEventListener("keydown", e => {
   if(btn){ e.preventDefault(); btn.click(); }
 });
 // Remember whether the stock item's price section is open, so saving or switching tabs keeps it open.
-rsPane.addEventListener("toggle", e => { if(e.target.classList && e.target.classList.contains("rsmore")) rsOut.priceOpen = e.target.open; }, true);
+rsPane.addEventListener("toggle", e => {
+  if(!e.target.classList) return;
+  if(e.target.classList.contains("rsmore")) rsOut.priceOpen = e.target.open;
+  if(e.target.classList.contains("rsextras")) rsExtrasOpen = e.target.open;
+}, true);
 rsPane.addEventListener("change", e => {
   const t = e.target;
   if(t.dataset.rsscan){ rsAddImages(t.files); t.value = ""; return; }
@@ -3926,7 +3937,7 @@ rsPane.addEventListener("click", async e => {
       await loadStock();
       rsStatus("ok", "Saved as " + out.purchaseId + " ($" + money(out.sgdTotal) + "). Stock updated.");
     }catch(err){ rsStatus("err", "NOT saved: no connection? Try again."); }
-    finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = "Save purchase & add to stock"; } }
+    finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = "Save & add to stock"; } }
     return;
   }
   if(b.id === "rsMove"){
