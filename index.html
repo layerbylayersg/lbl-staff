@@ -228,6 +228,17 @@
   .rsscroll{overflow-y:auto;overscroll-behavior:contain;padding:4px 12px 20px;border-top:0}
   body.mode-rs.rs-sheet-open{overflow:hidden}
   @media (min-width:700px){ .rssheet{align-items:center;padding:24px} .rssheetbox{border-radius:16px;max-height:82vh} }
+  /* Wide screens: Service report form gets a wider column and sits next to its preview (no gap between) */
+  @media (min-width:1100px){ .layout{grid-template-columns:minmax(440px,560px) minmax(0,1fr);max-width:1400px;margin:0 auto} .layout .preview .sheet{margin-left:0} }
+  /* Wide screens: Handover / Takeover put their sections two to a row under the full-width Job;
+     Petrol puts the claim form beside this month's claims and history */
+  @media (min-width:1100px){
+    #hoPane.howrap,#clPane.howrap{max-width:1280px}
+    #hoPane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}
+    #hoPane > *{grid-column:1 / -1} #hoPane > .stage:not(:first-of-type){grid-column:auto}
+    #clPane{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:16px;align-items:start}
+    #clPane > *{grid-column:2} #clPane > :first-child{grid-column:1;grid-row:1 / span 6}
+  }
   /* Wide screens: Inventory uses the width (the form pages keep their reading width) */
   @media (min-width:900px){
     #rsPane.howrap{max-width:1280px}
