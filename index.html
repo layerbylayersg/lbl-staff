@@ -137,7 +137,7 @@
   .seg{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
   .seg button{height:36px;padding:0 18px;border:0;background:transparent;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:600;border-radius:7px;cursor:pointer}
   .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-  #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
+  #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s,#rsPane:not([data-view="pricing"]) .rs-pr,#rsPane[data-view="pricing"] .rs-p,#rsPane[data-view="pricing"] .rs-s{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
   /* Stock view: summary tiles that filter, a tappable list, and the item's actions opening under its row */
   .rsstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
   .rsstats button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:inherit;color:var(--ink-2);cursor:pointer;text-align:left;min-width:0}
@@ -261,6 +261,38 @@
   .photos[hidden]{display:none}
   .photos.over{outline:2px dashed var(--green-600);outline-offset:4px;border-radius:12px}
   #rsPaid.auto{color:var(--ink-2)}
+  /* Pricing tab */
+  .rsalert{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;padding-top:12px;border-top:1px dashed var(--line-strong)}
+  .rsalert label.f{flex:0 1 210px} .rsalert .mini{height:40px} .rsalertprice{flex-basis:100%;font-size:13px;color:var(--ink-2)}
+  .stage.rs-pr > h2 small{font-weight:500}
+  .prtools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
+  .prcats{height:42px;align-self:end} .prcats button{padding:0 12px}
+  .prchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 8px}
+  .prchip{min-height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer}
+  .prchip small{color:var(--muted);margin-left:2px} .prchip[aria-pressed="true"]{background:var(--green-tint);border-color:var(--green-600);color:var(--green-ink);font-weight:600}
+  .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
+  .prhead,.prow{display:grid;grid-template-columns:minmax(0,2.2fr) 80px 170px 100px minmax(0,1.4fr) 92px;gap:10px;align-items:center}
+  .prhead{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line)}
+  .prow{padding:10px;border-bottom:1px solid var(--line)} .prow.changed{background:var(--amber-wash)}
+  .prow > div > span:first-child:not(.stepper):not(.pmv){display:none}
+  .pn{font-size:14px;font-weight:600;line-height:1.35} .pn small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+  .pc b{font-weight:600} .pp .stepper{grid-template-columns:36px minmax(0,1fr) 36px;gap:4px} .pp .stepper .mini{height:38px}
+  .pp input{height:38px;padding:0 6px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);font:inherit;font-size:15px;text-align:center;min-width:0;width:100%;box-sizing:border-box}
+  .pp input:focus{outline:2px solid var(--green-600);outline-offset:0;border-color:var(--green-600)}
+  .pmv b{display:block;font-size:15px} .pmv small{font-size:12px;color:var(--ink-2)} .muted{color:var(--muted)}
+  .pk{font-size:12.5px;line-height:1.6;color:var(--ink-2)} .pk .linkbtn{font-size:12.5px}
+  .pa{display:flex;flex-direction:column;align-items:stretch;gap:4px} .pa .mini{height:36px;border-radius:10px} .pa .mini:disabled{visibility:hidden} /* Save shows only on changed rows */
+  .pa small{font-size:12px;text-align:center} .pa small.ok{color:var(--green-ink)} .pa small.err{color:var(--red-ink)} .pa small.busy{color:var(--muted)}
+  @media (max-width:899px){
+    .prhead{display:none}
+    .prow{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;padding:12px 4px}
+    .prow .pn,.prow .pk{grid-column:1 / -1}
+    .prow > div > span:first-child:not(.stepper):not(.pmv){display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:3px}
+    .prow .pp,.prow .pa{grid-column:1 / -1}
+    .prow .pn{order:0} .prow .pc{order:1} .prow .pm{order:2} .prow .pp{order:3} .prow .pk{order:4} .prow .pa{order:5}
+    .prow:not(.changed) .pa .mini{display:none} .prow .pa:empty{display:none}
+    .prtools{grid-template-columns:minmax(0,1fr)} .prcats{overflow-x:auto}
+  }
   .rsempty{padding:18px 8px;text-align:center;font-size:13.5px;color:var(--muted)}
   @media (max-width:899px){ .rsbar{position:sticky;bottom:10px;z-index:5} } /* phones: Save stays on screen; wide screens fit the whole form */
   @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
@@ -3400,6 +3432,71 @@ let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loa
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
 // Stock list: summary-tile filter, group tab and sort order (rsOut.code is the item opened in the list).
 let rsFilter = "all", rsSort = "sheet", rsExtrasOpen = false;
+let rsPrFind = "", rsPrFilter = "all", rsPrCat = "all", rsPrice = {}, rsPrMkt = {}, rsPrMsg = {}; // Pricing tab: search, filter, category, typed prices, market checks, per-item messages
+const rsPrRec = s => { const m = rsPrMkt[s.code]; const rec = m && m.data && m.data.recommended || Number(s.mktRec) || 0; const fl = rsFloor(s); return rec ? Math.max(rec, fl) : fl; };
+const rsPrVal = s => rsPrice[s.code] !== undefined ? rsPrice[s.code] : (Number(s.sell) ? String(s.sell) : "");
+const rsPrChanged = code => { const s = stockOf(code); return !!s && rsPrice[code] !== undefined && Number(rsPrice[code]) !== (Number(s.sell) || 0) && rsPrice[code] !== ""; };
+function rsPrMarginHtml(s){
+  const v = Number(rsPrVal(s)) || 0, c = Number(s.avg) || 0;
+  if(!v) return '<span class="tag">No price</span>';
+  if(!c) return '<span class="muted">no cost yet</span>';
+  const m = (v - c) / v; return '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b><small>$' + money(v - c) + ' each</small>';
+}
+function rsPrMktHtml(s){
+  const m = rsPrMkt[s.code];
+  if(m && m.loading) return '<span class="muted">Checking Shopee, Carousell and others…</span>';
+  if(m && m.error) return '<span class="up">' + esc(m.error) + '</span> <button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">Try again</button>';
+  const d = m && m.data, rec = rsPrRec(s);
+  const typical = d ? d.median : Number(s.mktTypical) || 0;
+  return (typical ? 'Market ~$' + money(typical) + (d && d.low ? ' (low $' + money(d.low) + ')' : '') + '<br>' : '') +
+    (rec ? '<button type="button" class="linkbtn" data-pruse="' + esc(s.code) + '" data-v="' + rec + '">Use $' + money(rec) + '</button> <small class="muted">' + (d || s.mktRec ? 'recommended' : Math.round(RS.target * 100) + '% margin') + '</small><br>' : '') +
+    '<button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">🔎 ' + (d || s.mktChecked ? 'Check again' : 'Check market') + '</button>' + (s.mktChecked && !d ? ' <small class="muted">' + esc(s.mktChecked) + '</small>' : '');
+}
+function rsPrRowHtml(s){
+  const changed = rsPrChanged(s.code), msg = rsPrMsg[s.code];
+  return '<div class="prow' + (changed ? ' changed' : '') + '" data-prrow="' + esc(s.code) + '">' +
+    '<div class="pn">' + esc(s.name) + '<small>' + esc(s.code) + ' · ' + rsQty(s) + ' in stock</small></div>' +
+    '<div class="pc"><span>Cost</span><b>' + (Number(s.avg) ? '$' + money(s.avg) : '–') + '</b></div>' +
+    '<div class="pp"><span>Price (SGD)</span><span class="stepper"><button type="button" class="mini" data-prstep="-1" data-code="' + esc(s.code) + '" aria-label="Lower by $1">−</button>' +
+      '<input type="number" inputmode="decimal" step="any" min="0" data-prprice="' + esc(s.code) + '" value="' + esc(rsPrVal(s)) + '" aria-label="Price for ' + esc(s.name) + '">' +
+      '<button type="button" class="mini" data-prstep="1" data-code="' + esc(s.code) + '" aria-label="Raise by $1">+</button></span></div>' +
+    '<div class="pm"><span>Margin</span><span class="pmv">' + rsPrMarginHtml(s) + '</span></div>' +
+    '<div class="pk">' + rsPrMktHtml(s) + '</div>' +
+    '<div class="pa"><button type="button" class="primary mini" data-prsave="' + esc(s.code) + '"' + (changed ? '' : ' disabled') + '>Save</button>' +
+      (msg ? '<small class="' + msg.kind + '">' + esc(msg.text) + '</small>' : '') + '</div></div>';
+}
+// Redraw one Pricing row (margin and Save as the price is typed) without touching the box being typed in.
+function rsPrRow(code){
+  const s = stockOf(code), row = rsPane.querySelector('[data-prrow="' + CSS.escape(code) + '"]'); if(!s || !row) return;
+  const box = row.querySelector("[data-prprice]"); if(box && document.activeElement !== box) box.value = rsPrVal(s);
+  row.querySelector(".pmv").innerHTML = rsPrMarginHtml(s);
+  row.classList.toggle("changed", rsPrChanged(code));
+  row.querySelector("[data-prsave]").disabled = !rsPrChanged(code);
+  const old = row.querySelector(".pa small"); if(old && !rsPrMsg[code]) old.remove();
+  const n = Object.keys(rsPrice).filter(rsPrChanged).length, all = rsPane.querySelector("[data-prsaveall]");
+  if(all){ all.hidden = !n; all.textContent = "Save " + n + " change" + (n === 1 ? "" : "s"); }
+}
+async function rsPrMarket(code){
+  const s = stockOf(code); if(!s) return;
+  rsPrMkt[code] = { loading: true }; renderRs();
+  try{
+    const out = await rsCall({ action: "priceResearch", code: s.code, name: s.name, cost: Number(s.avg) || 0 });
+    rsPrMkt[code] = out.result === "success" ? { data: out } : { error: out.message };
+  }catch(e){ rsPrMkt[code] = { error: "Market check failed (no connection?)." }; }
+  renderRs();
+}
+async function rsPrSave(codes){
+  for(const code of codes){
+    const s = stockOf(code); if(!s) continue;
+    rsPrMsg[code] = { kind: "busy", text: "Saving…" }; rsPrRow(code); renderRs();
+    try{
+      const out = await rsCall({ action: "stockPrice", code, sellPrice: rsPrice[code], minQty: s.min });
+      rsPrMsg[code] = out.result === "success" ? { kind: "ok", text: "Saved" } : { kind: "err", text: out.message };
+      if(out.result === "success") delete rsPrice[code];
+    }catch(e){ rsPrMsg[code] = { kind: "err", text: "NOT saved: no connection?" }; }
+  }
+  await loadStock();
+}
 let rsBrowse = null, rsSheetFind = ""; // the category + brand folder open in the item window: { g, brand }, and its search
 const RS_CATS = [["part", "Parts"], ["fil", "Filament"], ["acc", "Accessories"]];
 const RS_OTHER = "Other brands";
@@ -3774,7 +3871,9 @@ function renderRs(){
     '<p class="rsafter" id="rsAfter">' + rsAfterHtml(s) + '</p>' +
     '<div class="hoactions"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">' + (rsOut.kind === "count" ? "Save count" : "Take off stock") + '</button></div>' +
     '<p class="hostatus" id="rsStatus2" role="status"></p>' +
-    '<details class="rsmore"' + (rsOut.priceOpen || rsOut.sellCode === s.code || rsMarket.code === s.code ? " open" : "") + '><summary>Price &amp; low-stock alert</summary>' + rsPriceBlock(s) + '</details>' +
+    '<div class="rsalert"><label class="f">Low-stock alert at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + esc(s.min) + '"></label>' +
+      '<button type="button" class="mini" id="rsMinSave">Save alert</button>' +
+      '<span class="rsalertprice">' + (Number(s.sell) ? 'Sells at $' + money(s.sell) : 'No price yet') + ' · <button type="button" class="linkbtn" data-rsgoprice="' + esc(s.code) + '">Set price in Pricing</button></span></div>' +
     '</div>';
   const row = s => { const open = s.code === rsOut.code;
     return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' +
@@ -3787,6 +3886,23 @@ function renderRs(){
     return out || low ? '<span class="rsbflags">' + (out ? '<i class="out">' + out + ' out</i>' : '') + (low ? '<i class="low">' + low + ' low</i>' : '') + '</span>' : ''; };
   const filterName = { all: "", low: "low-stock ", out: "out-of-stock ", noprice: "unpriced " }[rsFilter];
   const shown = RS.stock.filter(RS_FILTERS[rsFilter]);
+  // ----- Pricing tab: every item's cost, price, margin and market in one table -----
+  const PR_FILTERS = { all: () => true, noprice: x => !Number(x.sell), low: x => Number(x.sell) && Number(x.avg) && (x.sell - x.avg) / x.sell < RS.target, nocost: x => !Number(x.avg) };
+  const prWords = rsPrFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const prBase = RS.stock.filter(x => rsPrCat === "all" || rsGroupOf(x) === rsPrCat);
+  const prList = sorted(prBase.filter(x => PR_FILTERS[rsPrFilter](x) && prWords.every(w => (x.code + " " + x.name).toLowerCase().includes(w))));
+  const prChip = (f, label) => '<button type="button" class="prchip" data-prfilter="' + f + '" aria-pressed="' + (rsPrFilter === f) + '">' + label + ' <small>' + prBase.filter(PR_FILTERS[f]).length + '</small></button>';
+  const prCatTab = (g, label) => '<button type="button" role="tab" data-prcat="' + g + '" aria-selected="' + (rsPrCat === g) + '">' + label + '</button>';
+  const prChanges = Object.keys(rsPrice).filter(rsPrChanged).length;
+  const pricing = '<div class="stage rs-pr"><h2>Pricing <small>Seo can suggest prices; you set the final one here</small></h2>' +
+    (!RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet.</p>' : skelRows()) :
+    '<div class="prtools"><label class="f rssearch">Search<input type="search" data-prfind="1" value="' + esc(rsPrFind) + '" placeholder="Name or code">' + (rsPrFind ? '<button type="button" data-prfindclear="1" aria-label="Clear search">×</button>' : '') + '</label>' +
+      '<div class="seg prcats" role="tablist" aria-label="Category">' + prCatTab("all", "All") + RS_CATS.map(([g, l]) => prCatTab(g, l)).join("") + '</div></div>' +
+    '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
+      '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
+    '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin</span><span>Market / suggested</span><span></span></div>' +
+    (prList.length ? '<div class="prlist">' + prList.map(rsPrRowHtml).join("") + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
+    '</div>';
   const folders = RS_CATS.map(([g, label]) => {
     const inCat = shown.filter(s => rsGroupOf(s) === g); if(!inCat.length) return "";
     const brands = [...new Set(inCat.map(rsBrandOf))].sort((a, b) => (a === RS_OTHER) - (b === RS_OTHER) || a.localeCompare(b));
@@ -3823,6 +3939,7 @@ function renderRs(){
       <div class="seg" role="tablist" aria-label="Inventory">
         <button type="button" role="tab" data-rsview="purchase" aria-selected="${rsView === "purchase"}">Purchase</button>
         <button type="button" role="tab" data-rsview="stock" aria-selected="${rsView === "stock"}">Stock</button>
+        <button type="button" role="tab" data-rsview="pricing" aria-selected="${rsView === "pricing"}">Pricing</button>
       </div>
       ${rsDemo || !RS_DEMO_ALLOWED ? '' : '<button type="button" class="mini" data-rsdemo="on">Try demo</button>'}
     </div>
@@ -3876,6 +3993,7 @@ function renderRs(){
 ` : ''}
       ${stockBody}
     </div>
+    ${pricing}
     ${sheet}
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
   if(rsMsg) rsStatus(rsMsg.kind, rsMsg.msg);
@@ -3890,7 +4008,7 @@ let rsLater = 0;
 function rsRenderSoon(){ clearTimeout(rsLater); rsLater = setTimeout(rsRenderKeep, 400); }
 function rsRenderKeep(){
   clearTimeout(rsLater); rsLater = 0;
-  const a = document.activeElement, sig = el => el.id || ["rs", "rsi", "k", "rse", "rso", "rssfind"].map(k => el.dataset[k] || "").join("|");
+  const a = document.activeElement, sig = el => el.id || ["rs", "rsi", "k", "rse", "rso", "rssfind", "prfind", "prprice"].map(k => el.dataset[k] || "").join("|");
   const had = a && rsPane.contains(a) ? sig(a) : null; let pos = null;
   try{ pos = a.selectionStart; }catch(e){}
   renderRs();
@@ -3921,6 +4039,8 @@ rsPane.addEventListener("input", e => {
     if(t.dataset.rso === "qty" && s && el) el.innerHTML = rsAfterHtml(s);
   }
   else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
+  else if(t.dataset.prprice !== undefined){ rsPrice[t.dataset.prprice] = t.value; delete rsPrMsg[t.dataset.prprice]; rsPrRow(t.dataset.prprice); }
+  else if(t.dataset.prfind){ rsPrFind = t.value; rsRenderKeep(); }
   else if(t.dataset.rssfind){ rsSheetFind = t.value; const sc = rsPane.querySelector(".rsscroll"); if(sc) sc.scrollTop = 0; rsRenderKeep(); }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   // Purchase boxes: landed costs and price comparisons refresh shortly after typing stops.
@@ -3933,6 +4053,8 @@ document.addEventListener("keydown", e => { if(e.key === "Escape" && rsBrowse &&
 rsPane.addEventListener("keydown", e => {
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
+  const prb = t.dataset.prprice !== undefined && rsPane.querySelector('[data-prsave="' + CSS.escape(t.dataset.prprice) + '"]');
+  if(prb && !prb.disabled){ e.preventDefault(); prb.click(); return; }
   if(btn){ e.preventDefault(); btn.click(); }
 });
 // Drag receipt screenshots onto the drop area (or the photos) to add them.
@@ -4095,6 +4217,28 @@ rsPane.addEventListener("click", async e => {
     finally{ const s = document.getElementById("rsMove"); if(s) s.disabled = false; }
     return;
   }
+  if(b.id === "rsMinSave"){
+    const s = stockOf(rsOut.code); if(!s) return; b.disabled = true;
+    try{
+      const out = await rsCall({ action: "stockPrice", code: s.code, sellPrice: Number(s.sell) || "", minQty: document.getElementById("rsMin").value });
+      if(out.result !== "success"){ rsStatus2("err", out.message); return; }
+      await loadStock(); rsStatus2("ok", "Alert level saved.");
+    }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
+    finally{ const x = document.getElementById("rsMinSave"); if(x) x.disabled = false; }
+    return;
+  }
+  if(b.dataset.rsgoprice){ rsView = "pricing"; rsPrFind = b.dataset.rsgoprice; rsPrFilter = "all"; rsBrowse = null; renderRs(); scrollTo(0, 0); return; }
+  // ----- Pricing tab -----
+  if(b.dataset.prfilter){ rsPrFilter = b.dataset.prfilter; renderRs(); return; }
+  if(b.dataset.prcat){ rsPrCat = b.dataset.prcat; renderRs(); return; }
+  if(b.dataset.prfindclear){ rsPrFind = ""; renderRs(); const f = rsPane.querySelector("[data-prfind]"); if(f) f.focus(); return; }
+  if(b.dataset.prstep){ const code = b.dataset.code, s = stockOf(code); if(!s) return;
+    const base = Number(rsPrice[code] !== undefined ? rsPrice[code] : s.sell) || rsPrRec(s) || 0;
+    rsPrice[code] = String(Math.max(0, Math.round((base + Number(b.dataset.prstep)) * 100) / 100)); delete rsPrMsg[code]; rsPrRow(code); return; }
+  if(b.dataset.pruse){ rsPrice[b.dataset.pruse] = b.dataset.v; delete rsPrMsg[b.dataset.pruse]; rsPrRow(b.dataset.pruse); return; }
+  if(b.dataset.prmkt){ rsPrMarket(b.dataset.prmkt); return; }
+  if(b.dataset.prsave){ rsPrSave([b.dataset.prsave]); return; }
+  if(b.dataset.prsaveall){ rsPrSave(Object.keys(rsPrice).filter(c => rsPrChanged(c))); return; }
   if(b.id === "rsPrice"){
     b.disabled = true;
     try{
