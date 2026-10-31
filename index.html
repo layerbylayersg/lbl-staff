@@ -234,8 +234,9 @@
      Petrol puts the claim form beside this month's claims and history */
   @media (min-width:1100px){
     #hoPane.howrap,#clPane.howrap{max-width:1280px}
-    #hoPane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}
+    #hoPane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:stretch} /* cards side by side share a height: no gaps */
     #hoPane > *{grid-column:1 / -1} #hoPane > .stage:not(:first-of-type){grid-column:auto}
+    #hoPane .photos .addph{flex:1 1 160px;width:auto;min-height:92px} /* the add tile fills the rest of the photo row */
     #clPane{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:16px;align-items:start}
     #clPane > *{grid-column:2} #clPane > :first-child{grid-column:1;grid-row:1 / span 6}
   }
@@ -270,6 +271,13 @@
   .prchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 8px}
   .prchip{min-height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer}
   .prchip small{color:var(--muted);margin-left:2px} .prchip[aria-pressed="true"]{background:var(--green-tint);border-color:var(--green-600);color:var(--green-ink);font-weight:600}
+  .prbrands{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+  .prbrands > span{font-size:12.5px;font-weight:600;color:var(--ink-2);margin-right:4px}
+  .prbrand{min-height:32px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer}
+  .prbrand small{font-weight:500;color:var(--muted);margin-left:2px} .prbrand:hover{border-color:var(--green-600)}
+  .prbrand[aria-pressed="true"]{background:var(--green-700);border-color:var(--green-700);color:#fff} .prbrand[aria-pressed="true"] small{color:#E4F0D2}
+  .prgroup{display:flex;align-items:baseline;gap:8px;padding:16px 10px 6px;font-size:14.5px;font-weight:700;color:var(--ink);border-bottom:2px solid var(--line)}
+  .prgroup small{font-size:12.5px;font-weight:500;color:var(--muted)}
   .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
   .prhead,.prow{display:grid;grid-template-columns:minmax(0,2.2fr) 80px 170px 100px minmax(0,1.4fr) 92px;gap:10px;align-items:center}
   .prhead{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line)}
@@ -3432,7 +3440,7 @@ let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loa
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
 // Stock list: summary-tile filter, group tab and sort order (rsOut.code is the item opened in the list).
 let rsFilter = "all", rsSort = "sheet", rsExtrasOpen = false;
-let rsPrFind = "", rsPrFilter = "all", rsPrCat = "all", rsPrice = {}, rsPrMkt = {}, rsPrMsg = {}; // Pricing tab: search, filter, category, typed prices, market checks, per-item messages
+let rsPrBrand = "all", rsPrFind = "", rsPrFilter = "all", rsPrCat = "all", rsPrice = {}, rsPrMkt = {}, rsPrMsg = {}; // Pricing tab: search, filter, category, typed prices, market checks, per-item messages
 const rsPrRec = s => { const m = rsPrMkt[s.code]; const rec = m && m.data && m.data.recommended || Number(s.mktRec) || 0; const fl = rsFloor(s); return rec ? Math.max(rec, fl) : fl; };
 const rsPrVal = s => rsPrice[s.code] !== undefined ? rsPrice[s.code] : (Number(s.sell) ? String(s.sell) : "");
 const rsPrChanged = code => { const s = stockOf(code); return !!s && rsPrice[code] !== undefined && Number(rsPrice[code]) !== (Number(s.sell) || 0) && rsPrice[code] !== ""; };
@@ -3889,8 +3897,15 @@ function renderRs(){
   // ----- Pricing tab: every item's cost, price, margin and market in one table -----
   const PR_FILTERS = { all: () => true, noprice: x => !Number(x.sell), low: x => Number(x.sell) && Number(x.avg) && (x.sell - x.avg) / x.sell < RS.target, nocost: x => !Number(x.avg) };
   const prWords = rsPrFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const prBase = RS.stock.filter(x => rsPrCat === "all" || rsGroupOf(x) === rsPrCat);
+  const prInCat = RS.stock.filter(x => rsPrCat === "all" || rsGroupOf(x) === rsPrCat);
+  const prBrands = [...new Set(prInCat.map(rsBrandOf))].sort((a, b) => (a === RS_OTHER) - (b === RS_OTHER) || a.localeCompare(b));
+  if(rsPrBrand !== "all" && !prBrands.includes(rsPrBrand)) rsPrBrand = "all";
+  const prBase = prInCat.filter(x => rsPrBrand === "all" || rsBrandOf(x) === rsPrBrand);
   const prList = sorted(prBase.filter(x => PR_FILTERS[rsPrFilter](x) && prWords.every(w => (x.code + " " + x.name).toLowerCase().includes(w))));
+  const prBrandChip = (br, label, n) => '<button type="button" class="prbrand" data-prbrand="' + esc(br) + '" aria-pressed="' + (rsPrBrand === br) + '">' + esc(label) + ' <small>' + n + '</small></button>';
+  // With all brands showing, rows are grouped under brand headings (in brand order, keeping the chosen sort inside each).
+  const prRows = rsPrBrand !== "all" || prBrands.length < 2 ? prList.map(rsPrRowHtml).join("")
+    : prBrands.map(br => { const its = prList.filter(x => rsBrandOf(x) === br); return its.length ? '<div class="prgroup">' + esc(br) + '<small>' + its.length + '</small></div>' + its.map(rsPrRowHtml).join("") : ""; }).join("");
   const prChip = (f, label) => '<button type="button" class="prchip" data-prfilter="' + f + '" aria-pressed="' + (rsPrFilter === f) + '">' + label + ' <small>' + prBase.filter(PR_FILTERS[f]).length + '</small></button>';
   const prCatTab = (g, label) => '<button type="button" role="tab" data-prcat="' + g + '" aria-selected="' + (rsPrCat === g) + '">' + label + '</button>';
   const prChanges = Object.keys(rsPrice).filter(rsPrChanged).length;
@@ -3898,10 +3913,12 @@ function renderRs(){
     (!RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet.</p>' : skelRows()) :
     '<div class="prtools"><label class="f rssearch">Search<input type="search" data-prfind="1" value="' + esc(rsPrFind) + '" placeholder="Name or code">' + (rsPrFind ? '<button type="button" data-prfindclear="1" aria-label="Clear search">×</button>' : '') + '</label>' +
       '<div class="seg prcats" role="tablist" aria-label="Category">' + prCatTab("all", "All") + RS_CATS.map(([g, l]) => prCatTab(g, l)).join("") + '</div></div>' +
+    (prBrands.length > 1 ? '<div class="prbrands" role="group" aria-label="Brand"><span>Brand</span>' + prBrandChip("all", "All brands", prInCat.length) +
+      prBrands.map(br => prBrandChip(br, br, prInCat.filter(x => rsBrandOf(x) === br).length)).join("") + '</div>' : '') +
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
       '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
     '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin</span><span>Market / suggested</span><span></span></div>' +
-    (prList.length ? '<div class="prlist">' + prList.map(rsPrRowHtml).join("") + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
+    (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
     '</div>';
   const folders = RS_CATS.map(([g, label]) => {
     const inCat = shown.filter(s => rsGroupOf(s) === g); if(!inCat.length) return "";
@@ -4230,7 +4247,8 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.rsgoprice){ rsView = "pricing"; rsPrFind = b.dataset.rsgoprice; rsPrFilter = "all"; rsBrowse = null; renderRs(); scrollTo(0, 0); return; }
   // ----- Pricing tab -----
   if(b.dataset.prfilter){ rsPrFilter = b.dataset.prfilter; renderRs(); return; }
-  if(b.dataset.prcat){ rsPrCat = b.dataset.prcat; renderRs(); return; }
+  if(b.dataset.prcat){ rsPrCat = b.dataset.prcat; rsPrBrand = "all"; renderRs(); return; }
+  if(b.dataset.prbrand){ rsPrBrand = b.dataset.prbrand; renderRs(); return; }
   if(b.dataset.prfindclear){ rsPrFind = ""; renderRs(); const f = rsPane.querySelector("[data-prfind]"); if(f) f.focus(); return; }
   if(b.dataset.prstep){ const code = b.dataset.code, s = stockOf(code); if(!s) return;
     const base = Number(rsPrice[code] !== undefined ? rsPrice[code] : s.sell) || rsPrRec(s) || 0;
