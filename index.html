@@ -268,6 +268,9 @@
   .stage.rs-pr > h2 small{font-weight:500}
   .prtools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
   .prcats{height:42px;align-self:end} .prcats button{padding:0 12px}
+  .prfee{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
+  .prfee input{width:64px;height:34px;padding:0 6px;border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-size:14px;text-align:center}
+  .pmv small b{font-size:12px} .pmv .pwarn{display:block;color:var(--red-ink);font-weight:600}
   .prchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 8px}
   .prchip{min-height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer}
   .prchip small{color:var(--muted);margin-left:2px} .prchip[aria-pressed="true"]{background:var(--green-tint);border-color:var(--green-600);color:var(--green-ink);font-weight:600}
@@ -279,7 +282,7 @@
   .prgroup{display:flex;align-items:baseline;gap:8px;padding:16px 10px 6px;font-size:14.5px;font-weight:700;color:var(--ink);border-bottom:2px solid var(--line)}
   .prgroup small{font-size:12.5px;font-weight:500;color:var(--muted)}
   .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
-  .prhead,.prow{display:grid;grid-template-columns:minmax(0,2.2fr) 80px 170px 100px minmax(0,1.4fr) 92px;gap:10px;align-items:center}
+  .prhead,.prow{display:grid;grid-template-columns:minmax(0,2fr) 76px 170px 190px minmax(0,1.3fr) 92px;gap:10px;align-items:center}
   .prhead{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line)}
   .prow{padding:10px;border-bottom:1px solid var(--line)} .prow.changed{background:var(--amber-wash)}
   .prow > div > span:first-child:not(.stepper):not(.pmv){display:none}
@@ -3444,11 +3447,19 @@ let rsPrBrand = "all", rsPrFind = "", rsPrFilter = "all", rsPrCat = "all", rsPri
 const rsPrRec = s => { const m = rsPrMkt[s.code]; const rec = m && m.data && m.data.recommended || Number(s.mktRec) || 0; const fl = rsFloor(s); return rec ? Math.max(rec, fl) : fl; };
 const rsPrVal = s => rsPrice[s.code] !== undefined ? rsPrice[s.code] : (Number(s.sell) ? String(s.sell) : "");
 const rsPrChanged = code => { const s = stockOf(code); return !!s && rsPrice[code] !== undefined && Number(rsPrice[code]) !== (Number(s.sell) || 0) && rsPrice[code] !== ""; };
+// Shopee keeps a cut of every sale; Carousell doesn't. The % is set at the top of Pricing and kept on this device.
+const RS_FEE_KEY = "lbl-shopee-fee";
+function rsShopeeFee(){ let v = NaN; try{ v = Number(localStorage.getItem(RS_FEE_KEY)); }catch(e){} return v > 0 && v < 60 ? v : 15; }
+const rsSigned = n => (n < 0 ? "−$" : "$") + money(Math.abs(n));
 function rsPrMarginHtml(s){
   const v = Number(rsPrVal(s)) || 0, c = Number(s.avg) || 0;
   if(!v) return '<span class="tag">No price</span>';
   if(!c) return '<span class="muted">no cost yet</span>';
-  const m = (v - c) / v; return '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b><small>$' + money(v - c) + ' each</small>';
+  const fee = rsShopeeFee() / 100, shp = v * (1 - fee) - c, car = v - c, be = c / (1 - fee), m = shp / v;
+  return '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b>' +
+    '<small>Shopee <b class="' + (shp < 0 ? 'up' : '') + '">' + rsSigned(shp) + '</b> · Carousell <b class="' + (car < 0 ? 'up' : '') + '">' + rsSigned(car) + '</b> each</small>' +
+    (v < be ? '<small class="pwarn">⚠ Below Shopee break-even $' + money(be) + '</small>' : '') +
+    (v < c ? '<small class="pwarn">⚠ Below cost: loses money everywhere</small>' : '');
 }
 function rsPrMktHtml(s){
   const m = rsPrMkt[s.code];
@@ -3895,7 +3906,7 @@ function renderRs(){
   const filterName = { all: "", low: "low-stock ", out: "out-of-stock ", noprice: "unpriced " }[rsFilter];
   const shown = RS.stock.filter(RS_FILTERS[rsFilter]);
   // ----- Pricing tab: every item's cost, price, margin and market in one table -----
-  const PR_FILTERS = { all: () => true, noprice: x => !Number(x.sell), low: x => Number(x.sell) && Number(x.avg) && (x.sell - x.avg) / x.sell < RS.target, nocost: x => !Number(x.avg) };
+  const PR_FILTERS = { all: () => true, noprice: x => !Number(x.sell), low: x => Number(x.sell) && Number(x.avg) && (x.sell * (1 - rsShopeeFee() / 100) - x.avg) / x.sell < RS.target, /* after Shopee fees */ nocost: x => !Number(x.avg) };
   const prWords = rsPrFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const prInCat = RS.stock.filter(x => rsPrCat === "all" || rsGroupOf(x) === rsPrCat);
   const prBrands = [...new Set(prInCat.map(rsBrandOf))].sort((a, b) => (a === RS_OTHER) - (b === RS_OTHER) || a.localeCompare(b));
@@ -3909,7 +3920,8 @@ function renderRs(){
   const prChip = (f, label) => '<button type="button" class="prchip" data-prfilter="' + f + '" aria-pressed="' + (rsPrFilter === f) + '">' + label + ' <small>' + prBase.filter(PR_FILTERS[f]).length + '</small></button>';
   const prCatTab = (g, label) => '<button type="button" role="tab" data-prcat="' + g + '" aria-selected="' + (rsPrCat === g) + '">' + label + '</button>';
   const prChanges = Object.keys(rsPrice).filter(rsPrChanged).length;
-  const pricing = '<div class="stage rs-pr"><h2>Pricing <small>Seo can suggest prices; you set the final one here</small></h2>' +
+  const pricing = '<div class="stage rs-pr"><h2>Pricing <label class="prfee">Shopee fees <input type="number" inputmode="decimal" min="0" max="60" step="0.5" data-prfee="1" value="' + rsShopeeFee() + '" aria-label="Shopee fees in percent">%</label></h2>' +
+    '<p class="hint" style="margin-top:-6px">One price for Shopee and Carousell. Profit each shows what you keep on each: Shopee after its fees, Carousell with no fees. Seo can suggest prices; you set the final one here.</p>' +
     (!RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet.</p>' : skelRows()) :
     '<div class="prtools"><label class="f rssearch">Search<input type="search" data-prfind="1" value="' + esc(rsPrFind) + '" placeholder="Name or code">' + (rsPrFind ? '<button type="button" data-prfindclear="1" aria-label="Clear search">×</button>' : '') + '</label>' +
       '<div class="seg prcats" role="tablist" aria-label="Category">' + prCatTab("all", "All") + RS_CATS.map(([g, l]) => prCatTab(g, l)).join("") + '</div></div>' +
@@ -3917,7 +3929,7 @@ function renderRs(){
       prBrands.map(br => prBrandChip(br, br, prInCat.filter(x => rsBrandOf(x) === br).length)).join("") + '</div>' : '') +
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
       '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
-    '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin</span><span>Market / suggested</span><span></span></div>' +
+    '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Shopee margin · profit each</span><span>Market / suggested</span><span></span></div>' +
     (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
     '</div>';
   const folders = RS_CATS.map(([g, label]) => {
@@ -4058,6 +4070,7 @@ rsPane.addEventListener("input", e => {
   else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
   else if(t.dataset.prprice !== undefined){ rsPrice[t.dataset.prprice] = t.value; delete rsPrMsg[t.dataset.prprice]; rsPrRow(t.dataset.prprice); }
   else if(t.dataset.prfind){ rsPrFind = t.value; rsRenderKeep(); }
+  else if(t.dataset.prfee){ const v = Number(t.value); if(v > 0 && v < 60){ try{ localStorage.setItem(RS_FEE_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => rsPrRow(r.dataset.prrow)); } }
   else if(t.dataset.rssfind){ rsSheetFind = t.value; const sc = rsPane.querySelector(".rsscroll"); if(sc) sc.scrollTop = 0; rsRenderKeep(); }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   // Purchase boxes: landed costs and price comparisons refresh shortly after typing stops.
