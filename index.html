@@ -268,7 +268,8 @@
   .stage.rs-pr > h2 small{font-weight:500}
   .prtools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
   .prcats{height:42px;align-self:end} .prcats button{padding:0 12px}
-  .prfee{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
+  .prsets{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:flex-end}
+  .prfee{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2)}
   .prfee input{width:64px;height:34px;padding:0 6px;border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-size:14px;text-align:center}
   .pmv small b{font-size:12px} .pmv .pwarn{display:block;color:var(--red-ink);font-weight:600}
   .prchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 8px}
@@ -281,6 +282,7 @@
   .prbrand[aria-pressed="true"]{background:var(--green-700);border-color:var(--green-700);color:#fff} .prbrand[aria-pressed="true"] small{color:#E4F0D2}
   .prgroup{display:flex;align-items:baseline;gap:8px;padding:16px 10px 6px;font-size:14.5px;font-weight:700;color:var(--ink);border-bottom:2px solid var(--line)}
   .prgroup small{font-size:12.5px;font-weight:500;color:var(--muted)}
+  .prcheckall{height:36px;border-radius:10px;margin-left:auto} .prcheckall + .prsaveall{margin-left:0}
   .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
   .prhead,.prow{display:grid;grid-template-columns:minmax(0,2fr) 76px 170px 190px minmax(0,1.3fr) 92px;gap:10px;align-items:center}
   .prhead{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line)}
@@ -291,7 +293,7 @@
   .pp input{height:38px;padding:0 6px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);font:inherit;font-size:15px;text-align:center;min-width:0;width:100%;box-sizing:border-box}
   .pp input:focus{outline:2px solid var(--green-600);outline-offset:0;border-color:var(--green-600)}
   .pmv b{display:block;font-size:15px} .pmv small{font-size:12px;color:var(--ink-2)} .muted{color:var(--muted)}
-  .pk{font-size:12.5px;line-height:1.6;color:var(--ink-2)} .pk .linkbtn{font-size:12.5px}
+  .pk{font-size:12.5px;line-height:1.6;color:var(--ink-2)} .pk .pwarn{display:block;color:var(--red-ink);font-weight:600} .pk .linkbtn{font-size:12.5px}
   .pa{display:flex;flex-direction:column;align-items:stretch;gap:4px} .pa .mini{height:36px;border-radius:10px} .pa .mini:disabled{visibility:hidden} /* Save shows only on changed rows */
   .pa small{font-size:12px;text-align:center} .pa small.ok{color:var(--green-ink)} .pa small.err{color:var(--red-ink)} .pa small.busy{color:var(--muted)}
   @media (max-width:899px){
@@ -3443,8 +3445,35 @@ let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loa
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
 // Stock list: summary-tile filter, group tab and sort order (rsOut.code is the item opened in the list).
 let rsFilter = "all", rsSort = "sheet", rsExtrasOpen = false;
-let rsPrBrand = "all", rsPrFind = "", rsPrFilter = "all", rsPrCat = "all", rsPrice = {}, rsPrMkt = {}, rsPrMsg = {}; // Pricing tab: search, filter, category, typed prices, market checks, per-item messages
-const rsPrRec = s => { const m = rsPrMkt[s.code]; const rec = m && m.data && m.data.recommended || Number(s.mktRec) || 0; const fl = rsFloor(s); return rec ? Math.max(rec, fl) : fl; };
+let rsPrBusy = "", rsPrBrand = "all", rsPrFind = "", rsPrFilter = "all", rsPrCat = "all", rsPrice = {}, rsPrMkt = {}, rsPrMsg = {}; // Pricing tab: search, filter, category, typed prices, market checks, per-item messages
+const rsPrRec = s => rsPrSuggest(s).price;
+// Owner's pricing rule. Market price to match, in this order: Shopee sellers in Singapore; if none, other local
+// sellers (Carousell, Lazada, shops); if none, the official store incl. GST + shipping, about 5% under it.
+// Never below the floor: cost + Shopee fees + minimum margin (Shopee), or cost + minimum margin (Direct: Carousell, website).
+const RS_MIN_KEY = "lbl-min-margin";
+function rsMinMargin(){ let v = NaN; try{ const x = localStorage.getItem(RS_MIN_KEY); if(x !== null && x !== "") v = Number(x); }catch(e){} return v >= 0 && v < 80 ? v : 15; }
+const rsDown90 = v => Math.max(0.9, Math.floor(v - 0.9 + 1e-9) + 0.9), /* at or just under: 21.00 → 20.90, 2.90 stays 2.90 */ rsUp90 = v => Math.ceil(v - 0.9) + 0.9;
+const rsMedian = a => { a = a.filter(x => x > 0).sort((x, y) => x - y); return a.length ? a[Math.floor((a.length - 1) / 2)] : 0; };
+function rsPrSuggest(s){
+  const c = Number(s.avg) || 0, fee = rsShopeeFee() / 100, mn = rsMinMargin() / 100;
+  const floor = c ? c / (1 - fee) / (1 - mn) : 0, dirFloor = c ? c / (1 - mn) : 0;
+  const d = (rsPrMkt[s.code] || {}).data;
+  let bench = 0, src = "";
+  if(d){
+    const L = d.listings || [], shp = L.filter(l => /shopee/i.test(l.platform || "")), loc = L.filter(l => !/shopee/i.test(l.platform || ""));
+    const off = d.direct || d.bambu;
+    if(shp.length){ bench = rsMedian(shp.map(l => Number(l.sgd))); src = shp.length + " Shopee seller" + (shp.length > 1 ? "s" : "") + ", typical $" + money(bench); }
+    else if(loc.length){ bench = rsMedian(loc.map(l => Number(l.sgd))); src = "Not on Shopee · " + loc.length + " local seller" + (loc.length > 1 ? "s" : "") + ", typical $" + money(bench); }
+    else if(off && off.trueCost){ src = "No local sellers · official store $" + money(off.trueCost) + " incl. GST + shipping"; bench = off.trueCost * 0.95; }
+  } else if(Number(s.mktRec)){ bench = Number(s.mktRec); src = "Last market check" + (s.mktChecked ? " (" + s.mktChecked + ")" : ""); }
+  if(!bench){
+    if(!c) return { price: 0, src: "", floor, dirFloor };
+    return { price: rsUp90(Math.max(floor, c / (1 - fee) / (1 - RS.target))), src: "No market data yet · priced for your " + Math.round(RS.target * 100) + "% target margin", floor, dirFloor, direct: 0 };
+  }
+  const market = rsDown90(bench);
+  if(c && market < floor) return { price: rsUp90(floor), src, floor, dirFloor, bench, belowFloor: true, direct: Math.max(rsUp90(dirFloor), market) };
+  return { price: market, src, floor, dirFloor, bench, direct: market };
+}
 const rsPrVal = s => rsPrice[s.code] !== undefined ? rsPrice[s.code] : (Number(s.sell) ? String(s.sell) : "");
 const rsPrChanged = code => { const s = stockOf(code); return !!s && rsPrice[code] !== undefined && Number(rsPrice[code]) !== (Number(s.sell) || 0) && rsPrice[code] !== ""; };
 // Shopee keeps a cut of every sale; Carousell doesn't. The % is set at the top of Pricing and kept on this device.
@@ -3458,18 +3487,20 @@ function rsPrMarginHtml(s){
   const fee = rsShopeeFee() / 100, shp = v * (1 - fee) - c, car = v - c, be = c / (1 - fee), m = shp / v;
   return '<b class="' + (m < RS.target ? 'up' : 'down') + '">' + Math.round(m * 100) + '%</b>' +
     '<small>Shopee <b class="' + (shp < 0 ? 'up' : '') + '">' + rsSigned(shp) + '</b> · Carousell <b class="' + (car < 0 ? 'up' : '') + '">' + rsSigned(car) + '</b> each</small>' +
-    (v < be ? '<small class="pwarn">⚠ Below Shopee break-even $' + money(be) + '</small>' : '') +
+    (v < be ? '<small class="pwarn">⛔ Below Shopee break-even $' + money(be) + '</small>'
+      : v < rsPrSuggest(s).floor ? '<small class="pwarn">⚠ Under your ' + rsMinMargin() + '% minimum (floor $' + money(rsPrSuggest(s).floor) + ')</small>' : '') +
     (v < c ? '<small class="pwarn">⚠ Below cost: loses money everywhere</small>' : '');
 }
 function rsPrMktHtml(s){
   const m = rsPrMkt[s.code];
-  if(m && m.loading) return '<span class="muted">Checking Shopee, Carousell and others…</span>';
+  if(m && m.loading) return '<span class="muted">Checking Shopee, local sellers and the official store…</span>';
   if(m && m.error) return '<span class="up">' + esc(m.error) + '</span> <button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">Try again</button>';
-  const d = m && m.data, rec = rsPrRec(s);
-  const typical = d ? d.median : Number(s.mktTypical) || 0;
-  return (typical ? 'Market ~$' + money(typical) + (d && d.low ? ' (low $' + money(d.low) + ')' : '') + '<br>' : '') +
-    (rec ? '<button type="button" class="linkbtn" data-pruse="' + esc(s.code) + '" data-v="' + rec + '">Use $' + money(rec) + '</button> <small class="muted">' + (d || s.mktRec ? 'recommended' : Math.round(RS.target * 100) + '% margin') + '</small><br>' : '') +
-    '<button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">🔎 ' + (d || s.mktChecked ? 'Check again' : 'Check market') + '</button>' + (s.mktChecked && !d ? ' <small class="muted">' + esc(s.mktChecked) + '</small>' : '');
+  const g = rsPrSuggest(s), d = m && m.data;
+  return (g.src ? '<small class="muted">' + esc(g.src) + '</small><br>' : '') +
+    (g.price ? '<button type="button" class="linkbtn" data-pruse="' + esc(s.code) + '" data-v="' + g.price + '">Use $' + money(g.price) + '</button> <small class="muted">suggested</small><br>' : '') +
+    (g.belowFloor ? '<small class="pwarn">⛔ Market ~$' + money(g.bench) + ' is below your floor $' + money(g.floor) + '. Bundle it, or sell direct only</small>' : '') +
+    (g.direct && g.direct < g.price ? '<small>Direct (Carousell / website) could be $' + money(g.direct) + '</small><br>' : '') +
+    '<button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">🔎 ' + (d || s.mktChecked ? 'Check again' : 'Check market') + '</button>';
 }
 function rsPrRowHtml(s){
   const changed = rsPrChanged(s.code), msg = rsPrMsg[s.code];
@@ -3920,14 +3951,16 @@ function renderRs(){
   const prChip = (f, label) => '<button type="button" class="prchip" data-prfilter="' + f + '" aria-pressed="' + (rsPrFilter === f) + '">' + label + ' <small>' + prBase.filter(PR_FILTERS[f]).length + '</small></button>';
   const prCatTab = (g, label) => '<button type="button" role="tab" data-prcat="' + g + '" aria-selected="' + (rsPrCat === g) + '">' + label + '</button>';
   const prChanges = Object.keys(rsPrice).filter(rsPrChanged).length;
-  const pricing = '<div class="stage rs-pr"><h2>Pricing <label class="prfee">Shopee fees <input type="number" inputmode="decimal" min="0" max="60" step="0.5" data-prfee="1" value="' + rsShopeeFee() + '" aria-label="Shopee fees in percent">%</label></h2>' +
-    '<p class="hint" style="margin-top:-6px">One price for Shopee and Carousell. Profit each shows what you keep on each: Shopee after its fees, Carousell with no fees. Seo can suggest prices; you set the final one here.</p>' +
+  const pricing = '<div class="stage rs-pr"><h2>Pricing <span class="prsets"><label class="prfee">Shopee fees <input type="number" inputmode="decimal" min="0" max="60" step="0.5" data-prfee="1" value="' + rsShopeeFee() + '" aria-label="Shopee fees in percent">%</label>' +
+      '<label class="prfee">Min. margin <input type="number" inputmode="decimal" min="0" max="80" step="1" data-prmin="1" value="' + rsMinMargin() + '" aria-label="Minimum margin in percent">%</label></span></h2>' +
+    '<p class="hint" style="margin-top:-6px">Suggested prices follow the market: Shopee sellers first, then other local sellers, then the official store (incl. GST + shipping, about 5% under). Never below your floor: cost + Shopee fees + minimum margin. Profit each shows what you keep on Shopee (after fees) and on Carousell (no fees).</p>' +
     (!RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet.</p>' : skelRows()) :
     '<div class="prtools"><label class="f rssearch">Search<input type="search" data-prfind="1" value="' + esc(rsPrFind) + '" placeholder="Name or code">' + (rsPrFind ? '<button type="button" data-prfindclear="1" aria-label="Clear search">×</button>' : '') + '</label>' +
       '<div class="seg prcats" role="tablist" aria-label="Category">' + prCatTab("all", "All") + RS_CATS.map(([g, l]) => prCatTab(g, l)).join("") + '</div></div>' +
     (prBrands.length > 1 ? '<div class="prbrands" role="group" aria-label="Brand"><span>Brand</span>' + prBrandChip("all", "All brands", prInCat.length) +
       prBrands.map(br => prBrandChip(br, br, prInCat.filter(x => rsBrandOf(x) === br).length)).join("") + '</div>' : '') +
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
+      '<button type="button" class="mini prcheckall" data-prcheckall="1"' + (rsPrBusy ? ' disabled' : '') + '>' + (rsPrBusy ? '🔎 Checking ' + rsPrBusy + '…' : '🔎 Check market for these ' + Math.min(prList.filter(x => !(rsPrMkt[x.code] || {}).data).length, 20)) + '</button>' +
       '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
     '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Shopee margin · profit each</span><span>Market / suggested</span><span></span></div>' +
     (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
@@ -4070,7 +4103,8 @@ rsPane.addEventListener("input", e => {
   else if(t.id === "rsSell"){ rsOut.sell = t.value; rsOut.sellCode = rsOut.code; rsSellRefresh(); }
   else if(t.dataset.prprice !== undefined){ rsPrice[t.dataset.prprice] = t.value; delete rsPrMsg[t.dataset.prprice]; rsPrRow(t.dataset.prprice); }
   else if(t.dataset.prfind){ rsPrFind = t.value; rsRenderKeep(); }
-  else if(t.dataset.prfee){ const v = Number(t.value); if(v > 0 && v < 60){ try{ localStorage.setItem(RS_FEE_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => rsPrRow(r.dataset.prrow)); } }
+  else if(t.dataset.prmin){ const v = Number(t.value); if(v >= 0 && v < 80){ try{ localStorage.setItem(RS_MIN_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => { rsPrRow(r.dataset.prrow); const s = stockOf(r.dataset.prrow), k = r.querySelector(".pk"); if(s && k) k.innerHTML = rsPrMktHtml(s); }); } }
+  else if(t.dataset.prfee){ const v = Number(t.value); if(v > 0 && v < 60){ try{ localStorage.setItem(RS_FEE_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => { rsPrRow(r.dataset.prrow); const s = stockOf(r.dataset.prrow), k = r.querySelector(".pk"); if(s && k) k.innerHTML = rsPrMktHtml(s); }); } }
   else if(t.dataset.rssfind){ rsSheetFind = t.value; const sc = rsPane.querySelector(".rsscroll"); if(sc) sc.scrollTop = 0; rsRenderKeep(); }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   // Purchase boxes: landed costs and price comparisons refresh shortly after typing stops.
@@ -4268,6 +4302,11 @@ rsPane.addEventListener("click", async e => {
     rsPrice[code] = String(Math.max(0, Math.round((base + Number(b.dataset.prstep)) * 100) / 100)); delete rsPrMsg[code]; rsPrRow(code); return; }
   if(b.dataset.pruse){ rsPrice[b.dataset.pruse] = b.dataset.v; delete rsPrMsg[b.dataset.pruse]; rsPrRow(b.dataset.pruse); return; }
   if(b.dataset.prmkt){ rsPrMarket(b.dataset.prmkt); return; }
+  if(b.dataset.prcheckall){ // up to 20 of the items on screen without market data, one at a time; stops at the first error (e.g. AI search limit)
+    const codes = [...rsPane.querySelectorAll("[data-prrow]")].map(r => r.dataset.prrow).filter(c => !(rsPrMkt[c] || {}).data).slice(0, 20);
+    for(let i = 0; i < codes.length; i++){ rsPrBusy = (i + 1) + " of " + codes.length; await rsPrMarket(codes[i]); if((rsPrMkt[codes[i]] || {}).error) break; }
+    rsPrBusy = ""; renderRs(); return;
+  }
   if(b.dataset.prsave){ rsPrSave([b.dataset.prsave]); return; }
   if(b.dataset.prsaveall){ rsPrSave(Object.keys(rsPrice).filter(c => rsPrChanged(c))); return; }
   if(b.id === "rsPrice"){
