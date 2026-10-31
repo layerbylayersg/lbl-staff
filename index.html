@@ -195,7 +195,7 @@
   .linkbtn.rsaddcharge:hover{text-decoration:underline}
   .rscheck{font-size:13px}
   .rsdet{grid-template-columns:repeat(2,minmax(0,1fr))!important} .rsdet .span2{grid-column:1 / -1}
-  .rsbar{position:sticky;bottom:10px;z-index:5;display:grid;gap:5px;margin-top:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 -2px 6px rgba(20,24,20,.04),var(--shadow-lg)}
+  .rsbar{position:relative;display:grid;gap:5px;margin-top:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 -2px 6px rgba(20,24,20,.04),var(--shadow-lg)}
   .rsbarlab{font-size:13px;font-weight:500;color:var(--ink-2)}
   .rsbarrow{display:flex;gap:8px;align-items:center}
   .rsbarrow input{flex:1;height:44px;padding:0 12px;border:1px solid var(--line-strong);border-radius:10px;font:inherit;font-size:17px;font-weight:600;color:var(--ink);background:var(--surface);min-width:0;width:100%;box-sizing:border-box}
@@ -223,6 +223,7 @@
   /* Wide screens: Inventory uses the width (the form pages keep their reading width) */
   @media (min-width:900px){
     #rsPane.howrap{max-width:1280px}
+    #rsPane[data-view="purchase"] > .rs-receipt,#rsPane[data-view="purchase"] > .rs-details{align-self:stretch}
     #rsPane[data-view="purchase"]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}
     #rsPane[data-view="purchase"] > *{grid-column:1 / -1}
     #rsPane[data-view="purchase"] > .rs-receipt{grid-column:1} #rsPane[data-view="purchase"] > .rs-details{grid-column:2}
@@ -232,7 +233,17 @@
     .rsitem{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);column-gap:12px;align-items:end}
     .rsitem > *{grid-column:1 / -1} .rsitem > .rsitop{grid-column:1;grid-row:1} .rsitem > .rsinums{grid-column:2;grid-row:1;margin-top:0}
   }
+  .rs-receipt{display:flex;flex-direction:column}
+  .rsdrop{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:150px;padding:18px;border:2px dashed var(--line-strong);border-radius:12px;background:var(--surface-2);color:var(--ink-2);text-align:center;cursor:pointer;transition:background-color .15s ease,border-color .15s ease}
+  .rsdrop:hover,.rsdrop.over,.photos.over{border-color:var(--green-600);background:var(--green-wash)}
+  .rsdrop:focus-within{outline:2px solid var(--green-600);outline-offset:2px}
+  .rsdrop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .rsdropicon{font-size:30px;line-height:1} .rsdrop b{font-size:15px;color:var(--ink)} .rsdrop > span:last-of-type{font-size:13px}
+  .photos[hidden]{display:none}
+  .photos.over{outline:2px dashed var(--green-600);outline-offset:4px;border-radius:12px}
+  #rsPaid.auto{color:var(--ink-2)}
   .rsempty{padding:18px 8px;text-align:center;font-size:13.5px;color:var(--muted)}
+  @media (max-width:899px){ .rsbar{position:sticky;bottom:10px;z-index:5} } /* phones: Save stays on screen; wide screens fit the whole form */
   @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
     .rsgroups button{padding:0 6px;font-size:13px} .rsgroups small{display:none} }
   @media (prefers-reduced-motion:reduce){ .rschev{transition:none} }
@@ -3711,6 +3722,9 @@ function renderRs(){
     : looksSgd ? '<span>That number is the SGD you paid, not the ' + esc(cur) + ' total, so this check is skipped. Type the ' + esc(cur) + ' total from the receipt to check, or leave it empty.</span>'
     : '<span class="up">⚠ Items and charges add up to ' + money(c.order) + ' ' + esc(cur) + ', but the receipt says ' + money(rt) + ' ' + esc(cur) + ' (' + money(Math.abs(diff)) + ' ' + (diff > 0 ? 'more' : 'less') + '). An item, price or charge may be misread or missing.</span>';
   const lineCount = rs.items.filter(it => it.code || it.name).length;
+  // "Total you actually paid" shows the receipt total (SGD) or today's-rate estimate until someone types their own amount;
+  // not while they are in the box, so clearing it to retype doesn't refill it.
+  const paidAuto = rs.paidSGD === "" && c.sgd > 0 && !(document.activeElement && document.activeElement.id === "rsPaid");
 
   // ----- Stock list -----
   const q = rsFind.trim().toLowerCase();
@@ -3796,7 +3810,9 @@ function renderRs(){
     ${rsDemo ? '<div class="rsdemo"><b>Demo mode.</b> Sample stock and a sample receipt; nothing is saved to the Sheet. <button type="button" class="mini" data-rsdemo="off">Exit demo</button></div>' : ''}
     <div class="stage rs-p rs-receipt">
       <h2><span class="n">1</span>Receipt <small>photos or screenshots, up to ${RS_MAX_IMAGES}. AI fills in the rest</small></h2>
-      <div class="photos">${rs.images.map((d, i) => '<div class="ph"><img src="' + d + '" alt="Receipt photo ' + (i + 1) + '"><button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
+      ${!rs.images.length ? '<label class="rsdrop" data-rsdrop="1"><span class="rsdropicon" aria-hidden="true">📷</span><b>Add receipt photos</b><span>Tap to choose, or drag screenshots here</span><input type="file" accept="image/*" multiple data-rsscan="1"></label>' +
+        (rsDemo ? '<button type="button" class="mini" data-rsdemoscan="1" style="margin-top:10px">Use sample Taobao receipt</button>' : '') : ''}
+      <div class="photos"${rs.images.length ? ' data-rsdrop="1"' : ' hidden'}>${rs.images.map((d, i) => '<div class="ph"><img src="' + d + '" alt="Receipt photo ' + (i + 1) + '"><button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
         ${rs.images.length < RS_MAX_IMAGES ? '<label class="addph">📷 ' + (rs.images.length ? 'Add more' : 'Add photos') + '<input type="file" accept="image/*" multiple data-rsscan="1"></label>' : ''}${rsDemo ? '<button type="button" class="addph" data-rsdemoscan="1">Use sample Taobao receipt</button>' : ''}</div>
       ${rs.images.length ? '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsRead" style="grid-column:1 / -1">🔍 Read receipt (' + rs.images.length + ' photo' + (rs.images.length > 1 ? 's' : '') + ')</button></div>' : ''}
     </div>
@@ -3826,10 +3842,10 @@ function renderRs(){
     <div class="rsbar rs-p">
       <label for="rsPaid" class="rsbarlab">Total you actually paid (SGD)</label>
       <div class="rsbarrow">
-        <input id="rsPaid" type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(rs.paidSGD)}" placeholder="e.g. 125.40">
+        <input id="rsPaid" type="number" inputmode="decimal" step="any" data-rs="paidSGD" value="${esc(paidAuto ? money(c.sgd) : rs.paidSGD)}"${paidAuto ? ' class="auto"' : ''} placeholder="e.g. 125.40">
         <button type="button" class="primary" id="rsSave">${lineCount ? "Save " + lineCount + " item" + (lineCount === 1 ? "" : "s") : "Save &amp; add to stock"}</button>
       </div>
-      <small class="rsbarhint">${Number(rs.paidSGD) > 0 ? "Spread over the items as their final cost" : c.sgd ? (cur === "SGD" ? "Receipt total $" + money(c.sgd) : "Estimate $" + money(c.sgd) + " at today's rate") : "Includes shipping, tax and card fees"}</small>
+      <small class="rsbarhint">${Number(rs.paidSGD) > 0 ? "Spread over the items as their final cost" : paidAuto ? (cur === "SGD" ? "Filled in from the receipt total" : "Filled in at today's rate. Change it if your card charged a different amount") : "Includes shipping, tax and card fees"}</small>
       <p class="hostatus" id="rsStatus" role="status"></p></div>
     <div class="stage rs-s">
       <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">↻ Refresh</button></h2>
@@ -3899,6 +3915,17 @@ rsPane.addEventListener("keydown", e => {
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
   if(btn){ e.preventDefault(); btn.click(); }
+});
+// Drag receipt screenshots onto the drop area (or the photos) to add them.
+["dragenter", "dragover"].forEach(ev => rsPane.addEventListener(ev, e => {
+  const z = e.target.closest && e.target.closest("[data-rsdrop]"); if(!z || !e.dataTransfer || ![...e.dataTransfer.types].includes("Files")) return;
+  e.preventDefault(); z.classList.add("over");
+}));
+rsPane.addEventListener("dragleave", e => { const z = e.target.closest && e.target.closest("[data-rsdrop]"); if(z && !z.contains(e.relatedTarget)) z.classList.remove("over"); });
+rsPane.addEventListener("drop", e => {
+  const z = e.target.closest && e.target.closest("[data-rsdrop]"); if(!z) return;
+  e.preventDefault(); z.classList.remove("over");
+  const files = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type)); if(files.length) rsAddImages(files);
 });
 // Remember whether the stock item's price section is open, so saving or switching tabs keeps it open.
 rsPane.addEventListener("toggle", e => {
@@ -4014,6 +4041,7 @@ rsPane.addEventListener("click", async e => {
     b.disabled = true; b.textContent = "Saving...";
     try{
       const purchase = Object.assign({}, rs); delete purchase.images; delete purchase.receiptTotal;
+      if(!(Number(purchase.paidSGD) > 0)) purchase.paidSGD = String(Math.round(c.sgd * 100) / 100); // the filled-in total shown in the box
       purchase.items = rs.items.map(it => ({ code: it.code, name: it.name, raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, sellPrice: it.sellPrice }));
       const out = await rsCall({ action: "restockSave", purchase });
       if(out.result !== "success"){
