@@ -194,6 +194,19 @@
   .rsbar > div{flex:1;min-width:0} .rsbar small{display:block;font-size:12px;color:var(--ink-2)} .rsbar b{font-size:19px}
   .rsbar button{height:44px;padding:0 18px;white-space:nowrap}
   .rsbar .hostatus{flex-basis:100%;margin:0;font-size:13px}
+  .rscat{margin-top:14px} .rscat h3{display:flex;align-items:baseline;gap:6px;font-size:13.5px;font-weight:700;margin:0 0 8px} .rscat h3 small{font-weight:500;color:var(--muted);font-size:12.5px}
+  .rsbrands{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .rsbrand{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;padding:11px 28px 11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+  .rsbrand:hover{border-color:var(--green-600);background:var(--green-wash)} .rsbrand:focus-visible{outline:2px solid var(--green-600);outline-offset:2px}
+  .rsbrand b{font-size:14.5px} .rsbrand > span{font-size:12.5px;color:var(--ink-2)} .rsbrand .rschev{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+  .rsbflags{display:flex;gap:8px;font-size:12px} .rsbflags i{font-style:normal;font-weight:700} .rsbflags .out{color:var(--red-ink)} .rsbflags .low{color:var(--amber-ink)}
+  .rssheet{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(20,24,20,.45)}
+  .rssheetbox{display:flex;flex-direction:column;width:100%;max-width:680px;max-height:88vh;max-height:88dvh;background:var(--surface);border-radius:16px 16px 0 0;box-shadow:var(--shadow-lg)}
+  .rssheethead{display:flex;align-items:center;gap:12px;padding:14px 16px 12px;border-bottom:1px solid var(--line)} .rssheethead > div{flex:1;min-width:0}
+  .rssheethead small{font-size:12px;font-weight:600;color:var(--muted)} .rssheethead h3{margin:2px 0;font-size:18px} .rssheethead .mini{width:40px;padding:0}
+  .rsscroll{overflow-y:auto;overscroll-behavior:contain;padding:4px 12px 20px;border-top:0}
+  body.mode-rs.rs-sheet-open{overflow:hidden}
+  @media (min-width:700px){ .rssheet{align-items:center;padding:24px} .rssheetbox{border-radius:16px;max-height:82vh} }
   .rsempty{padding:18px 8px;text-align:center;font-size:13.5px;color:var(--muted)}
   @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
     .rsgroups button{padding:0 6px;font-size:13px} .rsgroups small{display:none} }
@@ -3331,7 +3344,16 @@ const RS_EXTRAS = ["Shipping", "Agent fee", "Forwarder fee", "GST", "Import tax"
 let RS = { stock: [], history: [], merchants: [], channels: [], target: 0.3, loaded: false, loading: false };
 let rs, rsDirty = false, rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }, rsFind = "";
 // Stock list: summary-tile filter, group tab and sort order (rsOut.code is the item opened in the list).
-let rsFilter = "all", rsGroup = "all", rsSort = "sheet", rsExtrasOpen = false;
+let rsFilter = "all", rsSort = "sheet", rsExtrasOpen = false;
+let rsBrowse = null; // the category + brand folder open in the item window: { g, brand }
+const RS_CATS = [["part", "Parts"], ["fil", "Filament"], ["acc", "Accessories"]];
+const RS_OTHER = "Other brands";
+const RS_BRANDS = [["Bambu Lab", /\bbambu\b|cyberbrick/i], ["Panda", /\bpanda\b/i], ["Creality", /creality/i], ["Soleyin", /soleyin/i], ["Layer By Layer", /layer by layer/i]];
+const rsBrandOf = s => /\(for bambu\)/i.test(s.name) ? RS_OTHER : ((RS_BRANDS.find(([, re]) => re.test(s.name)) || [RS_OTHER])[0]);
+function rsCloseSheet(){
+  const g = rsBrowse; rsBrowse = null; rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; renderRs();
+  const b = g && rsPane.querySelector('[data-rsbrowse="' + g.g + '|' + CSS.escape(g.brand) + '"]'); if(b) b.focus({ preventScroll: true });
+}
 // Demo mode is for testing only: its button shows when the address ends in ?demo, never on the normal live page.
 const RS_DEMO_ALLOWED = /[?&]demo\b/.test(location.search);
 const rsQty = s => Number(s.qty) || 0;
@@ -3667,14 +3689,12 @@ function renderRs(){
 
   // ----- Stock list -----
   const q = rsFind.trim().toLowerCase();
-  const inGroup = s => rsGroup === "all" || rsGroupOf(s) === rsGroup;
-  const groupStock = RS.stock.filter(inGroup);
+  const groupStock = RS.stock;
   const words = q.split(/\s+/).filter(Boolean); // every word must appear, in any order ("black petg")
-  let list = groupStock.filter(s => RS_FILTERS[rsFilter](s) && words.every(w => (s.code + " " + s.name).toLowerCase().includes(w)));
-  if(rsSort === "qty") list = list.slice().sort((a, b) => rsQty(a) - rsQty(b));
-  else if(rsSort === "name") list = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = l => rsSort === "qty" ? l.slice().sort((a, b) => rsQty(a) - rsQty(b)) : rsSort === "name" ? l.slice().sort((a, b) => a.name.localeCompare(b.name)) : l;
+  const list = sorted(groupStock.filter(s => RS_FILTERS[rsFilter](s) && words.every(w => (s.code + " " + s.name).toLowerCase().includes(w))));
+  const browsing = !q && rsFilter === "all"; // no search or tile: show category / brand folders instead of one long list
   const stat = (f, label, cls) => '<button type="button" class="' + cls + '" data-rsfilter="' + f + '" aria-pressed="' + (rsFilter === f) + '"><b>' + groupStock.filter(RS_FILTERS[f]).length + '</b><span>' + label + '</span></button>';
-  const groupTab = (g, label) => '<button type="button" role="tab" data-rsgroup="' + g + '" aria-selected="' + (rsGroup === g) + '">' + label + '<small>' + (g === "all" ? RS.stock.length : RS.stock.filter(s => rsGroupOf(s) === g).length) + '</small></button>';
   const meta = s => {
     const m = Number(s.sell) && Number(s.avg) ? (s.sell - s.avg) / s.sell : null;
     return (Number(s.sell) ? 'Sells at $' + money(s.sell) : '<span class="tag">No price</span>') + (Number(s.avg) ? ' · cost $' + money(s.avg) : '') +
@@ -3698,17 +3718,36 @@ function renderRs(){
     '<p class="hostatus" id="rsStatus2" role="status"></p>' +
     '<details class="rsmore"' + (rsOut.priceOpen || rsOut.sellCode === s.code || rsMarket.code === s.code ? " open" : "") + '><summary>Price &amp; low-stock alert</summary>' + rsPriceBlock(s) + '</details>' +
     '</div>';
-  const rows = list.map(s => { const open = s.code === rsOut.code;
+  const row = s => { const open = s.code === rsOut.code;
     return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' +
       '<span class="rsn">' + esc(s.name) + '<small>' + esc(s.code) + '</small><span class="rsm">' + meta(s) + '</span></span>' +
       qtyBadge(s) + '<span class="rschev" aria-hidden="true">›</span></button>' + (open ? panel(s) : '') + '</li>';
+  };
+  const rows = browsing || rsBrowse ? "" : list.map(row).join(""); // with the window open its rows hold the open item, not this list
+  // Folders: each category split by brand, with counts; a folder opens its items in a window that scrolls on its own.
+  const flags = its => { const out = its.filter(rsIsOut).length, low = its.filter(rsIsLow).length;
+    return out || low ? '<span class="rsbflags">' + (out ? '<i class="out">' + out + ' out</i>' : '') + (low ? '<i class="low">' + low + ' low</i>' : '') + '</span>' : ''; };
+  const folders = RS_CATS.map(([g, label]) => {
+    const inCat = RS.stock.filter(s => rsGroupOf(s) === g); if(!inCat.length) return "";
+    const brands = [...new Set(inCat.map(rsBrandOf))].sort((a, b) => (a === RS_OTHER) - (b === RS_OTHER) || a.localeCompare(b));
+    return '<section class="rscat"><h3>' + label + '<small>' + inCat.length + ' items</small></h3><div class="rsbrands">' + brands.map(br => {
+      const its = inCat.filter(s => rsBrandOf(s) === br);
+      return '<button type="button" class="rsbrand" data-rsbrowse="' + g + '|' + esc(br) + '"><b>' + esc(br) + '</b><span>' + its.length + ' item' + (its.length === 1 ? '' : 's') + '</span>' + flags(its) + '<span class="rschev" aria-hidden="true">›</span></button>';
+    }).join("") + '</div></section>';
   }).join("");
+  const sheetItems = rsBrowse ? sorted(RS.stock.filter(s => rsGroupOf(s) === rsBrowse.g && rsBrandOf(s) === rsBrowse.brand)) : [];
+  const sheet = rsBrowse ? '<div class="rssheet rs-s" data-rssheet="1"><div class="rssheetbox" role="dialog" aria-modal="true" aria-labelledby="rsSheetTitle">' +
+    '<div class="rssheethead"><div><small>' + esc((RS_CATS.find(c => c[0] === rsBrowse.g) || [, ""])[1]) + ' · ' + sheetItems.length + ' items</small><h3 id="rsSheetTitle">' + esc(rsBrowse.brand) + '</h3>' + flags(sheetItems) + '</div>' +
+    '<button type="button" class="mini" data-rsclose="1" aria-label="Close">✕</button></div>' +
+    '<ul class="rslist rsscroll">' + (sheetItems.length ? sheetItems.map(row).join("") : '<li class="rsempty">Nothing here any more.</li>') + '</ul></div></div>' : '';
   const filterName = { all: "", low: "low-stock ", out: "out-of-stock ", noprice: "unpriced " }[rsFilter];
   const stockBody = !RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet. Save a purchase to start.</p>' : skelRows())
+    : browsing ? '<p class="rscount">' + RS.stock.length + ' items · tap a brand to see its items, or search</p>' + folders
     : '<p class="rscount">' + (list.length === groupStock.length && !q ? list.length + ' items' : 'Showing ' + list.length + ' ' + filterName + 'of ' + groupStock.length + ' items') + ' · tap an item to sell, count or price it</p>' +
       (list.length ? '<ul class="rslist">' + rows + '</ul>'
         : '<p class="rsempty">No ' + filterName + 'items' + (q ? ' match “' + esc(rsFind.trim()) + '”' : '') + '. <button type="button" class="mini" data-rsreset="1">Show all</button></p>');
 
+  const oldScroll = p.querySelector(".rsscroll"), keepTop = oldScroll ? oldScroll.scrollTop : 0;
   p.dataset.view = rsView;
   p.innerHTML = `
     <div class="subtabs">
@@ -3760,12 +3799,15 @@ function renderRs(){
         <label class="f rssearch">Search<input type="search" data-rsfind="1" value="${esc(rsFind)}" placeholder="Name or code, e.g. FAH051 or PETG" aria-label="Search stock">${rsFind ? '<button type="button" data-rsfindclear="1" aria-label="Clear search">×</button>' : ''}</label>
         <label class="f">Sort<select data-rssort="1">${[["sheet", "As listed"], ["name", "A to Z"], ["qty", "Lowest qty first"]].map(([v, t]) => '<option value="' + v + '"' + (rsSort === v ? " selected" : "") + '>' + t + '</option>').join("")}</select></label>
       </div>
-      <div class="seg rsgroups" role="tablist" aria-label="Group">${groupTab("all", "All")}${groupTab("part", "Parts")}${groupTab("fil", "Filament")}${groupTab("acc", "Accessories")}</div>` : ''}
+` : ''}
       ${stockBody}
     </div>
+    ${sheet}
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
   if(rsMsg) rsStatus(rsMsg.kind, rsMsg.msg);
   if(rsMsg2 && rsMsg2.code === rsOut.code) rsStatus2(rsMsg2.kind, rsMsg2.msg);
+  const sc = p.querySelector(".rsscroll"); if(sc) sc.scrollTop = keepTop; // redraws keep the window's scroll place
+  document.body.classList.toggle("rs-sheet-open", !!rsBrowse && rsView === "stock");
 }
 function rsStatus2(kind, msg){ rsMsg2 = msg ? { kind, msg, code: rsOut.code } : null; const el = document.getElementById("rsStatus2"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 // Typing redraws the pane after a short pause instead of on leaving the box: a redraw while a button is being
@@ -3811,7 +3853,8 @@ rsPane.addEventListener("input", e => {
 });
 // A pending typing redraw must not land between pressing and releasing a button, or the tap is lost.
 rsPane.addEventListener("pointerdown", e => { if(rsLater && e.target.closest("button")){ clearTimeout(rsLater); rsLater = 0; } }, true);
-// Enter in the stock item's boxes saves, like pressing its button.
+// Enter in the stock item's boxes saves, like pressing its button; Escape closes the item window.
+document.addEventListener("keydown", e => { if(e.key === "Escape" && rsBrowse && document.body.classList.contains("rs-sheet-open")) rsCloseSheet(); });
 rsPane.addEventListener("keydown", e => {
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
@@ -3864,6 +3907,7 @@ rsPane.addEventListener("change", e => {
   }
 });
 rsPane.addEventListener("click", async e => {
+  if(e.target.dataset && e.target.dataset.rssheet){ rsCloseSheet(); return; } // tap outside the window closes it
   const b = e.target.closest("button");
   if(!b) return;
   if(b.dataset.rsview){ rsView = b.dataset.rsview; renderRs(); scrollTo(0, 0); return; }
@@ -3879,9 +3923,11 @@ rsPane.addEventListener("click", async e => {
     return;
   }
   if(b.dataset.rsfilter){ rsFilter = rsFilter === b.dataset.rsfilter ? "all" : b.dataset.rsfilter; renderRs(); return; }
-  if(b.dataset.rsgroup){ rsGroup = b.dataset.rsgroup; renderRs(); return; }
+  if(b.dataset.rsbrowse){ const [g, brand] = b.dataset.rsbrowse.split("|"); rsBrowse = { g, brand }; rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; renderRs();
+    const x = rsPane.querySelector("[data-rsclose]"); if(x) x.focus({ preventScroll: true }); return; }
+  if(b.dataset.rsclose){ rsCloseSheet(); return; }
   if(b.dataset.rsfindclear || b.dataset.rsreset){
-    rsFind = ""; if(b.dataset.rsreset){ rsFilter = "all"; rsGroup = "all"; }
+    rsFind = ""; if(b.dataset.rsreset) rsFilter = "all";
     renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f) f.focus(); return;
   }
   if(b.dataset.rskind){ rsOut.kind = b.dataset.rskind; if(rsOut.kind === "count"){ const s = stockOf(rsOut.code); rsOut.qty = s ? rsQty(s) : 0; } else rsOut.qty = 1; renderRs(); return; }
