@@ -298,7 +298,12 @@
   .pp input:focus{outline:2px solid var(--green-600);outline-offset:0;border-color:var(--green-600)}
   .pdir{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;font-weight:500;color:var(--ink-2);white-space:nowrap}
   .pp .pdir input{height:32px;font-size:14px;flex:1;width:auto}
-  .rsbox{font-weight:700;color:var(--green-ink)} .rsboxf input{text-transform:uppercase;max-width:110px}
+  .rsbox{font-weight:700;color:var(--green-ink)}
+  .rsboxsug{flex-basis:100%;font-size:13px;color:var(--ink-2)} .rsboxline{margin-top:8px;font-size:13px;color:var(--ink-2)}
+  .takenhint{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);font-size:13.5px;line-height:1.5} .takenhint .ok{color:var(--green-ink);font-weight:600}
+  .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
+  .rsrenamebtn{margin-bottom:8px;font-size:13px} .rsrename{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:12px}
+  .rsrename label.f{flex:1 1 260px} .rsrename .mini{height:40px} .rsrename small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .rsboxf input{text-transform:uppercase;max-width:110px}
   .rsdet label.rscost,.rscost{display:flex;flex-direction:row;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;cursor:pointer;font-size:14px}
   .rscost input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--green-700)} .rscost small{display:block;font-size:12.5px;color:var(--ink-2);margin-top:2px}
   .rscost.on{background:var(--amber-wash);border-color:#F0D9A0}
@@ -1271,7 +1276,7 @@ function openJob(j, quiet){
   if(localId) state.job.localId = localId; // same report on this phone (its report number may still be on the way)
   const lid = state.job.localId;
   if(!state.job.ref && lid && REPORT_NOS[lid]) state.job.ref = REPORT_NOS[lid];
-  if(state.parts.some(p => p.name)) OPEN.add("extra|Parts replaced");
+  if(state.parts.some(p => p.name) || takenParts().length) OPEN.add("extra|Parts replaced");
   if(quiet) return;
   NOTES_OPEN.clear(); AI = null;
   dirty = false; clearStatus();
@@ -1481,6 +1486,7 @@ function renderForm(){
           <table class="parts"><thead><tr><th>Part(s) replaced</th><th>Qty</th><th></th></tr></thead>
           <tbody id="partsBody">${partsRows()}</tbody></table>
           <div class="addrow"><button type="button" id="addPart">Add part</button></div>
+          ${takenHint()}
         </div>` })}
       ${noteToggle("workNotes","Note:","Anything else about the work done.")}
     </div>
@@ -1597,6 +1603,14 @@ function syncAutoPart(item, on){
   else if(!on && i >= 0 && state.parts[i].auto) state.parts.splice(i, 1);
   else return false;
   return true;
+}
+// Parts taken off stock for this job on the Inventory tab: listed here so they go on the report.
+function takenParts(){ const j = JOBS.find(x => x.quoteNo === state.job.quoteNo); return (j && j.taken) || []; }
+function takenHint(){
+  const t = takenParts(); if(!t.length) return "";
+  const missing = t.filter(x => !state.parts.some(p => p.name.trim().toLowerCase() === String(x.name).toLowerCase()));
+  return '<p class="takenhint">📦 Taken from stock for this job: ' + t.map(x => esc(x.name) + ' ×' + x.qty).join(", ") +
+    (missing.length ? ' <button type="button" class="linkbtn" id="addTaken">Add ' + (missing.length === 1 ? "it" : "them") + ' to the parts list</button>' : ' <span class="ok">✓ all listed</span>') + '</p>';
 }
 function partsRows(){
   return state.parts.map((pt,i)=>`
@@ -2048,6 +2062,8 @@ pane.addEventListener("click", e=>{
   }
   if(t.dataset.addverify){ if(!state.verify.includes(t.dataset.addverify)) state.verify.push(t.dataset.addverify); markDirty(); render(); return; }
   if(t.id === "addPart"){ markDirty(); state.parts.push({name:"",qty:"1"}); render(); return; }
+  if(t.id === "addTaken"){ markDirty(); state.parts = state.parts.filter(p => p.name.trim());
+    takenParts().forEach(x => { if(!state.parts.some(p => p.name.trim().toLowerCase() === String(x.name).toLowerCase())) state.parts.push({ name: x.name, qty: String(x.qty) }); }); render(); return; }
   if(t.dataset.delpart !== undefined){ markDirty(); state.parts.splice(+t.dataset.delpart,1); render(); return; }
   if(t.dataset.addbtn){ addCustom(t.dataset.addbtn); return; }
   if(t.dataset.delcustom){ markDirty(); state[t.dataset.delcustom].splice(+t.dataset.i,1); render(); return; }
@@ -3577,6 +3593,73 @@ const RS_CATS = [["part", "Parts"], ["fil", "Filament"], ["acc", "Accessories"]]
 const RS_OTHER = "Other brands";
 const RS_BRANDS = [["Bambu Lab", /\bbambu\b|cyberbrick/i], ["Panda", /\bpanda\b/i], ["Creality", /creality/i], ["Soleyin", /soleyin/i], ["Layer By Layer", /layer by layer/i]];
 const rsBrandOf = s => /\(for bambu\)/i.test(s.name) ? RS_OTHER : ((RS_BRANDS.find(([, re]) => re.test(s.name)) || [RS_OTHER])[0]);
+// ----- Storage boxes (e.g. "3C" = shelf 3, box C) -----
+// Shelf by part type. Shelf 1 (toolhead) gives each part type + printer series its own box (hotends for H2/P2S/X2D,
+// X1 extruders, ...); shelves 2-4 group by printer series (all X1 boards and cables together). A part joins the
+// matching box while it has room (RS_BOX_MAX different items); otherwise the next free box on the shelf is opened.
+// Only printer parts (PRT- codes) get boxes; filament and accessories are stored elsewhere.
+const RS_BOX_MAX = 8;
+const RS_SHELVES = [ /* checked in this order */
+  [3, /\bams\b/i],
+  [1, /hotend|nozzle|juicer|extruder|heat ?sink|cutter|cutting|filament sensor|tool ?head|heater|thermistor|silicone sock/i],
+  [2, /board|cable|lidar|camera|wire|harness|screen|display|\bled\b|antenna|fan/i],
+  [3, /hub|buffer|feeder|ptfe|filament (path|guide|tube)|spool/i],
+  [4, /motor|belt|heat ?bed|\bbed\b|rod|bearing|pulley|lead ?screw|z[ -]?axis|plate/i]
+];
+const RS_TYPES = [["hotend", /hotend|nozzle|juicer|heat ?sink|heater|thermistor|sock/i], ["extruder", /extruder/i], ["cutter", /cutter|cutting/i],
+  ["sensor", /filament sensor/i], ["buffer", /buffer|feeder/i], ["hub", /hub/i], ["board", /board/i], ["cable", /cable|wire|harness/i],
+  ["motor", /motor/i], ["belt", /belt/i], ["heatbed", /heat ?bed|\bbed\b/i], ["fan", /fan/i]];
+const RS_SHELF_NAME = { 1: "Hotends & extruders", 2: "Boards & cables", 3: "AMS & feeding", 4: "Motion & heatbed", 5: "Other parts" };
+const rsIsPart = s => /^PRT-/i.test(s.code || "");
+function rsSeries(name){
+  const n = String(name || "").replace(/\((not|excl)[^)]*\)/gi, "");
+  if(/\bams 2 pro\b/i.test(n)) return "AMS 2 Pro";
+  if(/\bams lite\b/i.test(n)) return "AMS Lite";
+  if(/\bams\b/i.test(n)) return "AMS";
+  const fam = (n.match(/\b(H2[A-Z]?|X1[A-Z]?|X2D|P1[A-Z]?|P2S|A1(?:\s*mini)?|H\/A|K1[A-Z]?|K2[A-Z]?)\b/gi) || [])
+    .map(f => /^h2/i.test(f) ? "H2" : /^x1/i.test(f) ? "X1" : /^p1/i.test(f) ? "P1" : /mini/i.test(f) ? "A1 mini" : f.toUpperCase());
+  return Array.from(new Set(fam)).sort().join("/");
+}
+const rsTypeOf = s => (RS_TYPES.find(([, re]) => re.test(s.name || "")) || ["part"])[0];
+const rsShelfOf = s => { const hit = RS_SHELVES.find(([, re]) => re.test(s.name || "")); return hit ? hit[0] : 5; };
+const rsBoxKey = s => rsBrandOf(s) + ":" + (rsShelfOf(s) === 1 ? rsTypeOf(s) + ":" : "") + rsSeries(s.name);
+// Where a part should go: { loc, isNew, why }, or null when it isn't a part. stock = the list to place it among.
+function rsBoxFor(item, stock){
+  stock = stock || RS.stock;
+  if(!rsIsPart(item) || !item.name) return null;
+  const shelf = rsShelfOf(item), key = rsBoxKey(item), ser = rsSeries(item.name).split("/").filter(Boolean), brand = rsBrandOf(item);
+  const boxes = {};
+  stock.forEach(x => { const loc = String(x.location || "").trim().toUpperCase(), m = /^(\d+)([A-Z])$/.exec(loc);
+    if(m && x.code !== item.code) (boxes[loc] = boxes[loc] || { shelf: +m[1], letter: m[2], items: [] }).items.push(x); });
+  const onShelf = Object.keys(boxes).filter(b => boxes[b].shelf === shelf).sort();
+  const room = b => boxes[b].items.length < RS_BOX_MAX;
+  const short = b => boxes[b].items[0].name.replace(/^Bambu (Lab )?/i, "") + (boxes[b].items.length > 1 ? " and " + (boxes[b].items.length - 1) + " more" : "");
+  const same = onShelf.find(b => room(b) && boxes[b].items.some(x => rsBoxKey(x) === key));
+  if(same) return { loc: same, isNew: false, why: "with " + short(same) };
+  if(shelf !== 1){ // boards, AMS and motion parts: a box of the same printers, then (feeding) the same kind of part
+    const near = ser.length && onShelf.find(b => room(b) && boxes[b].items.every(x => rsBrandOf(x) === brand) &&
+      boxes[b].items.some(x => rsSeries(x.name).split("/").some(f => ser.includes(f))));
+    if(near) return { loc: near, isNew: false, why: "same printers as " + short(near) };
+    const kind = shelf === 3 && rsTypeOf(item) !== "part" && onShelf.find(b => room(b) && boxes[b].items.every(x => rsBrandOf(x) === brand && rsTypeOf(x) === rsTypeOf(item)));
+    if(kind) return { loc: kind, isNew: false, why: "with " + short(kind) };
+  }
+  const used = onShelf.map(b => boxes[b].letter);
+  const letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").find(l => !used.includes(l)) || "Z";
+  const label = (brand === "Bambu Lab" ? "" : brand + " ") + (shelf === 1 ? rsTypeOf(item) + "s " : "") + (ser.length ? "for " + ser.join(" / ") : "");
+  return { loc: shelf + letter, isNew: true, why: "new box on shelf " + shelf + " (" + RS_SHELF_NAME[shelf] + ")" + (label.trim() ? ": " + label.trim() : "") };
+}
+// Boxes for the new items on the purchase being entered (each one placed after the ones above it).
+function rsPurchaseBoxes(){
+  const work = RS.stock.map(x => Object.assign({}, x));
+  return rs.items.map(it => { if(!it.isNew) return null; const b = rsBoxFor({ code: it.code || "NEW", name: it.name }, work);
+    if(b) work.push({ code: it.code || "NEW-" + work.length, name: it.name, location: b.loc }); return b; });
+}
+// Boxes for every part that has none yet, placed one after another so they share boxes sensibly.
+function rsBoxPlan(){
+  const work = RS.stock.map(x => Object.assign({}, x)), plan = [];
+  work.filter(x => rsIsPart(x) && !x.location).forEach(x => { const b = rsBoxFor(x, work); if(b){ x.location = b.loc; plan.push({ code: x.code, name: x.name, loc: b.loc, isNew: b.isNew }); } });
+  return plan;
+}
 function rsCloseSheet(){
   const g = rsBrowse; rsBrowse = null; rsSheetFind = ""; rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; renderRs();
   const b = g && rsPane.querySelector('[data-rsbrowse="' + g.g + '|' + CSS.escape(g.brand) + '"]'); if(b) b.focus({ preventScroll: true });
@@ -3649,7 +3732,7 @@ async function rsCall(body){
   const d = rsDemo, find = c => d.stock.find(s => s.code === c);
   if(body.action === "stockData") return { result: "success", stock: JSON.parse(JSON.stringify(d.stock)), history: d.history.slice(),
     merchants: d.history.map(x => x.merchant).filter((m, i, a) => a.indexOf(m) === i), staff: STAFF,
-    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair (manual)", "Own use", "Damaged / lost"], targetMargin: 0.3, features: ["direct", "location", "costOnly"] };
+    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair job", "Own use", "Damaged / lost"], targetMargin: 0.3, features: ["direct", "location", "costOnly", "rename", "newLocation", "jobParts"] };
   if(body.action === "restockScan") return { result: "success", receipt: { merchant: "拓竹旗舰店", platform: "Taobao", date: clToday(), currency: "CNY",
     items: [ { raw: "拓竹 P2S 缓冲器", qty: 3, unitPrice: 160, code: "PART-BL-P2S-BUFFER", name: "Bambu Lab Buffer, P2S" },
              { raw: "拓竹 X1C 完整热端 0.4mm 硬化钢", qty: 1, unitPrice: 189, code: "PART-BL-X1C-COMPLETEHOTEND-HS04", name: "Bambu Lab Complete Hotend, Hardened Steel 0.4mm, X1C" } ],
@@ -3882,6 +3965,7 @@ function renderRs(){
   const codeSel = (it, i) => '<select data-rsi="' + i + '" data-k="pick"><option value="">Choose item...</option>' +
     RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === it.code && !it.isNew ? " selected" : "") + '>' + esc(s.name + " · " + s.code) + '</option>').join("") +
     '<option value="__new"' + (it.isNew ? " selected" : "") + '>+ New item...</option></select>';
+  const boxes = rsHas("newLocation") ? rsPurchaseBoxes() : [];
   const items = rs.items.map((it, i) => {
     const unit = c.units[i] || 0, st = stockOf(it.code);
     const h = it.code && !it.isNew ? rsHistory(it.code, rs.merchant) : {};
@@ -3895,6 +3979,7 @@ function renderRs(){
       ${it.raw ? '<div class="rsraw">Receipt: ' + esc(it.raw) + '</div>' : ''}
       ${it.isNew ? '<div class="grid rsinew"><label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PRT-BBL-FAH051" autocapitalize="characters" class="upper"></label>' +
         '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label></div>' : ''}
+      ${boxes[i] ? '<div class="rsboxline">📦 Goes in box <b>' + esc(boxes[i].loc) + '</b> · ' + esc(boxes[i].why) + (boxes[i].isNew ? ' · <b class="up">new box, needs a label</b>' : '') + '</div>' : ''}
       <div class="rsinums">
         <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
         <label class="f">Unit price (${esc(cur)})<input type="number" inputmode="decimal" step="any" data-rsi="${i}" data-k="unitPrice" value="${esc(it.unitPrice)}"></label>
@@ -3935,7 +4020,13 @@ function renderRs(){
   };
   const qtyBadge = s => { const st = rsIsOut(s) ? "out" : rsIsLow(s) ? "low" : "ok";
     return '<span class="rsq ' + st + '"><b>' + rsQty(s) + '</b><small>' + { out: "Out", low: "Low", ok: "in stock" }[st] + '</small></span>'; };
+  const sug = s => !s.location && rsHas("location") ? rsBoxFor(s) : null;
   const panel = s => '<div class="rspanel">' +
+    (rsHas("rename") ? (rsOut.renaming
+      ? '<div class="rsrename"><label class="f">New name<input id="rsNewName" value="' + esc(rsOut.newName !== undefined ? rsOut.newName : s.name) + '" maxlength="150"></label>' +
+        '<button type="button" class="primary mini" id="rsRenameSave">Save name</button><button type="button" class="mini" data-rsrenamecancel="1">Cancel</button>' +
+        '<small>The code stays ' + esc(s.code) + '. The old name is kept so old receipts and reports still match.</small></div>'
+      : '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>') : '') +
     '<div class="seg" role="tablist" aria-label="What happened">' +
       '<button type="button" role="tab" data-rskind="out" aria-selected="' + (rsOut.kind === "out") + '">Sold / used</button>' +
       '<button type="button" role="tab" data-rskind="count" aria-selected="' + (rsOut.kind === "count") + '">Stock count</button></div>' +
@@ -3945,12 +4036,17 @@ function renderRs(){
       '<button type="button" class="mini" data-rsqty="1" aria-label="One more">+</button></span></label>' +
     (rsOut.kind === "out" ? '<div class="f"><span>Where did it go?</span><div class="chips" role="radiogroup" aria-label="Where it went">' +
       RS.channels.map(ch => '<label class="chip"><input type="radio" name="rschan" data-rso="channel" value="' + esc(ch) + '"' + (ch === rsOut.channel ? " checked" : "") + '>' + esc(ch) + '</label>').join("") + '</div></div>' : '') +
+    (rsOut.kind === "out" && /^Repair/.test(rsOut.channel || "") && rsHas("jobParts") ? '<label class="f">Which job?<select data-rso="job"><option value="">Choose the job...</option>' +
+      JOBS.filter(j => j.status === "In Progress" || j.status === "Confirmed").map(j => '<option value="' + esc(j.quoteNo) + '"' + (j.quoteNo === rsOut.job ? " selected" : "") + '>' + esc(j.quoteNo + " · " + (j.name || "") + (j.model ? " · " + j.model : "")) + '</option>').join("") +
+      '</select><small class="rsjobhint">Taken off stock now. The job\'s service report lists it and won\'t take it off again.</small></label>' : '') +
     '<label class="f">Note / order no. (optional)<input data-rso="note" value="' + esc(rsOut.note) + '" placeholder="e.g. Shopee order 2610xxxx"></label>' +
     '<p class="rsafter" id="rsAfter">' + rsAfterHtml(s) + '</p>' +
     '<div class="hoactions"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">' + (rsOut.kind === "count" ? "Save count" : "Take off stock") + '</button></div>' +
     '<p class="hostatus" id="rsStatus2" role="status"></p>' +
     '<div class="rsalert"><label class="f">Low-stock alert at or below<input type="number" inputmode="decimal" min="0" step="any" id="rsMin" value="' + esc(s.min) + '"></label>' +
       (rsHas("location") ? '<label class="f rsboxf">Box<input id="rsLoc" value="' + esc(s.location || "") + '" placeholder="e.g. 3C" maxlength="20" autocapitalize="characters"></label>' : '') +
+      (sug(s) ? '<span class="rsboxsug">📦 Suggested: box <b>' + esc(sug(s).loc) + '</b> · ' + esc(sug(s).why) + (sug(s).isNew ? ' (new box)' : '') +
+        ' <button type="button" class="linkbtn" data-rsboxuse="' + esc(sug(s).loc) + '">Use ' + esc(sug(s).loc) + '</button></span>' : '') +
       '<button type="button" class="mini" id="rsMinSave">Save' + (rsHas("location") ? '' : ' alert') + '</button>' +
       '<span class="rsalertprice">' + (Number(s.sell) ? 'Sells at $' + money(s.sell) : 'No price yet') + ' · <button type="button" class="linkbtn" data-rsgoprice="' + esc(s.code) + '">Set price in Pricing</button></span></div>' +
     '</div>';
@@ -4076,7 +4172,7 @@ function renderRs(){
       <small class="rsbarhint">${Number(rs.paidSGD) > 0 ? "Spread over the items as their final cost" : paidAuto ? (cur === "SGD" ? "Filled in from the receipt total" : "Filled in at today's rate. Change it if your card charged a different amount") : "Includes shipping, tax and card fees"}</small>
       <p class="hostatus" id="rsStatus" role="status"></p></div>
     <div class="stage rs-s">
-      <h2>Stock on hand <button type="button" class="mini" data-rsrefresh="1" style="margin-left:auto">↻ Refresh</button></h2>
+      <h2>Stock on hand ${rsHas("location") && RS.loaded && rsBoxPlan().length ? '<button type="button" class="mini rsboxall" data-rsboxall="1" style="margin-left:auto">📦 Find boxes for ' + rsBoxPlan().length + ' part' + (rsBoxPlan().length === 1 ? '' : 's') + '</button>' : ''}<button type="button" class="mini" data-rsrefresh="1"${rsHas("location") && RS.loaded && rsBoxPlan().length ? '' : ' style="margin-left:auto"'}>↻ Refresh</button></h2>
       ${RS.stock.length ? `<div class="rsstats">${stat("all", "Items", "")}${stat("low", "Low stock", "low")}${stat("out", "Out of stock", "out")}${stat("noprice", "No price yet", "")}</div>
       <div class="rstools">
         <label class="f rssearch">Search<input type="search" data-rsfind="1" value="${esc(rsFind)}" placeholder="Name or code, e.g. FAH051 or PETG" aria-label="Search stock">${rsFind ? '<button type="button" data-rsfindclear="1" aria-label="Clear search">×</button>' : ''}</label>
@@ -4122,6 +4218,7 @@ function rsMatchPart(text){
 const rsPane = document.getElementById("rsPane");
 rsPane.addEventListener("input", e => {
   const t = e.target;
+  if(t.id === "rsNewName"){ rsOut.newName = t.value; return; }
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
@@ -4148,6 +4245,8 @@ document.addEventListener("keydown", e => { if(e.key === "Escape" && rsBrowse &&
 rsPane.addEventListener("keydown", e => {
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
+  if(t.id === "rsNewName"){ e.preventDefault(); const x = document.getElementById("rsRenameSave"); if(x) x.click(); return; }
+  if(t.id === "rsLoc"){ e.preventDefault(); const x = document.getElementById("rsMinSave"); if(x) x.click(); return; }
   const prb = t.dataset.prprice !== undefined && rsPane.querySelector('[data-prsave="' + CSS.escape(t.dataset.prprice) + '"]');
   if(prb && !prb.disabled){ e.preventDefault(); prb.click(); return; }
   if(btn){ e.preventDefault(); btn.click(); }
@@ -4195,7 +4294,7 @@ rsPane.addEventListener("change", e => {
   if(t.dataset.rso){
     rsOut[t.dataset.rso] = t.value;
     if(t.dataset.rso === "code"){ rsOut.sellCode = ""; rsMarket = { code: "", loading: false, data: null, error: "" }; }
-    if(t.dataset.rso === "code" || t.dataset.rso === "kind") renderRs();
+    if(t.dataset.rso === "code" || t.dataset.rso === "kind" || t.dataset.rso === "channel") renderRs();
     return;
   }
   if(t.dataset.rscost){ rs.costOnly = t.checked; rsDirty = true; renderRs(); return; }
@@ -4279,7 +4378,9 @@ rsPane.addEventListener("click", async e => {
     try{
       const purchase = Object.assign({}, rs); delete purchase.images; delete purchase.receiptTotal;
       if(!(Number(purchase.paidSGD) > 0)) purchase.paidSGD = String(Math.round(c.sgd * 100) / 100); // the filled-in total shown in the box
-      purchase.items = rs.items.map(it => ({ code: it.code, name: it.name, raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, sellPrice: it.sellPrice }));
+      const bx = rsHas("newLocation") ? rsPurchaseBoxes() : [];
+      purchase.items = rs.items.map((it, i) => Object.assign({ code: it.code, name: it.name, raw: it.raw, qty: it.qty, unitPrice: it.unitPrice, sellPrice: it.sellPrice }, bx[i] ? { location: bx[i].loc } : {}));
+      const opened = bx.filter(b => b && b.isNew).map(b => b.loc);
       const out = await rsCall({ action: "restockSave", purchase });
       if(out.result !== "success"){
         if(isAuthMsg(out.message)){ lock(authText(out.message, ", then save again.")); return; }
@@ -4290,7 +4391,7 @@ rsPane.addEventListener("click", async e => {
       await loadStock();
       rsStatus("ok", "Saved as " + out.purchaseId + " ($" + money(out.sgdTotal) + "). " + (out.costOnly
         ? "Costs recorded" + (out.added ? "; " + out.added + " new item" + (out.added === 1 ? "" : "s") + " added to stock" : "; stock counts unchanged") + "."
-        : "Stock updated."));
+        : "Stock updated.") + (opened.length ? " New box" + (opened.length > 1 ? "es" : "") + " opened: " + opened.join(", ") + ". Print a label for " + (opened.length > 1 ? "them" : "it") + "." : ""));
     }catch(err){ rsStatus("err", "NOT saved: no connection? Try again."); }
     finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = rs.costOnly ? "Save cost" : "Save & add to stock"; } } // redrawn with the item count on the next render
     return;
@@ -4298,6 +4399,7 @@ rsPane.addEventListener("click", async e => {
   if(b.id === "rsMove"){
     if(!rsOut.code){ rsStatus2("err", "Pick an item."); return; }
     if(rsOut.kind === "out" && !rsOut.channel){ rsStatus2("err", "Pick where it went."); return; }
+    if(rsOut.kind === "out" && /^Repair/.test(rsOut.channel) && rsHas("jobParts") && !rsOut.job){ rsStatus2("err", "Pick which job the part is for."); return; }
     const qn = Number(rsOut.qty), held = rsQty(stockOf(rsOut.code) || {});
     if(String(rsOut.qty).trim() === "" || !isFinite(qn) || qn < 0 || (rsOut.kind === "out" && qn === 0)){
       rsStatus2("err", rsOut.kind === "count" ? "Type how many are on the shelf (0 if none)." : "Type how many went out (1 or more)."); return;
@@ -4305,14 +4407,53 @@ rsPane.addEventListener("click", async e => {
     if(rsOut.kind === "out" && qn > held && !confirm("Only " + held + " in stock. Take off " + qn + " anyway? Stock will go below zero.")) return;
     b.disabled = true;
     try{
-      const out = await rsCall({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by });
+      const forJob = rsOut.kind === "out" && /^Repair/.test(rsOut.channel) ? rsOut.job || "" : "";
+      const tookQty = Number(rsOut.qty) || 1, tookCode = rsOut.code;
+      const out = await rsCall({ action: "stockMove", kind: rsOut.kind, code: rsOut.code, qty: rsOut.qty, channel: rsOut.channel, note: rsOut.note, by: rs.by, jobNo: forJob });
       if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
       const name = (stockOf(rsOut.code) || {}).name || rsOut.code;
       rsOut = { code: rsOut.code, kind: rsOut.kind, qty: rsOut.kind === "count" ? out.qty : 1, channel: "", note: "", priceOpen: rsOut.priceOpen }; // keep the item open to see the result
       await loadStock();
-      rsStatus2("ok", name + ": " + out.qty + " left.");
+      if(forJob){ const j = JOBS.find(x => x.quoteNo === forJob); if(j){ j.taken = j.taken || []; const t = j.taken.find(x => x.code === tookCode); t ? t.qty += tookQty : j.taken.push({ code: tookCode, name, qty: tookQty }); } } // the report shows it at once
+      rsStatus2("ok", name + ": " + out.qty + " left." + (forJob ? " Noted for " + forJob + "." : ""));
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
     finally{ const s = document.getElementById("rsMove"); if(s) s.disabled = false; }
+    return;
+  }
+  if(b.dataset.rsrename){ rsOut.renaming = true; rsOut.newName = undefined; renderRs(); const x = document.getElementById("rsNewName"); if(x){ x.focus(); x.select(); } return; }
+  if(b.dataset.rsrenamecancel){ rsOut.renaming = false; rsOut.newName = undefined; renderRs(); return; }
+  if(b.id === "rsRenameSave"){
+    const s = stockOf(rsOut.code), box = document.getElementById("rsNewName"); if(!s || !box) return;
+    const nm = box.value.trim().replace(/\s+/g, " ");
+    if(!nm){ rsStatus2("err", "Type the new name."); return; }
+    if(nm === s.name){ rsOut.renaming = false; renderRs(); return; }
+    const twin = RS.stock.find(x => x.code !== s.code && x.name.toLowerCase() === nm.toLowerCase());
+    if(twin){ rsStatus2("err", "“" + nm + "” is already the name of " + twin.code + "."); return; }
+    b.disabled = true; b.textContent = "Saving...";
+    try{
+      const out = await rsCall({ action: "stockPrice", code: s.code, sellPrice: Number(s.sell) || "", minQty: s.min, name: nm });
+      if(out.result !== "success"){ rsStatus2("err", "NOT renamed: " + out.message); return; }
+      rsOut.renaming = false; rsOut.newName = undefined;
+      await loadStock(); rsStatus2("ok", "Renamed. The old name still matches receipts and reports.");
+    }catch(err){ rsStatus2("err", "NOT renamed: no connection? Try again."); }
+    finally{ const x = document.getElementById("rsRenameSave"); if(x){ x.disabled = false; x.textContent = "Save name"; } }
+    return;
+  }
+  if(b.dataset.rsboxuse){ const x = document.getElementById("rsLoc"); if(x){ x.value = b.dataset.rsboxuse; document.getElementById("rsMinSave").click(); } return; }
+  if(b.dataset.rsboxall){
+    const plan = rsBoxPlan(); if(!plan.length) return;
+    const opened = Array.from(new Set(plan.filter(x => x.isNew).map(x => x.loc)));
+    if(!confirm("Give boxes to " + plan.length + " part" + (plan.length === 1 ? "" : "s") + ":\n\n" + plan.map(x => x.loc + "  " + x.name).join("\n") +
+      (opened.length ? "\n\nNew boxes to open: " + opened.join(", ") : "") + "\n\nSave these boxes?")) return;
+    b.disabled = true; let done = 0, failed = 0;
+    for(const x of plan){
+      b.textContent = "Saving " + (done + failed + 1) + " of " + plan.length + "...";
+      const s = stockOf(x.code);
+      try{ const out = await rsCall({ action: "stockPrice", code: x.code, sellPrice: Number(s && s.sell) || "", minQty: s ? s.min : 1, location: x.loc }); out.result === "success" ? done++ : failed++; }
+      catch(err){ failed++; }
+    }
+    await loadStock();
+    toast("📦 " + done + " part" + (done === 1 ? "" : "s") + " given a box" + (failed ? ", " + failed + " NOT saved (try again)" : "") + (opened.length ? ". New boxes: " + opened.join(", ") + ". Print labels for them." : "."));
     return;
   }
   if(b.id === "rsMinSave"){
