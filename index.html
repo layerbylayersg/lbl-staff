@@ -178,7 +178,17 @@
   h3.sub small.opt{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
   /* Purchase: compact item rows, folded extras, Save bar pinned to the bottom of the screen */
   .rsitem{padding:10px 12px}
-  .rsitop{display:flex;align-items:flex-end;gap:8px} .rsitop label.f{flex:1}
+  .rsitop{display:flex;align-items:flex-end;gap:8px} .rsitop label.f,.rsitop .rspickf{flex:1}
+  .rspickf{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--ink-2);min-width:0}
+  .rspickbtn{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 12px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--ink);font:inherit;font-size:14.5px;font-weight:400;text-align:left;cursor:pointer}
+  .rspickbtn:hover{border-color:var(--green-600)} .rspickbtn > span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .rspickbtn small{color:var(--muted);font-size:12px;margin-left:4px} .rspickbtn b{font-size:13px;opacity:.7}
+  .rsitop:has(.rspick) .rsidel{display:none} /* the search has its own ✕ */
+  .rspick{position:relative} .rspickrow{display:flex;gap:6px} .rspickrow input{flex:1;height:40px;padding:0 12px;border:2px solid var(--green-600);border-radius:var(--radius-sm);font:inherit;font-size:15px;min-width:0;background:var(--surface);color:var(--ink)} .rspickrow .mini{height:40px}
+  .rspicklist{list-style:none;margin:6px 0 0;padding:4px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);max-height:320px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .rspicklist button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:none;color:var(--ink);font:inherit;font-size:14px;text-align:left;cursor:pointer}
+  .rspicklist button:hover,.rspicklist button:focus,.rspicklist button.first{background:var(--green-wash, #EEF5E6);outline:none}
+  .rspicklist button span{flex:1;min-width:0} .rspicklist small{display:block;font-size:12px;color:var(--muted)} .rspicklist i{font-style:normal;font-size:12px;color:var(--ink-2);white-space:nowrap}
+  .rspicklist .rspicknew{color:var(--green-ink);font-weight:600;border-top:1px solid var(--line)} .rspicknone{padding:8px 10px;font-size:13px;color:var(--muted)}
   .rsidel{flex:none;width:40px;height:40px;padding:0}
   .rsinew{margin-top:8px}
   .rsinums{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
@@ -302,6 +312,7 @@
   .rsboxsug{flex-basis:100%;font-size:13px;color:var(--ink-2)} .rsboxline{margin-top:8px;font-size:13px;color:var(--ink-2)}
   .takenhint{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);font-size:13.5px;line-height:1.5} .takenhint .ok{color:var(--green-ink);font-weight:600}
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
+  .rscodewarn{margin-top:8px;padding:8px 12px;border-radius:10px;background:var(--red-wash, #FDECEA);color:var(--red-ink);font-size:13px;line-height:1.45}
   .rsrenamebtn{margin-bottom:8px;font-size:13px} .rsrename{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:12px}
   .rsrename label.f{flex:1 1 260px} .rsrename .mini{height:40px} .rsrename small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .rsboxf input{text-transform:uppercase;max-width:110px}
   .rsdet label.rscost,.rscost{display:flex;flex-direction:row;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;cursor:pointer;font-size:14px}
@@ -3592,7 +3603,7 @@ let rsBrowse = null, rsSheetFind = ""; // the category + brand folder open in th
 const RS_CATS = [["part", "Parts"], ["fil", "Filament"], ["acc", "Accessories"]];
 const RS_OTHER = "Other brands";
 const RS_BRANDS = [["Bambu Lab", /\bbambu\b|cyberbrick/i], ["Panda", /\bpanda\b/i], ["Creality", /creality/i], ["Soleyin", /soleyin/i], ["Layer By Layer", /layer by layer/i]];
-const rsBrandOf = s => /\(for bambu\)/i.test(s.name) ? RS_OTHER : ((RS_BRANDS.find(([, re]) => re.test(s.name)) || [RS_OTHER])[0]);
+const rsBrandOf = s => /\(for bambu( lab)?\)/i.test(s.name) ? RS_OTHER : ((RS_BRANDS.find(([, re]) => re.test(s.name)) || [RS_OTHER])[0]);
 // ----- Storage boxes (e.g. "3C" = shelf 3, box C) -----
 // Shelf by part type. Shelf 1 (toolhead) gives each part type + printer series its own box (hotends for H2/P2S/X2D,
 // X1 extruders, ...); shelves 2-4 group by printer series (all X1 boards and cables together). A part joins the
@@ -3673,6 +3684,26 @@ const RS_FILTERS = { all: () => true, low: rsIsLow, out: rsIsOut, noprice: s => 
 function rsAfterHtml(s){
   const n = rsQty(s), q = Number(rsOut.qty) || 0, after = rsOut.kind === "count" ? q : n - q;
   return n + ' in stock now → <b>' + after + '</b> after saving' + (after < 0 ? ' <b class="up">⚠ more than you have</b>' : '');
+}
+// Item code rule (owner): a part's code ends with the SKU / part number from the official store or the box,
+// e.g. PRT-BBL-FAH051, PRT-BBL-CAB002-N. A made-up ending with no number (PRT-BBL-EXT-GEAR) is not allowed.
+const rsCodeProblem = code => { code = String(code || "").trim().toUpperCase(); if(!/^PRT-/.test(code)) return "";
+  const tail = code.split("-").slice(2).join("-");
+  return !tail ? "Add the part number after " + code.replace(/-?$/, "-") + " (from the official store or the box)."
+    : /\d/.test(tail) ? "" : "Part codes end with the SKU / part number from the official store or the box, e.g. PRT-BBL-FAH051. “" + tail + "” isn't one. Check the box label or the store listing."; };
+let rsPick = { i: -1, q: "" }; // purchase line whose item search is open, and what's typed
+function rsPickMatches(q){
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length) return RS.stock.slice(0, 8);
+  return RS.stock.filter(s => { const hay = (s.code + " " + s.name + " " + (s.aliases || []).join(" ") + (s.location ? " box " + s.location : "")).toLowerCase();
+    return words.every(w => hay.includes(w)); }).slice(0, 8);
+}
+function rsPickList(i){
+  const m = rsPickMatches(rsPick.q);
+  return m.map((s, k) => '<li><button type="button" data-rspickcode="' + esc(s.code) + '" data-i="' + i + '"' + (k === 0 ? ' class="first"' : '') + '><span>' + esc(s.name) + '<small>' + esc(s.code) +
+      (s.location ? ' · Box ' + esc(s.location) : '') + '</small></span><i>' + rsQty(s) + ' in stock</i></button></li>').join("") +
+    (rsPick.q.trim() && !m.length ? '<li class="rspicknone">No stock item matches “' + esc(rsPick.q.trim()) + '”.</li>' : '') +
+    '<li><button type="button" data-rspicknew="' + i + '" class="rspicknew">+ New item' + (rsPick.q.trim() && !m.length ? ': “' + esc(rsPick.q.trim()) + '”' : '') + '</button></li>';
 }
 const rsItem = () => ({ code: "", name: "", raw: "", qty: 1, unitPrice: "", sellPrice: "", isNew: false });
 function rsBlank(){
@@ -3974,9 +4005,11 @@ function renderRs(){
   const c = rsCalc(), cur = rs.currency;
   const opt = (list, v) => list.map(x => '<option' + (x === v ? " selected" : "") + '>' + esc(x) + '</option>').join("");
   const names = STAFF.slice(); if(rs.by && !names.includes(rs.by)) names.unshift(rs.by);
-  const codeSel = (it, i) => '<select data-rsi="' + i + '" data-k="pick"><option value="">Choose item...</option>' +
-    RS.stock.map(s => '<option value="' + esc(s.code) + '"' + (s.code === it.code && !it.isNew ? " selected" : "") + '>' + esc(s.name + " · " + s.code) + '</option>').join("") +
-    '<option value="__new"' + (it.isNew ? " selected" : "") + '>+ New item...</option></select>';
+  // Item picker: a search box over the stock list (name, code, part no., receipt names or box), then + New item.
+  const codeSel = (it, i) => rsPick.i === i
+    ? '<div class="rspick"><div class="rspickrow"><input data-rspick="' + i + '" value="' + esc(rsPick.q) + '" placeholder="Search: name, code, part no. or box" autocomplete="off" aria-label="Search stock for item ' + (i + 1) + '">' +
+      '<button type="button" class="mini" data-rspickclose="1" aria-label="Close search">✕</button></div><ul class="rspicklist" id="rsPickList">' + rsPickList(i) + '</ul></div>'
+    : '<button type="button" class="rspickbtn" data-rspickopen="' + i + '"><span>' + (it.isNew ? '+ New item' : it.code ? esc(it.name) + ' <small>' + esc(it.code) + '</small>' : 'Choose item…') + '</span><b aria-hidden="true">🔍</b></button>';
   const boxes = rsHas("newLocation") ? rsPurchaseBoxes() : [];
   const items = rs.items.map((it, i) => {
     const unit = c.units[i] || 0, st = stockOf(it.code);
@@ -3987,10 +4020,11 @@ function renderRs(){
     // Purchase records cost only; the selling price is set on the Stock tab (or by Seo).
     const dup = it.isNew ? (rsMatch(it.name) || rsMatchPart(it.name) || (it.code ? stockOf(it.code) : null)) : null;
     return `<div class="rsitem">
-      <div class="rsitop"><label class="f">Item ${i + 1}${codeSel(it, i)}</label><button type="button" class="mini rsidel" data-rsdel="${i}" aria-label="Remove item ${i + 1}">✕</button></div>
+      <div class="rsitop"><div class="f rspickf"><span>Item ${i + 1}</span>${codeSel(it, i)}</div><button type="button" class="mini rsidel" data-rsdel="${i}" aria-label="Remove item ${i + 1}">✕</button></div>
       ${it.raw ? '<div class="rsraw">Receipt: ' + esc(it.raw) + '</div>' : ''}
-      ${it.isNew ? '<div class="grid rsinew"><label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PRT-BBL-FAH051" autocapitalize="characters" class="upper"></label>' +
+      ${it.isNew ? '<div class="grid rsinew"><label class="f">New item code<input data-rsi="' + i + '" data-k="code" value="' + esc(it.code) + '" placeholder="e.g. PRT-BBL-FAH051 (ends with the official SKU / part no.)" autocapitalize="characters" class="upper"></label>' +
         '<label class="f">New item name<input data-rsi="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="e.g. Bambu Lab Buffer, P2S"></label></div>' : ''}
+      ${it.isNew && rsCodeProblem(it.code) ? '<div class="rscodewarn">⚠ ' + esc(rsCodeProblem(it.code)) + '</div>' : ''}
       ${boxes[i] ? '<div class="rsboxline">📦 Goes in box <b>' + esc(boxes[i].loc) + '</b> · ' + esc(boxes[i].why) + (boxes[i].isNew ? ' · <b class="up">new box, needs a label</b>' : '') + '</div>' : ''}
       <div class="rsinums">
         <label class="f">Qty<input type="number" inputmode="decimal" min="0" step="any" data-rsi="${i}" data-k="qty" value="${esc(it.qty)}"></label>
@@ -4225,6 +4259,7 @@ function rsMatchPart(text){
 const rsPane = document.getElementById("rsPane");
 rsPane.addEventListener("input", e => {
   const t = e.target;
+  if(t.dataset.rspick !== undefined){ rsPick.q = t.value; const ul = document.getElementById("rsPickList"); if(ul) ul.innerHTML = rsPickList(+t.dataset.rspick); return; }
   if(t.id === "rsNewName"){ rsOut.newName = t.value; return; }
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
@@ -4250,6 +4285,15 @@ rsPane.addEventListener("pointerdown", e => { if(rsLater && e.target.closest("bu
 // Enter in the stock item's boxes saves, like pressing its button; Escape closes the item window.
 document.addEventListener("keydown", e => { if(e.key === "Escape" && rsBrowse && document.body.classList.contains("rs-sheet-open")) rsCloseSheet(); });
 rsPane.addEventListener("keydown", e => {
+  if(e.target.dataset && e.target.dataset.rspick !== undefined){
+    if(e.key === "Escape"){ e.preventDefault(); rsPick = { i: -1, q: "" }; renderRs(); return; }
+    if(e.key === "Enter"){ e.preventDefault(); const f = document.querySelector("#rsPickList button"); if(f) f.click(); return; }
+    if(e.key === "ArrowDown"){ e.preventDefault(); const f = document.querySelector("#rsPickList button"); if(f) f.focus(); return; }
+  }
+  if(e.target.closest && e.target.closest("#rsPickList") && (e.key === "ArrowDown" || e.key === "ArrowUp")){
+    e.preventDefault(); const bs = Array.from(document.querySelectorAll("#rsPickList button")), k = bs.indexOf(e.target);
+    const n = bs[k + (e.key === "ArrowDown" ? 1 : -1)]; if(n) n.focus(); else if(e.key === "ArrowUp"){ const x = document.querySelector("[data-rspick]"); if(x) x.focus(); } return;
+  }
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
   if(t.id === "rsNewName"){ e.preventDefault(); const x = document.getElementById("rsRenameSave"); if(x) x.click(); return; }
@@ -4361,6 +4405,12 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.userec){ const s = stockOf(rsOut.code), r = s ? rsRecOf(s) : null; if(r && r.price){ rsOut.sell = String(r.price); rsOut.sellCode = s.code; renderRs(); rsStatus2("ok", "Price set to $" + money(r.price) + ". Press Save price to keep it."); } return; }
   if(b.dataset.rsuse !== undefined){ const i = +b.dataset.rsuse, r = rsItemRec(rs.items[i], rsCalc().units[i] || 0); if(r.price){ rs.items[i].sellPrice = String(r.price); rs.items[i].sellAuto = false; rsDirty = true; renderRs(); } return; }
   if(b.dataset.rsmkt !== undefined){ rsItemMarket(+b.dataset.rsmkt); return; }
+  if(b.dataset.rspickopen !== undefined){ rsPick = { i: +b.dataset.rspickopen, q: "" }; renderRs(); const x = document.querySelector("[data-rspick]"); if(x) x.focus(); return; }
+  if(b.dataset.rspickclose){ rsPick = { i: -1, q: "" }; renderRs(); return; }
+  if(b.dataset.rspickcode !== undefined){ const it = rs.items[+b.dataset.i], s = stockOf(b.dataset.rspickcode);
+    if(it && s){ it.isNew = false; it.code = s.code; it.name = s.name; } rsPick = { i: -1, q: "" }; rsDirty = true; renderRs(); return; }
+  if(b.dataset.rspicknew !== undefined){ const it = rs.items[+b.dataset.rspicknew], q = rsPick.q.trim();
+    if(it){ if(!it.isNew){ it.code = ""; it.name = ""; } it.isNew = true; if(q && !it.name) it.name = q; } rsPick = { i: -1, q: "" }; rsDirty = true; renderRs(); return; }
   if(b.dataset.rsusedup !== undefined){ const it = rs.items[+b.dataset.rsusedup], s = stockOf(b.dataset.code); if(it && s){ it.isNew = false; it.code = s.code; it.name = s.name; rsDirty = true; renderRs(); } return; }
   if(b.dataset.rsadd){ rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rsdel !== undefined){ rs.items.splice(+b.dataset.rsdel, 1); if(!rs.items.length) rs.items.push(rsItem()); renderRs(); return; }
@@ -4374,6 +4424,8 @@ rsPane.addEventListener("click", async e => {
       rs.items.some(it => !(Number(it.qty) > 0) || it.unitPrice === "") && "qty and price for every line",
       !c.sgd && "the SGD you paid"].filter(Boolean);
     if(missing.length){ rsStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+    const badCode = rs.items.find(it => it.isNew && rsCodeProblem(it.code));
+    if(badCode){ rsStatus("err", rsCodeProblem(badCode.code)); return; }
     const clash = rs.items.find(it => it.isNew && stockOf(it.code));
     if(clash){ rsStatus("err", "Code " + clash.code + " is already used by “" + stockOf(clash.code).name + "”. Choose that item from the list instead of + New item, or use a different code."); return; }
     const twin = rs.items.find(it => it.isNew && rsMatch(it.name));
