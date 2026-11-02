@@ -301,7 +301,7 @@
   .prhead,.prow{display:grid;grid-template-columns:minmax(0,2fr) 76px 170px 190px minmax(0,1.3fr) 92px;gap:10px;align-items:center}
   .prhead{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line)}
   .prow{padding:10px;border-bottom:1px solid var(--line)} .prow.changed{background:var(--amber-wash)}
-  .prow > div > span:first-child:not(.stepper):not(.pmv){display:none}
+  .prow > div:not(.pk) > span:first-child:not(.stepper):not(.pmv){display:none}
   .pn{font-size:14px;font-weight:600;line-height:1.35} .pn small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
   .pc b{font-weight:600} .pp .stepper{grid-template-columns:36px minmax(0,1fr) 36px;gap:4px} .pp .stepper .mini{height:38px}
   .pp input{height:38px;padding:0 6px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);font:inherit;font-size:15px;text-align:center;min-width:0;width:100%;box-sizing:border-box}
@@ -329,7 +329,7 @@
     .prhead{display:none}
     .prow{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;padding:12px 4px}
     .prow .pn,.prow .pk{grid-column:1 / -1}
-    .prow > div > span:first-child:not(.stepper):not(.pmv){display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:3px}
+    .prow > div:not(.pk) > span:first-child:not(.stepper):not(.pmv){display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:3px}
     .prow .pp,.prow .pa{grid-column:1 / -1}
     .prow .pn{order:0} .prow .pc{order:1} .prow .pm{order:2} .prow .pp{order:3} .prow .pk{order:4} .prow .pa{order:5}
     .prow:not(.changed) .pa .mini{display:none} .prow .pa:empty{display:none}
@@ -3582,7 +3582,7 @@ async function rsPrMarket(code){
   rsPrMkt[code] = { loading: true }; renderRs();
   try{
     const out = await rsCall({ action: "priceResearch", code: s.code, name: s.name, cost: Number(s.avg) || 0 });
-    rsPrMkt[code] = out.result === "success" ? { data: out } : { error: out.message };
+    rsPrMkt[code] = out.result === "success" ? { data: out } : { error: out.message || "Market check failed (the script gave no reason). Try again in a minute." };
   }catch(e){ rsPrMkt[code] = { error: "Market check failed (no connection?)." }; }
   renderRs();
 }
@@ -4578,7 +4578,7 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.prmkt){ rsPrMarket(b.dataset.prmkt); return; }
   if(b.dataset.prcheckall){ // up to 20 of the items on screen without market data, one at a time; stops at the first error (e.g. AI search limit)
     const codes = [...rsPane.querySelectorAll("[data-prrow]")].map(r => r.dataset.prrow).filter(c => !(rsPrMkt[c] || {}).data).slice(0, 20);
-    for(let i = 0; i < codes.length; i++){ rsPrBusy = (i + 1) + " of " + codes.length; await rsPrMarket(codes[i]); if((rsPrMkt[codes[i]] || {}).error) break; }
+    for(let i = 0; i < codes.length; i++){ rsPrBusy = (i + 1) + " of " + codes.length; await rsPrMarket(codes[i]); if((rsPrMkt[codes[i]] || {}).error) break; if(i < codes.length - 1) await new Promise(r => setTimeout(r, 3000)); } /* pause: Google's free search allows a few a minute */
     rsPrBusy = ""; renderRs(); return;
   }
   if(b.dataset.prsave){ rsPrSave([b.dataset.prsave]); return; }
