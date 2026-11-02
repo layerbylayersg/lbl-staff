@@ -314,6 +314,7 @@
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
   .rsdupwarn{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--red-wash);color:var(--red-ink);font-size:13.5px;line-height:1.45}
   .rscodewarn{margin-top:8px;padding:8px 12px;border-radius:10px;background:var(--red-wash, #FDECEA);color:var(--red-ink);font-size:13px;line-height:1.45}
+  .rsedits{display:flex;gap:16px;flex-wrap:wrap} .rscostf{flex:0 1 170px!important}
   .rsrenamebtn{margin-bottom:8px;font-size:13px} .rsrename{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:12px}
   .rsrename label.f{flex:1 1 260px} .rsrename .mini{height:40px} .rsrename small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .rsboxf input{text-transform:uppercase;max-width:110px}
   .rsdet label.rscost,.rscost{display:flex;flex-direction:row;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;cursor:pointer;font-size:14px}
@@ -3764,7 +3765,7 @@ async function rsCall(body){
   const d = rsDemo, find = c => d.stock.find(s => s.code === c);
   if(body.action === "stockData") return { result: "success", stock: JSON.parse(JSON.stringify(d.stock)), history: d.history.slice(),
     merchants: d.history.map(x => x.merchant).filter((m, i, a) => a.indexOf(m) === i), staff: STAFF,
-    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair job", "Own use", "Damaged / lost"], targetMargin: 0.3, features: ["direct", "location", "costOnly", "rename", "newLocation", "jobParts"] };
+    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair job", "Own use", "Damaged / lost"], targetMargin: 0.3, features: ["direct", "location", "costOnly", "rename", "newLocation", "jobParts", "editCost"] };
   if(body.action === "restockScan") return { result: "success", receipt: { merchant: "拓竹旗舰店", platform: "Taobao", date: clToday(), currency: "CNY",
     items: [ { raw: "拓竹 P2S 缓冲器", qty: 3, unitPrice: 160, code: "PART-BL-P2S-BUFFER", name: "Bambu Lab Buffer, P2S" },
              { raw: "拓竹 X1C 完整热端 0.4mm 硬化钢", qty: 1, unitPrice: 189, code: "PART-BL-X1C-COMPLETEHOTEND-HS04", name: "Bambu Lab Complete Hotend, Hardened Steel 0.4mm, X1C" } ],
@@ -4076,7 +4077,15 @@ function renderRs(){
       ? '<div class="rsrename"><label class="f">New name<input id="rsNewName" value="' + esc(rsOut.newName !== undefined ? rsOut.newName : s.name) + '" maxlength="150"></label>' +
         '<button type="button" class="primary mini" id="rsRenameSave">Save name</button><button type="button" class="mini" data-rsrenamecancel="1">Cancel</button>' +
         '<small>The code stays ' + esc(s.code) + '. The old name is kept so old receipts and reports still match.</small></div>'
-      : '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>') : '') +
+      : '') : '') +
+    (rsHas("editCost") && rsOut.costEdit
+      ? '<div class="rsrename"><label class="f rscostf">Cost per unit (SGD)<input id="rsCostNew" type="number" inputmode="decimal" min="0" step="any" value="' + esc(rsOut.costNew !== undefined ? rsOut.costNew : (Number(s.avg) ? money(s.avg) : "")) + '" placeholder="e.g. 28.94"></label>' +
+        '<label class="f">Why?<input id="rsCostWhy" value="' + esc(rsOut.costWhy || "") + '" maxlength="200" placeholder="e.g. no receipt, bought 2024 · duplicate receipt fix"></label>' +
+        '<button type="button" class="primary mini" id="rsCostSave">Save cost</button><button type="button" class="mini" data-rscostcancel="1">Cancel</button>' +
+        '<small>Now ' + (Number(s.avg) ? '$' + money(s.avg) : 'no cost') + '. The change and the reason are logged. Receipts are still the best source: a receipt saved later works out the cost again from all its purchases.</small></div>' : '') +
+    (!rsOut.renaming && !rsOut.costEdit && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
+      (rsHas("rename") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>' : '') +
+      (rsHas("editCost") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscostedit="1">✏️ Edit cost</button>' : '') + '</div>' : '') +
     '<div class="seg" role="tablist" aria-label="What happened">' +
       '<button type="button" role="tab" data-rskind="out" aria-selected="' + (rsOut.kind === "out") + '">Sold / used</button>' +
       '<button type="button" role="tab" data-rskind="count" aria-selected="' + (rsOut.kind === "count") + '">Stock count</button></div>' +
@@ -4271,6 +4280,8 @@ rsPane.addEventListener("input", e => {
   const t = e.target;
   if(t.dataset.rspick !== undefined){ rsPick.q = t.value; const ul = document.getElementById("rsPickList"); if(ul) ul.innerHTML = rsPickList(+t.dataset.rspick); return; }
   if(t.id === "rsNewName"){ rsOut.newName = t.value; return; }
+  if(t.id === "rsCostNew"){ rsOut.costNew = t.value; return; }
+  if(t.id === "rsCostWhy"){ rsOut.costWhy = t.value; return; }
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
@@ -4307,6 +4318,7 @@ rsPane.addEventListener("keydown", e => {
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
   if(t.id === "rsNewName"){ e.preventDefault(); const x = document.getElementById("rsRenameSave"); if(x) x.click(); return; }
+  if(t.id === "rsCostNew" || t.id === "rsCostWhy"){ e.preventDefault(); const x = document.getElementById("rsCostSave"); if(x) x.click(); return; }
   if(t.id === "rsLoc"){ e.preventDefault(); const x = document.getElementById("rsMinSave"); if(x) x.click(); return; }
   const prb = t.dataset.prprice !== undefined && rsPane.querySelector('[data-prsave="' + CSS.escape(t.dataset.prprice) + '"]');
   if(prb && !prb.disabled){ e.preventDefault(); prb.click(); return; }
@@ -4487,6 +4499,21 @@ rsPane.addEventListener("click", async e => {
       rsStatus2("ok", name + ": " + out.qty + " left." + (forJob ? " Noted for " + forJob + "." : ""));
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
     finally{ const s = document.getElementById("rsMove"); if(s) s.disabled = false; }
+    return;
+  }
+  if(b.dataset.rscostedit){ rsOut.costEdit = true; rsOut.costNew = undefined; rsOut.costWhy = ""; renderRs(); const x = document.getElementById("rsCostNew"); if(x){ x.focus(); x.select(); } return; }
+  if(b.dataset.rscostcancel){ rsOut.costEdit = false; renderRs(); return; }
+  if(b.id === "rsCostSave"){
+    const s = stockOf(rsOut.code), v = (document.getElementById("rsCostNew") || {}).value, why = ((document.getElementById("rsCostWhy") || {}).value || "").trim(); if(!s) return;
+    if(String(v).trim() === "" || !(Number(v) >= 0)){ rsStatus2("err", "Type the cost per unit in SGD."); return; }
+    if(!why){ rsStatus2("err", "Say why the cost is being changed (e.g. no receipt, duplicate fix)."); const x = document.getElementById("rsCostWhy"); if(x) x.focus(); return; }
+    b.disabled = true; b.textContent = "Saving...";
+    try{
+      const out = await rsCall({ action: "stockPrice", code: s.code, sellPrice: Number(s.sell) || "", minQty: s.min, avgCost: v, costReason: why });
+      if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
+      rsOut.costEdit = false; await loadStock(); rsStatus2("ok", "Cost saved: $" + money(v) + " per unit.");
+    }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
+    finally{ const x = document.getElementById("rsCostSave"); if(x){ x.disabled = false; x.textContent = "Save cost"; } }
     return;
   }
   if(b.dataset.rsrename){ rsOut.renaming = true; rsOut.newName = undefined; renderRs(); const x = document.getElementById("rsNewName"); if(x){ x.focus(); x.select(); } return; }
