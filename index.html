@@ -3885,6 +3885,18 @@ let rsMsg = null, rsMsg2 = null;
 function rsStatus(kind, msg){ rsMsg = msg ? { kind, msg } : null; const el = document.getElementById("rsStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 
 // Same maths as landedCosts() in the script: extras spread by value, SGD paid absorbs FX and card fees.
+// Receipt check: the total read off the receipt should match either the items alone (many receipts paid in SGD,
+// e.g. Taobao, only print the items' price 商品总价 in CNY) or the items + charges. A mismatch with both is worth
+// a look; it never changes costs, which come from the SGD paid.
+function rsReceiptCheck(c){
+  const rt = Number(rs.receiptTotal) || 0, cur = rs.currency;
+  if(!rt) return { ok: null, msg: "" };
+  if(cur !== "SGD" && c.sgd > 0 && Math.abs(rt - c.sgd) < 0.01) return { ok: null, msg: "" }; // that number was the SGD paid
+  if(Math.abs(c.order - rt) < 0.01) return { ok: true, msg: '<span class="down">✓ Items and charges add up to the receipt total.</span>' };
+  if(Math.abs(c.value - rt) < 0.01) return { ok: true, msg: '<span class="down">✓ Items add up to the receipt\'s item total (' + money(rt) + ' ' + esc(cur) + ').</span>' };
+  return { ok: false, msg: '<span class="up">ℹ The receipt total read was ' + money(rt) + ' ' + esc(cur) + '; your items come to ' + money(c.value) +
+    (c.extras ? ' (' + money(c.order) + ' with charges)' : '') + '. Worth a quick look at the prices. A discount should be either in the item price or as a charge line, not both. Final costs come from the SGD you paid, so they are right either way.</span>' };
+}
 function rsCalc(){
   const items = rs.items.map(it => ({ qty: Number(it.qty) || 0, unit: Number(it.unitPrice) || 0 }));
   const value = items.reduce((s, it) => s + it.qty * it.unit, 0);
@@ -3993,13 +4005,8 @@ function renderRs(){
       <input list="rsExtraNames" data-rse="${i}" data-k="label" value="${esc(e.label)}" placeholder="e.g. Shipping" aria-label="Charge">
       <input type="number" inputmode="decimal" step="any" data-rse="${i}" data-k="amount" value="${esc(e.amount)}" placeholder="Amount (${esc(cur)}), minus for discount" aria-label="Amount">
       <button type="button" class="mini" data-rsedel="${i}" aria-label="Remove charge">✕</button></div>`).join("");
-  // Receipt check: our items + charges should add up to the receipt's own total (same currency).
-  const rt = Number(rs.receiptTotal) || 0, diff = rt ? c.order - rt : 0;
-  const looksSgd = rt && cur !== "SGD" && c.sgd > 0 && Math.abs(rt - c.sgd) < 0.01;
-  const check = !rt ? ""
-    : Math.abs(diff) < 0.01 ? '<span class="down">✓ Items and charges add up to the receipt total. Nothing missed.</span>'
-    : looksSgd ? '<span>That number is the SGD you paid, not the ' + esc(cur) + ' total, so this check is skipped. Type the ' + esc(cur) + ' total from the receipt to check, or leave it empty.</span>'
-    : '<span class="up">⚠ Items and charges add up to ' + money(c.order) + ' ' + esc(cur) + ', but the receipt says ' + money(rt) + ' ' + esc(cur) + ' (' + money(Math.abs(diff)) + ' ' + (diff > 0 ? 'more' : 'less') + '). An item, price or charge may be misread or missing.</span>';
+  // Receipt check (see rsReceiptCheck): shown only when it says something useful.
+  const check = rsReceiptCheck(c).msg;
   const lineCount = rs.items.filter(it => it.code || it.name).length;
   // "Total you actually paid" shows the receipt total (SGD) or today's-rate estimate until someone types their own amount;
   // not while they are in the box, so clearing it to retype doesn't refill it.
@@ -4161,7 +4168,7 @@ function renderRs(){
         ${extras}
         <button type="button" class="linkbtn rsaddcharge" data-rseadd="1">+ Add a charge</button>
       </details>
-      ${check && Math.abs(diff) >= 0.01 && !looksSgd ? '<p class="hint rscheck">' + check + '</p>' : ''}
+      ${check ? '<p class="hint rscheck">' + check + '</p>' : ''}
     </div>
     <div class="rsbar rs-p">
       <label for="rsPaid" class="rsbarlab">Total you actually paid (SGD)</label>
@@ -4371,9 +4378,7 @@ rsPane.addEventListener("click", async e => {
     if(clash){ rsStatus("err", "Code " + clash.code + " is already used by “" + stockOf(clash.code).name + "”. Choose that item from the list instead of + New item, or use a different code."); return; }
     const twin = rs.items.find(it => it.isNew && rsMatch(it.name));
     if(twin){ rsStatus("err", "“" + twin.name + "” is already in stock as " + rsMatch(twin.name).code + ". Tap “Use this item” on that line so " + (rs.costOnly ? "the cost goes" : "the qty adds") + " to it."); return; }
-    const rt = Number(rs.receiptTotal) || 0;
-    const sgdInBox = rs.currency !== "SGD" && c.sgd > 0 && Math.abs(rt - c.sgd) < 0.01;
-    if(rt && !sgdInBox && Math.abs(c.order - rt) >= 0.01 && !confirm("Items and charges add up to " + money(c.order) + " " + rs.currency + ", but the receipt says " + money(rt) + " " + rs.currency + ". Save anyway?")) return;
+    if(rsReceiptCheck(c).ok === false && !confirm("Your items come to " + money(c.value) + " " + rs.currency + " and the receipt total read was " + money(Number(rs.receiptTotal)) + " " + rs.currency + ". Final costs still come from the SGD you paid. Save?")) return;
     b.disabled = true; b.textContent = "Saving...";
     try{
       const purchase = Object.assign({}, rs); delete purchase.images; delete purchase.receiptTotal;
