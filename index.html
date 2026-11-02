@@ -312,6 +312,7 @@
   .rsboxsug{flex-basis:100%;font-size:13px;color:var(--ink-2)} .rsboxline{margin-top:8px;font-size:13px;color:var(--ink-2)}
   .takenhint{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);font-size:13.5px;line-height:1.5} .takenhint .ok{color:var(--green-ink);font-weight:600}
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
+  .rsdupwarn{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--red-wash);color:var(--red-ink);font-size:13.5px;line-height:1.45}
   .rscodewarn{margin-top:8px;padding:8px 12px;border-radius:10px;background:var(--red-wash, #FDECEA);color:var(--red-ink);font-size:13px;line-height:1.45}
   .rsrenamebtn{margin-bottom:8px;font-size:13px} .rsrename{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:12px}
   .rsrename label.f{flex:1 1 260px} .rsrename .mini{height:40px} .rsrename small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .rsboxf input{text-transform:uppercase;max-width:110px}
@@ -3776,7 +3777,7 @@ async function rsCall(body){
       if(s && p.costOnly){ s.avg = unit; s.last = unit; s.merchant = p.merchant; }
       else if(s){ const held = Math.max(s.qty, 0); s.avg = (held * s.avg + q * unit) / (held + q); s.qty += q; s.last = unit; s.merchant = p.merchant; if(Number(it.sellPrice)) s.sell = Number(it.sellPrice); if(it.raw && !s.aliases.includes(it.raw)) s.aliases.push(it.raw); }
       else d.stock.push({ code: it.code, name: it.name, qty: q, avg: unit, last: unit, merchant: p.merchant, sell: Number(it.sellPrice) || 0, min: 1, aliases: it.raw ? [it.raw] : [] });
-      d.history.push({ date: p.date, merchant: p.merchant, code: it.code, unit });
+      d.history.push({ date: p.date, merchant: p.merchant, code: it.code, unit, id: "DEMO-" + String(d.seq + 1).padStart(2, "0") });
     });
     return { result: "success", purchaseId: "DEMO-" + String(++d.seq).padStart(2, "0"), sgdTotal: c.sgd, costOnly: !!p.costOnly, added: p.costOnly ? fresh : p.items.length };
   }
@@ -3919,6 +3920,14 @@ function rsStatus(kind, msg){ rsMsg = msg ? { kind, msg } : null; const el = doc
 // Receipt check: the total read off the receipt should match either the items alone (many receipts paid in SGD,
 // e.g. Taobao, only print the items' price 商品总价 in CNY) or the items + charges. A mismatch with both is worth
 // a look; it never changes costs, which come from the SGD paid.
+// Same receipt saved before? Same date and seller, and every item on this purchase is on that saved one.
+function rsDupPurchase(){
+  const m = String(rs.merchant || "").trim().toLowerCase(), codes = rs.items.map(it => String(it.code || "").trim()).filter(Boolean);
+  if(!m || !rs.date || !codes.length) return "";
+  const byId = {};
+  RS.history.forEach(h => { if(h.date === rs.date && String(h.merchant || "").trim().toLowerCase() === m) (byId[h.id] = byId[h.id] || []).push(h.code); });
+  return Object.keys(byId).find(id => codes.every(c => byId[id].includes(c))) || "";
+}
 function rsReceiptCheck(c){
   const rt = Number(rs.receiptTotal) || 0, cur = rs.currency;
   if(!rt) return { ok: null, msg: "" };
@@ -4203,6 +4212,7 @@ function renderRs(){
         <button type="button" class="linkbtn rsaddcharge" data-rseadd="1">+ Add a charge</button>
       </details>
       ${check ? '<p class="hint rscheck">' + check + '</p>' : ''}
+      ${rsDupPurchase() ? '<p class="rsdupwarn">⚠ This receipt looks already saved as <b>' + esc(rsDupPurchase()) + '</b> (same date, seller and items). Saving again would count it twice.</p>' : ''}
     </div>
     <div class="rsbar rs-p">
       <label for="rsPaid" class="rsbarlab">Total you actually paid (SGD)</label>
@@ -4424,6 +4434,8 @@ rsPane.addEventListener("click", async e => {
       rs.items.some(it => !(Number(it.qty) > 0) || it.unitPrice === "") && "qty and price for every line",
       !c.sgd && "the SGD you paid"].filter(Boolean);
     if(missing.length){ rsStatus("err", "Still needed: " + missing.join(", ") + "."); return; }
+    const dupPO = rsDupPurchase();
+    if(dupPO && !confirm("This receipt looks already saved as " + dupPO + " (same date, seller and items).\n\nSaving it again counts it twice. Save anyway?")) return;
     const badCode = rs.items.find(it => it.isNew && rsCodeProblem(it.code));
     if(badCode){ rsStatus("err", rsCodeProblem(badCode.code)); return; }
     const clash = rs.items.find(it => it.isNew && stockOf(it.code));
