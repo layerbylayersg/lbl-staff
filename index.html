@@ -248,7 +248,8 @@
     #hoPane > *{grid-column:1 / -1} #hoPane > .stage:not(:first-of-type){grid-column:auto}
     #hoPane .photos .addph{flex:1 1 160px;width:auto;min-height:92px} /* the add tile fills the rest of the photo row */
     #clPane{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:16px;align-items:start}
-    #clPane > *{grid-column:2} #clPane > :first-child{grid-column:1;grid-row:1 / span 6}
+    #clPane > *{grid-column:2} #clPane > .cldstage{grid-column:1 / -1;grid-row:1} /* overview across the top */
+    #clPane > .cldstage + .stage{grid-column:1;grid-row:2 / span 6}
   }
   /* Wide screens: Inventory uses the width (the form pages keep their reading width) */
   @media (min-width:900px){
@@ -349,6 +350,14 @@
   .cllist th{font-size:12px;font-weight:600;color:var(--muted)}
   .cllist td.amt,.cllist th.amt{text-align:right;white-space:nowrap}
   .cllist .x{display:block;font-size:12px;color:var(--muted)} .cllist .x.bad{color:var(--red-ink)}
+  .cldash{display:flex;flex-direction:column;gap:14px}
+  .cldtop{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+  .cldtotal{display:flex;flex-direction:column;gap:2px} .cldtotal span{font-size:13px;font-weight:600;color:var(--ink-2)} .cldtotal b{font-size:34px;line-height:1.1;color:var(--green-ink)} .cldtotal small{font-size:12.5px;color:var(--muted)}
+  .cldseg{min-width:240px}
+  .cldcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .cldcard{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+  .cldname{font-size:13.5px;font-weight:600;color:var(--ink)} .cldcard b{font-size:24px;line-height:1.15} .cldcard small{font-size:12.5px;color:var(--ink-2)}
+  .cldflag{font-size:12px;color:var(--muted);margin-top:2px} .cldflag.ok{color:var(--green-ink)} .cldflag.bad{color:var(--red-ink);font-weight:600}
   .cltotals{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
   .cltotals span{padding:6px 10px;border-radius:999px;background:var(--green-wash);border:1px solid #CFE3B0;font-size:13px;font-weight:600}
   .policy{white-space:pre-line;font-size:13.5px;line-height:1.55;color:var(--ink-2);padding:12px 14px}
@@ -3191,19 +3200,39 @@ function renderCl(){
     CL.jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===cl.quoteNo?" selected":"")+'>'+
       esc(j.quoteNo+" · "+j.name+(j.machine?" · "+j.machine:"")+" · "+j.status+(/^y/i.test(j.transport)?" · transport":""))+'</option>').join("")+
     '</select><button type="button" class="mini" data-clrefresh="1" title="Reload from the Sheet">Refresh</button></span></label>';
-  const month = clToday().slice(0, 7);
+  // Month summary (this month / last month): total and one card per person, for paying claims at month end.
+  const now = clToday(), y = +now.slice(0, 4), m = +now.slice(5, 7);
+  const lastM = m === 1 ? (y - 1) + "-12" : y + "-" + String(m - 1).padStart(2, "0");
+  const month = clMonth === "last" ? lastM : now.slice(0, 7);
+  const monthName = k => new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1).toLocaleDateString("en-SG", { month: "long", year: "numeric" });
   const mine = CL.claims.filter(c => c.date.slice(0, 7) === month);
-  const totals = {};
-  mine.forEach(c => { totals[c.claimant] = (totals[c.claimant] || 0) + c.amount; });
+  const people = {};
+  mine.forEach(c => { const q = people[c.claimant] = people[c.claimant] || { amount: 0, trips: 0, jobs: new Set(), notInXero: 0, pending: 0 };
+    q.amount += c.amount; q.trips += Math.round(c.amount / (CL.perTrip || 15)) || 1; q.jobs.add(c.quoteNo);
+    if(/^NOT/.test(c.xero || "")) q.notInXero++; else if(!/^On draft bill/.test(c.xero || "")) q.pending++; });
+  const total = mine.reduce((n, c) => n + c.amount, 0), ppl = Object.keys(people).sort((a, b) => people[b].amount - people[a].amount);
+  const payDay = new Date(+month.slice(0, 4), +month.slice(5, 7), 0).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+  const dash = !CL.loaded && CL.loading ? skelRows() :
+    '<div class="cldash">' +
+      '<div class="cldtop"><div class="cldtotal"><span>' + esc(monthName(month)) + '</span><b>$' + total + '</b><small>' + mine.length + ' claim' + (mine.length === 1 ? '' : 's') + ' · ' + ppl.length + ' ' + (ppl.length === 1 ? 'person' : 'people') + ' · paid at month end (' + payDay + ')</small></div>' +
+      '<div class="seg cldseg" role="tablist" aria-label="Month"><button type="button" role="tab" data-clmonth="this" aria-selected="' + (clMonth !== "last") + '">This month</button><button type="button" role="tab" data-clmonth="last" aria-selected="' + (clMonth === "last") + '">Last month</button></div></div>' +
+      (ppl.length ? '<div class="cldcards">' + ppl.map(n => { const q = people[n];
+        return '<div class="cldcard"><span class="cldname">' + esc(n) + '</span><b>$' + q.amount + '</b><small>' + q.trips + ' trip' + (q.trips === 1 ? '' : 's') + ' · ' + q.jobs.size + ' job' + (q.jobs.size === 1 ? '' : 's') + '</small>' +
+          (q.notInXero ? '<span class="cldflag bad">⚠ ' + q.notInXero + ' not in Xero yet</span>' : q.pending ? '<span class="cldflag">Adding to Xero…</span>' : '<span class="cldflag ok">✓ On Xero bill</span>') + '</div>'; }).join("") + '</div>'
+        : '<p class="hint">No claims ' + (clMonth === "last" ? 'last month' : 'yet this month') + '.</p>') +
+    '</div>';
   const list = mine.length
-    ? '<div class="cltotals">'+Object.keys(totals).map(n=>'<span>'+esc(n)+': $'+totals[n]+'</span>').join("")+'</div>'+
-      '<table class="cllist"><thead><tr><th>Date</th><th>Name</th><th>Job / trip</th><th class="amt">$</th></tr></thead><tbody>'+
+    ? '<table class="cllist"><thead><tr><th>Date</th><th>Name</th><th>Job / trip</th><th class="amt">$</th></tr></thead><tbody>'+
       mine.map(c=>'<tr><td>'+esc(c.date.slice(8)+"/"+c.date.slice(5,7))+'</td><td>'+esc(c.claimant)+'</td><td>'+esc(c.quoteNo+(c.customer?" · "+c.customer:""))+
         '<span class="x">'+esc(c.trip+(c.note?" · "+c.note:""))+'</span><span class="x'+(/^NOT/.test(c.xero)?" bad":"")+'">'+esc(c.xero||"")+'</span></td><td class="amt">'+c.amount+'</td></tr>').join("")+
       '</tbody></table>'
-    : !CL.loaded && CL.loading ? skelRows() : '<p class="hint">No claims yet this month.</p>';
+    : !CL.loaded && CL.loading ? skelRows() : '<p class="hint">No claims ' + (clMonth === "last" ? 'last month' : 'yet this month') + '.</p>';
 
   p.innerHTML = `
+    <div class="stage cldstage">
+      <h2>Petrol claims overview</h2>
+      ${dash}
+    </div>
     <div class="stage">
       <h2><span class="n">1</span>Claim a trip</h2>
       <div class="grid">
@@ -3223,12 +3252,13 @@ function renderCl(){
       <p class="hostatus" id="clStatus" role="status"></p>
     </div>
     <div class="stage">
-      <h2><span class="n">2</span>Claims this month</h2>
+      <h2><span class="n">2</span>Claims ${clMonth === "last" ? "last month" : "this month"}</h2>
       ${list}
     </div>
     <details class="accg stage"><summary><span>Transport claim policy</span></summary><div class="policy">${esc(CL_POLICY)}</div></details>`;
 }
 
+let clMonth = "this"; // overview month: "this" or "last"
 const clPane = document.getElementById("clPane");
 clPane.addEventListener("change", e => {
   const t = e.target;
@@ -3240,6 +3270,7 @@ clPane.addEventListener("click", async e => {
   const b = e.target.closest("button");
   if(!b) return;
   if(b.dataset.clrefresh){ loadClaims(); return; }
+  if(b.dataset.clmonth){ clMonth = b.dataset.clmonth; renderCl(); return; }
   if(b.id !== "clSave") return;
   const missing = [!cl.claimant && "your name", !cl.date && "trip date", !cl.quoteNo && "job", !cl.trip && "trip",
     cl.trip === "Other job trip" && !cl.note.trim() && "note"].filter(Boolean);
