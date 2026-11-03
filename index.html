@@ -93,7 +93,7 @@
     body:not(.locked) .toast{left:calc(50% + 105px)}
   }
   /* phones: logo + Log out on top, the four tabs as a full-width row underneath */
-  @media (max-width:700px){ .bar .modes{order:3;flex:1 1 100%} .bar .modes button{flex:1;padding:0 4px} }
+  @media (max-width:700px){ .bar .modes{order:3;flex:1 1 100%;overflow-x:auto;scrollbar-width:none} .bar .modes::-webkit-scrollbar{display:none} .bar .modes button{flex:1 0 auto;padding:0 4px;white-space:nowrap} } /* swipe sideways when the tabs don't fit */
   @media (max-width:480px){ .bar .modes .lg{display:none} .bar .modes .sm{display:inline}
     .bar{gap:6px} .bar img{height:24px} .bar .modes button{padding:0 8px;font-size:12.5px} .bar #btnLogout{padding:0 6px;font-size:13px} }
   #hoView{display:none}
@@ -243,7 +243,7 @@
   /* Wide screens: Handover / Takeover put their sections two to a row under the full-width Job;
      Petrol puts the claim form beside this month's claims and history */
   @media (min-width:1100px){
-    #hoPane.howrap,#clPane.howrap{max-width:1280px}
+    #hoPane.howrap,#clPane.howrap,#dashPane.howrap{max-width:1280px}
     #hoPane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:stretch} /* cards side by side share a height: no gaps */
     #hoPane > *{grid-column:1 / -1} #hoPane > .stage:not(:first-of-type){grid-column:auto}
     #hoPane .photos .addph{flex:1 1 160px;width:auto;min-height:92px} /* the add tile fills the rest of the photo row */
@@ -342,6 +342,13 @@
   @media (max-width:560px){ .rsstats{grid-template-columns:repeat(2,minmax(0,1fr))} .rstools{grid-template-columns:minmax(0,1fr)}
     .rsgroups button{padding:0 6px;font-size:13px} .rsgroups small{display:none} }
   @media (prefers-reduced-motion:reduce){ .rschev{transition:none} }
+  #dashView{display:none}
+  body.mode-dash #dashView{display:block}
+  body.mode-dash .layout,body.mode-dash .mobiletabs,body.mode-dash #saveStatus,body.mode-dash #hoView,body.mode-dash #clView,body.mode-dash #rsView,body.mode-dash #stView,body.locked #dashView{display:none!important}
+  .dashhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 0 14px}
+  .dashhead h1{margin:0;font-size:22px} .dashhead span{font-size:13.5px;color:var(--ink-2)}
+  .dashgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  .dashcard h2{display:flex;align-items:center;gap:10px} .dashcard h2 .linkbtn{margin-left:auto;font-size:13.5px;font-weight:600}
   #clView{display:none}
   body.mode-cl #clView{display:block}
   body.mode-cl .layout,body.mode-cl .mobiletabs,body.mode-cl #saveStatus,body.mode-cl #hoView,body.locked #clView{display:none!important}
@@ -832,6 +839,7 @@
 <div class="bar">
   <img id="barLogo" alt="Layer By Layer">
   <div class="modes" role="group" aria-label="Form">
+    <button type="button" id="modeDash" aria-pressed="false"><span class="lg">Dashboard</span><span class="sm">Home</span></button>
     <button type="button" id="modeReport" aria-pressed="true"><span class="lg">Service report</span><span class="sm">Report</span></button>
     <button type="button" id="modeHo" aria-pressed="false">Handover</button>
     <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
@@ -868,6 +876,7 @@
 </div>
 
 <main id="hoView"><div class="howrap" id="hoPane"></div></main>
+<main id="dashView"><div class="howrap" id="dashPane"></div></main>
 <main id="clView"><div class="howrap" id="clPane"></div></main>
 <main id="rsView"><div class="howrap" id="rsPane"></div></main>
 <main id="stView"><div class="howrap" id="stPane"></div></main>
@@ -1127,8 +1136,10 @@ function defaultNames(){
   if(me && typeof cl === "object" && !cl.claimant) cl.claimant = me;
   if(me && typeof rs === "object" && rs && !rs.by) rs.by = me;
 }
+let dashOpened = false; // the Dashboard is the first page after signing in
 function unlock(){
   document.body.classList.remove("locked");
+  if(!dashOpened && !/\bmode-/.test(document.body.className)){ dashOpened = true; setTimeout(() => setMode("dash"), 0); }
   if(document.body.classList.contains("mode-st") && !(SESSION && SESSION.admin)) setMode("report"); // Staff screen is for admins only
   showWho();
   defaultNames();
@@ -3128,6 +3139,8 @@ function setMode(m){
   }
   document.body.classList.toggle("mode-ho", isForm);
   document.body.classList.toggle("mode-cl", m === "claim");
+  document.body.classList.toggle("mode-dash", m === "dash");
+  document.getElementById("modeDash").setAttribute("aria-pressed", String(m === "dash"));
   document.body.classList.toggle("mode-rs", m === "restock");
   document.body.classList.toggle("mode-st", m === "staff");
   document.getElementById("modeReport").setAttribute("aria-pressed", String(m === "report"));
@@ -3137,14 +3150,16 @@ function setMode(m){
   document.getElementById("modeRs").setAttribute("aria-pressed", String(m === "restock"));
   if(isForm) renderHo();
   if(m === "claim"){
-    if(!CL.loaded && isNew()){ const k = lsGet("lbl-claims"); if(k && k.name === ME()) CL = { jobs: k.jobs, claims: outbox.pending("petrol").map(it => it.claim).filter(Boolean).concat(k.claims), perTrip: k.perTrip, loaded: true, loading: false }; }
+    clFromCache();
     renderCl(); loadClaims();
   }
   if(m === "restock"){ renderRs(); loadStock(); }
+  if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
   else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
 }
+document.getElementById("modeDash").addEventListener("click", () => setMode("dash"));
 document.getElementById("modeReport").addEventListener("click", () => setMode("report"));
 document.getElementById("modeHo").addEventListener("click", () => setMode("handover"));
 document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
@@ -3174,6 +3189,7 @@ async function loadClaims(){
   if(CL.loading) return;
   CL.loading = true;
   if(!CL.loaded && document.body.classList.contains("mode-cl")) renderCl(); // placeholders while it loads
+  if(!CL.loaded && document.body.classList.contains("mode-dash")) renderDash();
   try{
     const out = await callSheet({ action:"petrolClaims" });
     if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); else clStatus("err", out.message); return; }
@@ -3183,24 +3199,15 @@ async function loadClaims(){
     if(isNew()) lsSet("lbl-claims", { name: ME(), jobs: out.jobs || [], claims: out.claims || [], perTrip: out.perTrip || 15 }); // opens at once next time
     if(out.staff && out.staff.length) STAFF = out.staff;
     if(!cl.claimant) cl.claimant = ME() || (function(){ try{ return localStorage.getItem(SPECIALIST_KEY) || ""; }catch(e){ return ""; } })();
-    renderCl();
+    renderCl(); renderDash();
   }catch(err){ clStatus("err", "Could not load claims. Check the connection and press Refresh."); }
   finally{ CL.loading = false; }
 }
 function clStatus(kind, msg){ const el = document.getElementById("clStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 
-function renderCl(){
-  const p = document.getElementById("clPane");
-  const names = STAFF.slice(); if(cl.claimant && !names.includes(cl.claimant)) names.unshift(cl.claimant);
-  const who = names.length
-    ? '<label class="f">Your name<select data-cl="claimant"><option value="">Choose...</option>'+names.map(n=>'<option'+(n===cl.claimant?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select></label>'
-    : '<label class="f">Your name<input data-cl="claimant" value="'+esc(cl.claimant)+'"></label>';
-  const jobs = !CL.loaded && CL.loading ? skelPick() : '<label class="f span2 jobpick">Job<span class="pickrow"><select data-cl="quoteNo"><option value="">'+
-    (CL.loaded ? (CL.jobs.length ? "Choose the job..." : "No jobs found") : "Loading jobs...")+'</option>'+
-    CL.jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===cl.quoteNo?" selected":"")+'>'+
-      esc(j.quoteNo+" · "+j.name+(j.machine?" · "+j.machine:"")+" · "+j.status+(/^y/i.test(j.transport)?" · transport":""))+'</option>').join("")+
-    '</select><button type="button" class="mini" data-clrefresh="1" title="Reload from the Sheet">Refresh</button></span></label>';
-  // Month summary (this month / last month): total and one card per person, for paying claims at month end.
+// Petrol month summary (this month / last month): total and one card per person, for paying claims at month end.
+// Shown on the Petrol tab and on the Dashboard.
+function clSummary(){
   const now = clToday(), y = +now.slice(0, 4), m = +now.slice(5, 7);
   const lastM = m === 1 ? (y - 1) + "-12" : y + "-" + String(m - 1).padStart(2, "0");
   const month = clMonth === "last" ? lastM : now.slice(0, 7);
@@ -3221,6 +3228,38 @@ function renderCl(){
           (q.notInXero ? '<span class="cldflag bad">⚠ ' + q.notInXero + ' not in Xero yet</span>' : q.pending ? '<span class="cldflag">Adding to Xero…</span>' : '<span class="cldflag ok">✓ On Xero bill</span>') + '</div>'; }).join("") + '</div>'
         : '<p class="hint">No claims ' + (clMonth === "last" ? 'last month' : 'yet this month') + '.</p>') +
     '</div>';
+  return { dash, mine, month };
+}
+// Claims kept on this device from last time, so the overview shows at once.
+function clFromCache(){
+  if(CL.loaded || !isNew()) return;
+  const k = lsGet("lbl-claims");
+  if(k && k.name === ME()) CL = { jobs: k.jobs, claims: outbox.pending("petrol").map(it => it.claim).filter(Boolean).concat(k.claims), perTrip: k.perTrip, loaded: true, loading: false };
+}
+// ===== Dashboard (home page): one card per area; add more cards to DASH_CARDS =====
+const DASH_CARDS = [
+  { title: "Petrol claims", go: "claim", goLabel: "Open Petrol", html: () => clSummary().dash }
+];
+function renderDash(){
+  const p = document.getElementById("dashPane"); if(!p) return;
+  const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  p.innerHTML = '<div class="dashhead"><h1>Dashboard</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
+      new Date().toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) + '</span></div>' +
+    '<div class="dashgrid">' + DASH_CARDS.map(c => '<div class="stage dashcard"><h2>' + esc(c.title) +
+      '<button type="button" class="linkbtn" data-dashgo="' + esc(c.go) + '">' + esc(c.goLabel) + ' →</button></h2>' + c.html() + '</div>').join("") + '</div>';
+}
+function renderCl(){
+  const p = document.getElementById("clPane");
+  const names = STAFF.slice(); if(cl.claimant && !names.includes(cl.claimant)) names.unshift(cl.claimant);
+  const who = names.length
+    ? '<label class="f">Your name<select data-cl="claimant"><option value="">Choose...</option>'+names.map(n=>'<option'+(n===cl.claimant?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select></label>'
+    : '<label class="f">Your name<input data-cl="claimant" value="'+esc(cl.claimant)+'"></label>';
+  const jobs = !CL.loaded && CL.loading ? skelPick() : '<label class="f span2 jobpick">Job<span class="pickrow"><select data-cl="quoteNo"><option value="">'+
+    (CL.loaded ? (CL.jobs.length ? "Choose the job..." : "No jobs found") : "Loading jobs...")+'</option>'+
+    CL.jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===cl.quoteNo?" selected":"")+'>'+
+      esc(j.quoteNo+" · "+j.name+(j.machine?" · "+j.machine:"")+" · "+j.status+(/^y/i.test(j.transport)?" · transport":""))+'</option>').join("")+
+    '</select><button type="button" class="mini" data-clrefresh="1" title="Reload from the Sheet">Refresh</button></span></label>';
+  const { dash, mine } = clSummary();
   const list = mine.length
     ? '<table class="cllist"><thead><tr><th>Date</th><th>Name</th><th>Job / trip</th><th class="amt">$</th></tr></thead><tbody>'+
       mine.map(c=>'<tr><td>'+esc(c.date.slice(8)+"/"+c.date.slice(5,7))+'</td><td>'+esc(c.claimant)+'</td><td>'+esc(c.quoteNo+(c.customer?" · "+c.customer:""))+
@@ -3260,6 +3299,11 @@ function renderCl(){
 
 let clMonth = "this"; // overview month: "this" or "last"
 const clPane = document.getElementById("clPane");
+document.getElementById("dashPane").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.clmonth){ clMonth = b.dataset.clmonth; renderDash(); return; }
+  if(b.dataset.dashgo) setMode(b.dataset.dashgo);
+});
 clPane.addEventListener("change", e => {
   const t = e.target;
   if(t.dataset.cltrip){ cl.trip = t.value; renderCl(); return; }
