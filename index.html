@@ -314,7 +314,8 @@
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
   .rsdupwarn{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--red-wash);color:var(--red-ink);font-size:13.5px;line-height:1.45}
   .rscodewarn{margin-top:8px;padding:8px 12px;border-radius:10px;background:var(--red-wash, #FDECEA);color:var(--red-ink);font-size:13px;line-height:1.45}
-  .rsedits{display:flex;gap:16px;flex-wrap:wrap} .rscostf{flex:0 1 170px!important}
+  .rsedits{display:flex;gap:16px;flex-wrap:wrap}
+  .rsrecodehint{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:13.5px} .rsmerge{display:flex;flex-wrap:wrap;gap:8px} .rsrecodehint .mini{height:40px} .rscostf{flex:0 1 170px!important}
   .rsrenamebtn{margin-bottom:8px;font-size:13px} .rsrename{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:12px}
   .rsrename label.f{flex:1 1 260px} .rsrename .mini{height:40px} .rsrename small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .rsboxf input{text-transform:uppercase;max-width:110px}
   .rsdet label.rscost,.rscost{display:flex;flex-direction:row;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;cursor:pointer;font-size:14px}
@@ -3693,6 +3694,18 @@ const rsCodeProblem = code => { code = String(code || "").trim().toUpperCase(); 
   const tail = code.split("-").slice(2).join("-");
   return !tail ? "Add the part number after " + code.replace(/-?$/, "-") + " (from the official store or the box)."
     : /\d/.test(tail) ? "" : "Part codes end with the SKU / part number from the official store or the box, e.g. PRT-BBL-FAH051. “" + tail + "” isn't one. Check the box label or the store listing."; };
+// Change code panel: what typing a new code would do (rename, merge into an existing item, or not allowed).
+function rsRecodeHint(s){
+  const v = String(rsOut.newCode !== undefined ? rsOut.newCode : "").trim().toUpperCase();
+  if(!v || v === s.code) return '<span class="muted">Type the new code.</span>';
+  if(!/^[A-Z0-9][A-Z0-9.\-]*$/.test(v)) return '<span class="up">Use capital letters, numbers and dashes only.</span>';
+  const prob = rsCodeProblem(v); if(prob) return '<span class="up">' + esc(prob) + '</span>';
+  const t = stockOf(v);
+  if(t) return '<span>Already used by <b>' + esc(t.name) + '</b> (' + rsQty(t) + ' in stock). Merge this item into it:</span>' +
+    '<span class="rsmerge"><button type="button" class="primary mini" id="rsRecodeSave" data-mode="add">Add quantities (' + rsQty(t) + ' + ' + rsQty(s) + ' = ' + (rsQty(t) + Math.max(rsQty(s), 0)) + ')</button>' +
+    '<button type="button" class="mini" id="rsRecodeSave2" data-mode="keep">Already counted (keep ' + rsQty(t) + ')</button></span>';
+  return '<button type="button" class="primary mini" id="rsRecodeSave" data-mode="">Change code to ' + esc(v) + '</button>';
+}
 let rsPick = { i: -1, q: "" }; // purchase line whose item search is open, and what's typed
 function rsPickMatches(q){
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -3765,7 +3778,7 @@ async function rsCall(body){
   const d = rsDemo, find = c => d.stock.find(s => s.code === c);
   if(body.action === "stockData") return { result: "success", stock: JSON.parse(JSON.stringify(d.stock)), history: d.history.slice(),
     merchants: d.history.map(x => x.merchant).filter((m, i, a) => a.indexOf(m) === i), staff: STAFF,
-    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair job", "Own use", "Damaged / lost"], targetMargin: 0.3, features: ["direct", "location", "costOnly", "rename", "newLocation", "jobParts", "editCost"] };
+    channels: ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Repair job", "Own use", "Damaged / lost"], targetMargin: 0.3, features: ["direct", "location", "costOnly", "rename", "newLocation", "jobParts", "editCost", "recode"] };
   if(body.action === "restockScan") return { result: "success", receipt: { merchant: "拓竹旗舰店", platform: "Taobao", date: clToday(), currency: "CNY",
     items: [ { raw: "拓竹 P2S 缓冲器", qty: 3, unitPrice: 160, code: "PART-BL-P2S-BUFFER", name: "Bambu Lab Buffer, P2S" },
              { raw: "拓竹 X1C 完整热端 0.4mm 硬化钢", qty: 1, unitPrice: 189, code: "PART-BL-X1C-COMPLETEHOTEND-HS04", name: "Bambu Lab Complete Hotend, Hardened Steel 0.4mm, X1C" } ],
@@ -4083,9 +4096,15 @@ function renderRs(){
         '<label class="f">Why?<input id="rsCostWhy" value="' + esc(rsOut.costWhy || "") + '" maxlength="200" placeholder="e.g. no receipt, bought 2024 · duplicate receipt fix"></label>' +
         '<button type="button" class="primary mini" id="rsCostSave">Save cost</button><button type="button" class="mini" data-rscostcancel="1">Cancel</button>' +
         '<small>Now ' + (Number(s.avg) ? '$' + money(s.avg) : 'no cost') + '. The change and the reason are logged. Receipts are still the best source: a receipt saved later works out the cost again from all its purchases.</small></div>' : '') +
-    (!rsOut.renaming && !rsOut.costEdit && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
+    (rsHas("recode") && rsOut.recoding
+      ? '<div class="rsrename"><label class="f">New code<input id="rsNewCode" class="upper" value="' + esc(rsOut.newCode !== undefined ? rsOut.newCode : s.code) + '" maxlength="40" autocapitalize="characters" autocomplete="off"></label>' +
+        '<button type="button" class="mini" data-rsrecodecancel="1">Cancel</button>' +
+        '<div class="rsrecodehint" id="rsRecodeHint">' + rsRecodeHint(s) + '</div>' +
+        '<small>Past purchases and stock moves move to the new code, and the old code still matches receipts. Change the SKU on Shopee / Carousell yourself.</small></div>' : '') +
+    (!rsOut.renaming && !rsOut.costEdit && !rsOut.recoding && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
       (rsHas("rename") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>' : '') +
-      (rsHas("editCost") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscostedit="1">✏️ Edit cost</button>' : '') + '</div>' : '') +
+      (rsHas("editCost") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscostedit="1">✏️ Edit cost</button>' : '') +
+      (rsHas("recode") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrecode="1">✏️ Change code</button>' : '') + '</div>' : '') +
     '<div class="seg" role="tablist" aria-label="What happened">' +
       '<button type="button" role="tab" data-rskind="out" aria-selected="' + (rsOut.kind === "out") + '">Sold / used</button>' +
       '<button type="button" role="tab" data-rskind="count" aria-selected="' + (rsOut.kind === "count") + '">Stock count</button></div>' +
@@ -4281,6 +4300,7 @@ rsPane.addEventListener("input", e => {
   if(t.dataset.rspick !== undefined){ rsPick.q = t.value; const ul = document.getElementById("rsPickList"); if(ul) ul.innerHTML = rsPickList(+t.dataset.rspick); return; }
   if(t.id === "rsNewName"){ rsOut.newName = t.value; return; }
   if(t.id === "rsCostNew"){ rsOut.costNew = t.value; return; }
+  if(t.id === "rsNewCode"){ rsOut.newCode = t.value; const s = stockOf(rsOut.code), h = document.getElementById("rsRecodeHint"); if(s && h) h.innerHTML = rsRecodeHint(s); return; }
   if(t.id === "rsCostWhy"){ rsOut.costWhy = t.value; return; }
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
@@ -4318,6 +4338,7 @@ rsPane.addEventListener("keydown", e => {
   if(e.key !== "Enter" || e.target.tagName !== "INPUT") return;
   const t = e.target, btn = t.dataset.rso ? document.getElementById("rsMove") : (t.id === "rsSell" || t.id === "rsMin") ? document.getElementById("rsPrice") : null;
   if(t.id === "rsNewName"){ e.preventDefault(); const x = document.getElementById("rsRenameSave"); if(x) x.click(); return; }
+  if(t.id === "rsNewCode"){ e.preventDefault(); const x = document.getElementById("rsRecodeSave"); if(x && !x.dataset.mode) x.click(); return; }
   if(t.id === "rsCostNew" || t.id === "rsCostWhy"){ e.preventDefault(); const x = document.getElementById("rsCostSave"); if(x) x.click(); return; }
   if(t.id === "rsLoc"){ e.preventDefault(); const x = document.getElementById("rsMinSave"); if(x) x.click(); return; }
   const prb = t.dataset.prprice !== undefined && rsPane.querySelector('[data-prsave="' + CSS.escape(t.dataset.prprice) + '"]');
@@ -4499,6 +4520,20 @@ rsPane.addEventListener("click", async e => {
       rsStatus2("ok", name + ": " + out.qty + " left." + (forJob ? " Noted for " + forJob + "." : ""));
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
     finally{ const s = document.getElementById("rsMove"); if(s) s.disabled = false; }
+    return;
+  }
+  if(b.dataset.rsrecode){ rsOut.recoding = true; rsOut.newCode = undefined; renderRs(); const x = document.getElementById("rsNewCode"); if(x){ x.focus(); x.select(); } return; }
+  if(b.dataset.rsrecodecancel){ rsOut.recoding = false; rsOut.newCode = undefined; renderRs(); return; }
+  if(b.id === "rsRecodeSave" || b.id === "rsRecodeSave2"){
+    const s = stockOf(rsOut.code), to = String(rsOut.newCode || "").trim().toUpperCase(), mode = b.dataset.mode; if(!s || !to) return;
+    rsPane.querySelectorAll("#rsRecodeSave,#rsRecodeSave2").forEach(x => x.disabled = true); b.textContent = "Saving...";
+    try{
+      const out = await rsCall({ action: "stockRecode", code: s.code, newCode: to, merge: mode || undefined });
+      if(out.result !== "success"){ rsStatus2("err", "NOT changed: " + out.message); const h = document.getElementById("rsRecodeHint"); if(h) h.innerHTML = rsRecodeHint(s); return; }
+      rsOut = { code: to, kind: "out", qty: 1, channel: "", note: "" };
+      await loadStock();
+      rsStatus2("ok", out.merged ? "Merged into " + to + (mode === "add" ? " (quantities added)." : " (quantity kept).") : "Code changed to " + to + ".");
+    }catch(err){ rsStatus2("err", "NOT changed: no connection? Try again."); const h = document.getElementById("rsRecodeHint"); if(h) h.innerHTML = rsRecodeHint(s); }
     return;
   }
   if(b.dataset.rscostedit){ rsOut.costEdit = true; rsOut.costNew = undefined; rsOut.costWhy = ""; renderRs(); const x = document.getElementById("rsCostNew"); if(x){ x.focus(); x.select(); } return; }
