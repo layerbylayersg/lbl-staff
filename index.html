@@ -312,6 +312,9 @@
   .rsbox{font-weight:700;color:var(--green-ink)}
   .rsboxsug{flex-basis:100%;font-size:13px;color:var(--ink-2)} .rsboxline{margin-top:8px;font-size:13px;color:var(--ink-2)}
   .repsig{max-width:220px;max-height:90px;display:block;margin-top:4px}
+  .jobmode .jmrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:14px} .jobmode.on{border-color:#CFE3B0;background:var(--green-wash)}
+  .jobmode p{margin:6px 0;font-size:14px;line-height:1.5} .jmbtns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px} .jmbtns .mini{height:40px}
+  .jmform{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-top:10px} .jmform label.f{flex:1 1 280px} .jmform .mini{height:40px} .jmform small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)}
   .onsiteblk{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line-strong)}
   .takenhint{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);font-size:13.5px;line-height:1.5} .takenhint .ok{color:var(--green-ink);font-weight:600}
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
@@ -350,6 +353,10 @@
   .dashhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 0 14px}
   .dashhead h1{margin:0;font-size:22px} .dashhead span{font-size:13.5px;color:var(--ink-2)}
   .dashgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  .dtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:12px}
+  .dtile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+  .dtile b{font-size:28px;line-height:1.15} .dtile span{font-size:13.5px;font-weight:600;color:var(--ink)} .dtile small{font-size:12px;color:var(--muted)}
+  .dtile.money{background:var(--green-wash);border-color:#CFE3B0} .dtile.money b{color:var(--green-ink)}
   .dashcard h2{display:flex;align-items:center;gap:10px} .dashcard h2 .linkbtn{margin-left:auto;font-size:13.5px;font-weight:600}
   #clView{display:none}
   body.mode-cl #clView{display:block}
@@ -1279,6 +1286,35 @@ function fillGateNames(){
 }
 
 // Copies the read-only job details from the Sheet into the report.
+// Handover page: switch a Confirmed job between the workshop and on-site (Apps Script v8, action jobMode).
+let hoModeEdit = { open: false, part: "", busy: false, msg: "" };
+function jobModeBar(){
+  const j = JOBS.find(x => x.quoteNo === ho.quoteNo);
+  if(hoKind !== "handover" || !j || j.status !== "Confirmed" || j.handover || !("serviceMode" in j)) return "";
+  const on = isOnsiteJob(j), m = hoModeEdit;
+  const msg = m.msg ? '<p class="hostatus ' + (/^NOT/.test(m.msg) ? 'err' : 'ok') + '" role="status">' + esc(m.msg) + '</p>' : '';
+  if(on) return '<div class="stage jobmode on"><h2>On-site job</h2><p>We go to the customer' + (j.onsitePart ? ' to replace the <b>' + esc(j.onsitePart) + '</b>' : '') +
+    '. <b>No handover needed:</b> fill in the Service report at the customer\'s place; the customer signs it at the end.</p>' +
+    '<div class="jmbtns"><button type="button" class="primary mini" data-jmreport="1">Open the service report</button><button type="button" class="mini" data-jmset="Workshop"' + (m.busy ? ' disabled' : '') + '>Change back to workshop</button></div>' +
+    '<p class="hint">Couldn\'t fix it on site? Fill in the handover below to take it to the workshop (no transport charge).</p>' + msg + '</div>';
+  return '<div class="stage jobmode"><div class="jmrow"><span>Service: <b>Workshop</b> (' + (/collect/i.test(j.serviceMode) || /^y/i.test(j.needTransport || "") ? 'we collect it' : 'drop-off') + ')</span>' +
+    (m.open ? '' : '<button type="button" class="linkbtn" data-jmopen="1">Change to on-site</button>') + '</div>' +
+    (m.open ? '<div class="jmform"><label class="f">Part to replace on site<input id="jmPart" value="' + esc(m.part) + '" maxlength="500" placeholder="e.g. Hotend 0.4mm hardened steel"></label>' +
+      '<button type="button" class="primary mini" data-jmset="Onsite"' + (m.busy ? ' disabled' : '') + '>Set as on-site</button><button type="button" class="mini" data-jmcancel="1">Cancel</button>' +
+      '<small>On-site is only for a known part replacement. Remember to update the Xero quote (on-site surcharge + Repair Job, no transport).</small></div>' : '') + msg + '</div>';
+}
+async function setJobMode(mode){
+  const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(!j) return;
+  if(mode === "Onsite" && !hoModeEdit.part.trim()){ hoModeEdit.msg = "NOT changed: type the part to replace."; renderHo(); return; }
+  hoModeEdit.busy = true; hoModeEdit.msg = ""; renderHo();
+  try{
+    const out = await callSheet({ action: "jobMode", quoteNo: j.quoteNo, mode, onsitePart: hoModeEdit.part.trim() });
+    if(out.result !== "success"){ hoModeEdit.msg = "NOT changed: " + out.message; return; }
+    j.serviceMode = out.serviceMode; j.onsitePart = out.onsitePart || ""; keepJobs();
+    hoModeEdit = { open: false, part: "", busy: false, msg: mode === "Onsite" ? "Set as on-site. The job is now in the Service report list." : "Back to the workshop flow." };
+  }catch(e){ hoModeEdit.msg = "NOT changed: no connection? Try again."; }
+  finally{ hoModeEdit.busy = false; renderHo(); }
+}
 // On-site jobs (we come to you, known part replacement): no handover / takeover; the customer signs the
 // service report at the end of the visit and it marks the job Completed. Taken to the workshop = a Handover.
 const ONSITE_PAY = ["PayNow", "Cash", "Card", "Invoice later"];
@@ -2652,6 +2688,7 @@ const hoStash = {};
 const dmy = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso||"") ? iso.slice(8,10)+"/"+iso.slice(5,7)+"/"+iso.slice(0,4) : (iso||"");
 
 function openHo(j, quiet){
+  hoModeEdit = { open: false, part: "", busy: false, msg: "" };
   ho = hoBlank(); hoPhotos = []; hoFile = null;
   Object.assign(ho, {
     quoteNo: j.quoteNo, custName: j.name || "", custContact: j.contact || "", custEmail: j.email || "",
@@ -2748,7 +2785,9 @@ function renderHo(){
     ? '<div class="sigbox"><img src="'+ho.signature+'" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>'
     : '<div class="sigbox"><canvas id="hoSig" aria-label="Customer signature pad"></canvas><span class="sighint">'+(ho.handedBy === "Authorised person" ? "Authorised person signs here" : "Customer signs here")+'</span></div><div class="sigctl"><span>Draw with a finger, stylus or mouse</span><button type="button" class="mini" data-hosigclear="1">Clear signature</button></div>';
 
+  const modeBar = jobModeBar();
   p.innerHTML = `
+    ${modeBar}
     <div class="stage">
       <h2><span class="n">1</span>Job</h2>
       <div class="grid">
@@ -3194,7 +3233,7 @@ function setMode(m){
     renderCl(); loadClaims();
   }
   if(m === "restock"){ renderRs(); loadStock(); }
-  if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); }
+  if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
   else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
@@ -3278,15 +3317,47 @@ function clFromCache(){
 }
 // ===== Dashboard (home page): one card per area; add more cards to DASH_CARDS =====
 const DASH_CARDS = [
+  { title: "Jobs and money", go: "", goLabel: "", html: () => dashJobsHtml() },
   { title: "Petrol claims", go: "claim", goLabel: "Open Petrol", html: () => clSummary().dash }
 ];
+// Units serviced (service reports) and money received (payments recorded in Xero), from Apps Script v8 dashData.
+let DASH = { data: null, loading: false, error: "" }, dashMonth = "this";
+async function loadDash(fresh){
+  if(DASH.loading) return;
+  DASH.loading = true; if(fresh) renderDash();
+  try{
+    const out = await callSheet({ action: "dashData", fresh: !!fresh });
+    if(out.result === "success" && out.months){ DASH.data = out; DASH.error = ""; }
+    else if(isAuthMsg(out.message)) DASH.error = "Sign in again to see these numbers.";
+    else DASH.error = "These numbers need the latest Apps Script (v8).";
+  }catch(e){ DASH.error = "Could not load the numbers (no connection?)."; }
+  finally{ DASH.loading = false; renderDash(); }
+}
+function dashJobsHtml(){
+  if(!DASH.data) return DASH.error ? '<p class="hint">' + esc(DASH.error) + '</p>' : skelRows();
+  const m = DASH.data.months[dashMonth === "last" ? 1 : 0] || {}, k = m.month || "";
+  const name = k ? new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1).toLocaleDateString("en-SG", { month: "long", year: "numeric" }) : "";
+  const tile = (n, label, sub, cls) => '<div class="dtile' + (cls ? ' ' + cls : '') + '"><b>' + n + '</b><span>' + label + '</span>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>';
+  const money = v => "$" + Number(v).toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '<div class="cldtop"><div class="cldtotal"><span>' + esc(name) + '</span></div>' +
+      '<div class="seg cldseg" role="tablist" aria-label="Month"><button type="button" role="tab" data-dashmonth="this" aria-selected="' + (dashMonth !== "last") + '">This month</button><button type="button" role="tab" data-dashmonth="last" aria-selected="' + (dashMonth === "last") + '">Last month</button></div></div>' +
+    '<div class="dtiles">' +
+      tile(m.reports || 0, "Service jobs done", "service reports saved") +
+      tile(m.printers || 0, "Printers serviced") +
+      tile(m.mfms || 0, "MFMS serviced") +
+      (m.received === null || m.received === undefined
+        ? tile("–", "Received", DASH.data.xeroError ? "Xero: " + esc(DASH.data.xeroError) : "Xero not connected", "money")
+        : tile(money(m.received), "Received", (m.payments || 0) + " payment" + (m.payments === 1 ? "" : "s") + " in Xero", "money")) +
+    '</div><p class="hint">Received = customer payments recorded in Xero in that month (all sales, before costs). Updated ' + esc(DASH.data.at || "") +
+      ' · <button type="button" class="linkbtn" data-dashrefresh="1">' + (DASH.loading ? "Refreshing…" : "Refresh") + '</button></p>';
+}
 function renderDash(){
   const p = document.getElementById("dashPane"); if(!p) return;
   const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   p.innerHTML = '<div class="dashhead"><h1>Dashboard</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
       new Date().toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) + '</span></div>' +
     '<div class="dashgrid">' + DASH_CARDS.map(c => '<div class="stage dashcard"><h2>' + esc(c.title) +
-      '<button type="button" class="linkbtn" data-dashgo="' + esc(c.go) + '">' + esc(c.goLabel) + ' →</button></h2>' + c.html() + '</div>').join("") + '</div>';
+      (c.go ? '<button type="button" class="linkbtn" data-dashgo="' + esc(c.go) + '">' + esc(c.goLabel) + ' →</button>' : '') + '</h2>' + c.html() + '</div>').join("") + '</div>';
 }
 function renderCl(){
   const p = document.getElementById("clPane");
@@ -3342,6 +3413,8 @@ const clPane = document.getElementById("clPane");
 document.getElementById("dashPane").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.clmonth){ clMonth = b.dataset.clmonth; renderDash(); return; }
+  if(b.dataset.dashmonth){ dashMonth = b.dataset.dashmonth; renderDash(); return; }
+  if(b.dataset.dashrefresh){ loadDash(true); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
 });
 clPane.addEventListener("change", e => {
@@ -3457,10 +3530,14 @@ hoPane.addEventListener("change", async e => {
   }
   if(t.dataset.h === "rep"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
 });
-hoPane.addEventListener("input", e => { const t = e.target; if(t.dataset.h){ ho[t.dataset.h] = t.value; hoMark(); } });
+hoPane.addEventListener("input", e => { const t = e.target; if(t.id === "jmPart"){ hoModeEdit.part = t.value; return; } if(t.dataset.h){ ho[t.dataset.h] = t.value; hoMark(); } });
 hoPane.addEventListener("click", e => {
   const t = e.target.closest("button");
   if(!t) return;
+  if(t.dataset.jmopen){ hoModeEdit = { open: true, part: (JOBS.find(x => x.quoteNo === ho.quoteNo) || {}).onsitePart || "", busy: false, msg: "" }; renderHo(); const x = document.getElementById("jmPart"); if(x) x.focus(); return; }
+  if(t.dataset.jmcancel){ hoModeEdit = { open: false, part: "", busy: false, msg: "" }; renderHo(); return; }
+  if(t.dataset.jmset){ setJobMode(t.dataset.jmset); return; }
+  if(t.dataset.jmreport){ const q = ho.quoteNo; setMode("report"); pickJob(q); return; }
   if(t.dataset.whose){ setWhose(t.dataset.whose); renderHo(); return; }
   if(t.dataset.horefresh){ loadJobs().then(() => { const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(j && !hoDirty) openHo(j); else renderHo(); }); return; }
   if(t.dataset.hosigclear){ ho.signature = ""; hoMark(); renderHo(); return; }
