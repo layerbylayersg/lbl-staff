@@ -315,6 +315,8 @@
   .jobmode .jmrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:14px} .jobmode.on{border-color:#CFE3B0;background:var(--green-wash)}
   .jobmode p{margin:6px 0;font-size:14px;line-height:1.5} .jmbtns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px} .jmbtns .mini{height:40px}
   .jmform{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-top:10px} .jmform label.f{flex:1 1 280px} .jmform .mini{height:40px} .jmform small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)}
+  .repairchk{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;cursor:pointer}
+  .repairchk input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--green-700)} .repairchk small{display:block;font-size:12.5px;color:var(--ink-2);margin-top:2px}
   .onsiteblk{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line-strong)}
   .takenhint{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);font-size:13.5px;line-height:1.5} .takenhint .ok{color:var(--green-ink);font-weight:600}
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
@@ -353,7 +355,32 @@
   .dashhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 0 14px}
   .dashhead h1{margin:0;font-size:22px} .dashhead span{font-size:13.5px;color:var(--ink-2)}
   .dashgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-  .dtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:12px}
+  .dtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+  @media (min-width:1100px){ .dashgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .dashcard.wide{grid-column:1 / -1} }
+  .dtile em{font-style:normal;font-weight:600} .dup{color:var(--green-ink)} .ddown{color:var(--red-ink)}
+  .dlegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-2);margin:0 0 10px} .dlegend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block} .s1{background:#3e7d2a} .s2{background:#eda100}
+  .dmix{display:flex;flex-direction:column;gap:8px}
+  .dmrow{display:grid;grid-template-columns:40px minmax(0,1fr) 28px;align-items:center;gap:8px;border-radius:6px;outline-offset:2px}
+  .dml{font-size:12.5px;color:var(--ink-2)} .dmt{font-size:12.5px;color:var(--ink-2);text-align:right}
+  .dmbar{display:flex;gap:2px;height:26px} .dmbar.empty{align-items:center;font-size:12px;color:var(--muted)}
+  .dmseg{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--ink);min-width:4px;white-space:nowrap;overflow:hidden}
+  .dmseg:first-child{border-radius:4px 0 0 4px} .dmseg:last-child{border-radius:0 4px 4px 0} .dmseg:only-child{border-radius:4px}
+  .dmseg.s1{background:#3e7d2a;color:#fff} .dmseg.s2{background:#eda100;color:#1F2421}
+  .drecv{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end;height:190px;padding-top:4px;border-bottom:1px solid var(--line-strong)}
+  .drcol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;outline-offset:2px;border-radius:6px}
+  .drbar{width:min(44px,70%);background:var(--green-600);border-radius:4px 4px 0 0;min-height:0} .drv{font-size:12px;font-weight:600;color:var(--ink)}
+  .drl{font-size:12.5px;color:var(--ink-2);position:relative;top:22px;height:0}
+  .drecv + *{margin-top:28px}
+  .dpipe{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+  .dpc{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px} .dpc b{font-size:26px;line-height:1.1} .dpc span{font-size:13px;color:var(--ink-2)}
+  .dpc.late{border-color:#F3C9C9;background:var(--red-wash)} .dpc.late b{color:var(--red-ink)}
+  .dlate{margin:10px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6;color:var(--ink)}
+  .dtops{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px} .dtop h3{margin:0 0 8px;font-size:14px}
+  .dtop ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .dtop li{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 24px;align-items:center;gap:8px;font-size:13.5px}
+  .dtop li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .dtop li i{height:8px;border-radius:0 4px 4px 0;background:var(--green-600)} .dtop li b{text-align:right}
+  #dashTip{position:fixed;z-index:50;max-width:280px;padding:7px 10px;border-radius:8px;background:#1F2421;color:#fff;font-size:12.5px;line-height:1.4;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
   .dtile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
   .dtile b{font-size:28px;line-height:1.15} .dtile span{font-size:13.5px;font-weight:600;color:var(--ink)} .dtile small{font-size:12px;color:var(--muted)}
   .dtile.money{background:var(--green-wash);border-color:#CFE3B0} .dtile.money b{color:var(--green-ink)}
@@ -1014,7 +1041,8 @@ function blank(){
     std:[], extra:[], extraCustom:[], workNotes:"",
     parts:[],
     verify:[], verifyCustom:[], verifyNotes:"",
-    advice:""
+    advice:"",
+    repair:null // Repair job? null = follow the parts list (ticked when a part is fitted); true / false = set by staff
   };
 }
 function today(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
@@ -1363,8 +1391,10 @@ function openJob(j, quiet){
   dirty = false; clearStatus();
 }
 // What gets saved: the standard checklist is folded into Work Performed and Not done for the Sheet.
+const isRepairJob = s => s.repair === null || s.repair === undefined ? s.parts.some(p => String(p.name || "").trim()) : !!s.repair;
 function reportPayload(from){
   const r = JSON.parse(JSON.stringify(from || state));
+  r.repair = isRepairJob(r);
   r.work = r.std.filter(x => x.done).map(x => x.item).concat(r.extra);
   r.workCustom = r.extraCustom;
   r.notDone = r.std.filter(x => !x.done).map(x => x.item + (x.reason ? " (" + x.reason + ")" : ""));
@@ -1568,6 +1598,7 @@ function renderForm(){
           <tbody id="partsBody">${partsRows()}</tbody></table>
           <div class="addrow"><button type="button" id="addPart">Add part</button></div>
           ${takenHint()}
+          <label class="repairchk"><input type="checkbox" data-repair="1"${isRepairJob(s) ? " checked" : ""}><span><b>Repair job</b> (part replaced, or repair quoted and approved)<small>${s.repair === null ? "Ticks itself when a part is added. Untick if not a repair." : "Set by you."}</small></span></label>
         </div>` })}
       ${noteToggle("workNotes","Note:","Anything else about the work done.")}
     </div>
@@ -2090,6 +2121,7 @@ pane.addEventListener("change", e=>{
     return;
   }
   if(t.dataset.outcome){ state.job.status = t.value; markDirty(); renderReport(); updateSteps(); return; }
+  if(t.dataset.repair){ state.repair = t.checked; markDirty(); renderForm(); return; }
   if(t.dataset.onpay){ state.onsite.payment = t.value; markDirty(); renderReport(); updateSteps(); return; }
   if(t.dataset.f === "shop.tech"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
 });
@@ -3317,10 +3349,15 @@ function clFromCache(){
 }
 // ===== Dashboard (home page): one card per area; add more cards to DASH_CARDS =====
 const DASH_CARDS = [
-  { title: "Jobs and money", go: "", goLabel: "", html: () => dashJobsHtml() },
-  { title: "Petrol claims", go: "claim", goLabel: "Open Petrol", html: () => clSummary().dash }
+  { title: "This month", html: () => dashMonthHtml(), wide: true },
+  { title: "Job mix, last 6 months", html: () => dashMixHtml() },
+  { title: "Received, last 6 months", html: () => dashRecvHtml() },
+  { title: "Jobs in the pipeline now", html: () => dashPipeHtml() },
+  { title: "Most serviced and most replaced", html: () => dashTopHtml() },
+  { title: "Petrol claims", go: "claim", goLabel: "Open Petrol", html: () => clSummary().dash, wide: true }
 ];
-// Units serviced (service reports) and money received (payments recorded in Xero), from Apps Script v8 dashData.
+// Numbers from Apps Script v8+ dashData: service reports (jobs, printers, MFMS, repair jobs), Xero (money received),
+// the job sheet (pipeline). Repair job = the report's "Repair job" tick (ticked by itself when a part is fitted).
 let DASH = { data: null, loading: false, error: "" }, dashMonth = "this";
 async function loadDash(fresh){
   if(DASH.loading) return;
@@ -3329,34 +3366,92 @@ async function loadDash(fresh){
     const out = await callSheet({ action: "dashData", fresh: !!fresh });
     if(out.result === "success" && out.months){ DASH.data = out; DASH.error = ""; }
     else if(isAuthMsg(out.message)) DASH.error = "Sign in again to see these numbers.";
-    else DASH.error = "These numbers need the latest Apps Script (v8).";
+    else DASH.error = "These numbers need the latest Apps Script (v9).";
   }catch(e){ DASH.error = "Could not load the numbers (no connection?)."; }
   finally{ DASH.loading = false; renderDash(); }
 }
-function dashJobsHtml(){
-  if(!DASH.data) return DASH.error ? '<p class="hint">' + esc(DASH.error) + '</p>' : skelRows();
-  const m = DASH.data.months[dashMonth === "last" ? 1 : 0] || {}, k = m.month || "";
-  const name = k ? new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1).toLocaleDateString("en-SG", { month: "long", year: "numeric" }) : "";
+const dMoney = (v, dp) => "$" + Number(v || 0).toLocaleString("en-SG", { minimumFractionDigits: dp === 0 ? 0 : 2, maximumFractionDigits: dp === 0 ? 0 : 2 });
+const dMonthName = (k, short) => new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1).toLocaleDateString("en-SG", short ? { month: "short" } : { month: "long", year: "numeric" });
+const dWait = () => DASH.data ? null : (DASH.error ? '<p class="hint">' + esc(DASH.error) + '</p>' : skelRows());
+const dPct = (a, b) => b ? Math.round(a / b * 100) : 0;
+function dashMonthHtml(){
+  const w = dWait(); if(w !== null) return w;
+  const M = DASH.data.months, idx = dashMonth === "last" ? 1 : 0, m = M[idx] || {}, prev = M[idx + 1] || {};
+  const delta = (a, b) => { if(idx === 0 || a === null || b === null || b === undefined || !b) return ""; // the current month isn't over: no comparison const d = Math.round((a - b) / b * 100);
+    return '<em class="' + (d >= 0 ? "dup" : "ddown") + '">' + (d >= 0 ? "▲ " : "▼ ") + Math.abs(d) + '% vs ' + esc(dMonthName(prev.month, true)) + '</em>'; };
   const tile = (n, label, sub, cls) => '<div class="dtile' + (cls ? ' ' + cls : '') + '"><b>' + n + '</b><span>' + label + '</span>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>';
-  const money = v => "$" + Number(v).toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return '<div class="cldtop"><div class="cldtotal"><span>' + esc(name) + '</span></div>' +
+  const hasMoney = m.received !== null && m.received !== undefined;
+  return '<div class="cldtop"><div class="cldtotal"><span>' + esc(dMonthName(m.month || "2000-01")) + (idx === 0 ? ' · so far' : ' · vs ' + esc(dMonthName(prev.month || "2000-01"))) + '</span></div>' +
       '<div class="seg cldseg" role="tablist" aria-label="Month"><button type="button" role="tab" data-dashmonth="this" aria-selected="' + (dashMonth !== "last") + '">This month</button><button type="button" role="tab" data-dashmonth="last" aria-selected="' + (dashMonth === "last") + '">Last month</button></div></div>' +
     '<div class="dtiles">' +
-      tile(m.reports || 0, "Service jobs done", "service reports saved") +
-      tile(m.printers || 0, "Printers serviced") +
-      tile(m.mfms || 0, "MFMS serviced") +
-      (m.received === null || m.received === undefined
-        ? tile("–", "Received", DASH.data.xeroError ? "Xero: " + esc(DASH.data.xeroError) : "Xero not connected", "money")
-        : tile(money(m.received), "Received", (m.payments || 0) + " payment" + (m.payments === 1 ? "" : "s") + " in Xero", "money")) +
-    '</div><p class="hint">Received = customer payments recorded in Xero in that month (all sales, before costs). Updated ' + esc(DASH.data.at || "") +
+      (hasMoney ? tile(dMoney(m.received), "Received", (m.payments || 0) + " payment" + (m.payments === 1 ? "" : "s") + " in Xero " + delta(m.received, prev.received), "money")
+        : tile("–", "Received", DASH.data.xeroError ? "Xero: " + esc(DASH.data.xeroError) : "Xero not connected", "money")) +
+      tile(hasMoney && m.jobs ? dMoney(m.received / m.jobs) : "–", "Average per job", m.jobs ? "received ÷ " + m.jobs + " job" + (m.jobs === 1 ? "" : "s") : "no jobs yet") +
+      tile(m.printers || 0, "Printers serviced", delta(m.printers || 0, prev.printers)) +
+      tile(m.mfms || 0, "MFMS serviced", delta(m.mfms || 0, prev.mfms)) +
+      tile(m.repair || 0, "Repair jobs", m.jobs ? dPct(m.repair || 0, m.jobs) + "% of " + m.jobs + " jobs" : "") +
+      tile(m.onsite || 0, "On-site visits") +
+    '</div><p class="hint">Received = customer payments recorded in Xero (all sales, before costs). Average per job = received ÷ jobs with a service report. Updated ' + esc(DASH.data.at || "") +
       ' · <button type="button" class="linkbtn" data-dashrefresh="1">' + (DASH.loading ? "Refreshing…" : "Refresh") + '</button></p>';
+}
+// 100% bar per month: service only vs service + repair. Counts and % on the bars; legend; hover / focus tooltip.
+function dashMixHtml(){
+  const w = dWait(); if(w !== null) return w;
+  const rows = DASH.data.months.slice().reverse();
+  return '<div class="dlegend"><span><i class="sw s1"></i>Service + repair</span><span><i class="sw s2"></i>Service only</span></div><div class="dmix">' +
+    rows.map(m => {
+      const rep = m.repair || 0, svc = Math.max((m.jobs || 0) - rep, 0), tot = rep + svc, label = dMonthName(m.month, true);
+      if(!tot) return '<div class="dmrow"><span class="dml">' + esc(label) + '</span><div class="dmbar empty">no jobs</div></div>';
+      const tip = esc(dMonthName(m.month) + ": " + tot + " jobs · service + repair " + rep + " (" + dPct(rep, tot) + "%) · service only " + svc + " (" + dPct(svc, tot) + "%)");
+      const seg = (n, cls) => n ? '<div class="dmseg ' + cls + '" style="flex:' + n + '">' + (n / tot >= 0.18 ? n + ' · ' + dPct(n, tot) + '%' : '') + '</div>' : '';
+      return '<div class="dmrow" tabindex="0" data-tip="' + tip + '"><span class="dml">' + esc(label) + '</span><div class="dmbar">' + seg(rep, "s1") + seg(svc, "s2") + '</div><span class="dmt">' + tot + '</span></div>';
+    }).join("") + '</div>';
+}
+function dashRecvHtml(){
+  const w = dWait(); if(w !== null) return w;
+  const rows = DASH.data.months.slice().reverse(), vals = rows.map(m => m.received || 0), max = Math.max.apply(null, vals.concat([1]));
+  if(rows.every(m => m.received === null || m.received === undefined)) return '<p class="hint">' + esc(DASH.data.xeroError ? "Xero: " + DASH.data.xeroError : "Xero not connected.") + '</p>';
+  const best = vals.indexOf(Math.max.apply(null, vals));
+  return '<div class="drecv">' + rows.map((m, i) => {
+      const v = m.received || 0, show = i === rows.length - 1 || i === best;
+      return '<div class="drcol" tabindex="0" data-tip="' + esc(dMonthName(m.month) + ": " + dMoney(v) + " received · " + (m.payments || 0) + " payments · " + (m.jobs || 0) + " jobs") + '">' +
+        '<span class="drv">' + (show && v ? dMoney(v, 0) : "") + '</span><div class="drbar" style="height:' + Math.max(v ? 3 : 0, Math.round(v / max * 100)) + '%"></div><span class="drl">' + esc(dMonthName(m.month, true)) + '</span></div>';
+    }).join("") + '</div>';
+}
+function dashPipeHtml(){
+  const w = dWait(); if(w !== null) return w;
+  const p = DASH.data.pipeline || { counts: {}, late: [] }, c = p.counts || {};
+  const order = Object.keys(c).sort((a, b) => { const r = x => ["New", "Quoted", "Confirmed", "In Progress"].indexOf(x); return (r(a) < 0 ? 9 : r(a)) - (r(b) < 0 ? 9 : r(b)); });
+  const lead = DASH.data.leadDays || 7;
+  return '<div class="dpipe">' + (order.length ? order.map(k => '<div class="dpc"><b>' + c[k] + '</b><span>' + esc(k) + '</span></div>').join("") : '<p class="hint">No open jobs.</p>') +
+      '<div class="dpc' + (p.late.length ? ' late' : '') + '"><b>' + (p.late.length ? '⚠ ' : '') + p.late.length + '</b><span>Over ' + lead + ' business days</span></div></div>' +
+    (p.late.length ? '<ul class="dlate">' + p.late.slice(0, 6).map(x => '<li><b>' + esc(x.job) + '</b> · ' + esc(x.name) + ' · ' + x.days + ' business days since handover</li>').join("") + '</ul>'
+      : '<p class="hint">All jobs in progress are within the ' + lead + '-business-day lead time.</p>');
+}
+function dashTopHtml(){
+  const w = dWait(); if(w !== null) return w;
+  const m = DASH.data.months[dashMonth === "last" ? 1 : 0] || {};
+  const list = (items, title, empty) => { const max = Math.max.apply(null, (items || []).map(x => x.n).concat([1]));
+    return '<div class="dtop"><h3>' + title + '</h3>' + ((items || []).length ? '<ol>' + items.map(x => '<li><span>' + esc(x.name) + '</span><i style="width:' + Math.round(x.n / max * 100) + '%"></i><b>' + x.n + '</b></li>').join("") + '</ol>' : '<p class="hint">' + empty + '</p>') + '</div>'; };
+  return '<p class="hint" style="margin-top:0">' + esc(dMonthName(m.month || "2000-01")) + ' (switch month at the top)</p><div class="dtops">' +
+    list(m.topModels, "Models serviced", "No jobs yet.") + list(m.topParts, "Parts replaced", "No parts fitted yet.") + '</div>';
+}
+// One tooltip for the dashboard charts (hover and keyboard focus).
+function dashTip(el){
+  let tip = document.getElementById("dashTip");
+  if(!tip){ tip = document.createElement("div"); tip.id = "dashTip"; tip.setAttribute("role", "tooltip"); document.body.appendChild(tip); }
+  if(!el){ tip.hidden = true; return; }
+  tip.textContent = el.dataset.tip; tip.hidden = false;
+  const r = el.getBoundingClientRect(), t = tip.getBoundingClientRect();
+  tip.style.left = Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2)) + "px";
+  tip.style.top = Math.max(8, r.top - t.height - 8) + "px";
 }
 function renderDash(){
   const p = document.getElementById("dashPane"); if(!p) return;
   const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   p.innerHTML = '<div class="dashhead"><h1>Dashboard</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
       new Date().toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) + '</span></div>' +
-    '<div class="dashgrid">' + DASH_CARDS.map(c => '<div class="stage dashcard"><h2>' + esc(c.title) +
+    '<div class="dashgrid">' + DASH_CARDS.map(c => '<div class="stage dashcard' + (c.wide ? ' wide' : '') + '"><h2>' + esc(c.title) +
       (c.go ? '<button type="button" class="linkbtn" data-dashgo="' + esc(c.go) + '">' + esc(c.goLabel) + ' →</button>' : '') + '</h2>' + c.html() + '</div>').join("") + '</div>';
 }
 function renderCl(){
@@ -3410,6 +3505,9 @@ function renderCl(){
 
 let clMonth = "this"; // overview month: "this" or "last"
 const clPane = document.getElementById("clPane");
+["mouseover", "focusin"].forEach(ev => document.getElementById("dashPane").addEventListener(ev, e => { const el = e.target.closest && e.target.closest("[data-tip]"); dashTip(el || null); }));
+document.getElementById("dashPane").addEventListener("mouseleave", () => dashTip(null));
+document.getElementById("dashPane").addEventListener("focusout", () => dashTip(null));
 document.getElementById("dashPane").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.clmonth){ clMonth = b.dataset.clmonth; renderDash(); return; }
