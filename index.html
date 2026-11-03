@@ -369,6 +369,7 @@
   .sigctl{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:12.5px;color:var(--muted)}
   .photos{display:flex;flex-wrap:wrap;gap:8px}
   .photos .ph{position:relative;width:92px;height:92px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .photos .ph .phpdf{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:28px;background:var(--surface);border:1px solid var(--line-strong);border-radius:inherit;box-sizing:border-box} .phpdf small{font-size:11px;font-weight:700;color:var(--ink-2)}
   .photos .ph img,.photos .ph video{width:100%;height:100%;object-fit:cover;display:block;background:#1F2421}
   .photos .ph .vtag{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:6px;background:rgba(20,24,20,.7);color:#fff;font-size:11px;font-weight:600}
   .photos .ph button{position:absolute;top:4px;right:4px;width:24px;height:24px;border:0;border-radius:999px;background:rgba(20,24,20,.7);color:#fff;font-size:15px;line-height:1;cursor:pointer}
@@ -3977,11 +3978,19 @@ function rsMatch(raw){
 
 const RS_MAX_IMAGES = 15; // same limit as the script
 // Adds photos / screenshots to the receipt; nothing is read until "Read receipt" is pressed.
+const RS_MAX_PDF = 8 * 1048576; // keeps one scan request well under Google's size limit
+const rsIsPdf = d => /^data:application\/pdf/.test(d);
 async function rsAddImages(files){
   const room = RS_MAX_IMAGES - rs.images.length;
   const list = Array.from(files || []);
   for(const f of list.slice(0, room)){
-    try{ rs.images.push(await shrinkPhoto(f)); }catch(e){ toast(f.name + " is not an image."); }
+    if(f.type === "application/pdf" || /\.pdf$/i.test(f.name || "")){ // PDF receipts / invoices go as they are (the AI reads PDFs)
+      if(f.size > RS_MAX_PDF){ toast(f.name + " is too large (max " + Math.round(RS_MAX_PDF / 1048576) + " MB). Screenshot the pages instead."); continue; }
+      try{ rs.images.push(await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok("data:application/pdf;base64," + String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(f); })); }
+      catch(e){ toast(f.name + " could not be read."); }
+      continue;
+    }
+    try{ rs.images.push(await shrinkPhoto(f)); }catch(e){ toast(f.name + " is not an image or PDF."); }
   }
   if(list.length > room) toast("Up to " + RS_MAX_IMAGES + " photos per receipt.");
   rsDirty = true; renderRs();
@@ -3989,10 +3998,11 @@ async function rsAddImages(files){
 async function rsScan(){
   const imgs = rs.images.slice();
   if(!imgs.length){ rsStatus("err", "Add a photo or screenshot of the receipt first."); return; }
-  rsStatus("busy", "Reading " + imgs.length + " photo(s)...");
+  if(imgs.reduce((n, d) => n + d.length, 0) > 18 * 1048576){ rsStatus("err", "These files are too large to read together. Remove a PDF or some photos, or read them in two goes."); return; }
+  rsStatus("busy", "Reading " + imgs.length + " file" + (imgs.length > 1 ? "s" : "") + "...");
   const rb = document.getElementById("rsRead"); if(rb){ rb.disabled = true; rb.textContent = "Reading..."; }
   try{
-    const out = await rsCall({ action: "restockScan", images: imgs.map(d => ({ base64: d.split(",")[1], mime: "image/jpeg" })) });
+    const out = await rsCall({ action: "restockScan", images: imgs.map(d => ({ base64: d.split(",")[1], mime: rsIsPdf(d) ? "application/pdf" : "image/jpeg" })) });
     if(out.result !== "success"){ rsStatus("err", out.message); return; }
     const r = out.receipt;
     if(r.merchant){
@@ -4019,7 +4029,7 @@ async function rsScan(){
       (fresh ? ". " + fresh + " new item(s) got a suggested code and name: check them, or pick an existing item instead" : "") +
       (blank ? ". " + blank + " line(s) still need a code / name" : "") + "." + (r.paidSGD > 0 ? " SGD paid was read from the receipt: check it against your card / bank." : " Then enter the SGD you actually paid."));
   }catch(err){ rsStatus("err", "Could not read the receipt (no connection?). Type the items in instead."); }
-  finally{ const b = document.getElementById("rsRead"); if(b){ b.disabled = false; b.textContent = "🔍 Read receipt (" + rs.images.length + " photo" + (rs.images.length > 1 ? "s" : "") + ")"; } }
+  finally{ const b = document.getElementById("rsRead"); if(b){ b.disabled = false; b.textContent = "🔍 Read receipt (" + rs.images.length + " file" + (rs.images.length > 1 ? "s" : "") + ")"; } }
 }
 
 function renderRs(){
@@ -4211,11 +4221,11 @@ function renderRs(){
     ${rsDemo ? '<div class="rsdemo"><b>Demo mode.</b> Sample stock and a sample receipt; nothing is saved to the Sheet. <button type="button" class="mini" data-rsdemo="off">Exit demo</button></div>' : ''}
     <div class="stage rs-p rs-receipt">
       <h2><span class="n">1</span>Receipt <small>photos or screenshots, up to ${RS_MAX_IMAGES}. AI fills in the rest</small></h2>
-      ${!rs.images.length ? '<label class="rsdrop" data-rsdrop="1"><span class="rsdropicon" aria-hidden="true">📷</span><b>Add receipt photos</b><span>Tap to choose, or drag screenshots here</span><input type="file" accept="image/*" multiple data-rsscan="1"></label>' +
+      ${!rs.images.length ? '<label class="rsdrop" data-rsdrop="1"><span class="rsdropicon" aria-hidden="true">📷</span><b>Add receipt photos or PDF</b><span>Tap to choose, or drag screenshots / PDFs here</span><input type="file" accept="image/*,application/pdf,.pdf" multiple data-rsscan="1"></label>' +
         (rsDemo ? '<button type="button" class="mini" data-rsdemoscan="1" style="margin-top:10px">Use sample Taobao receipt</button>' : '') : ''}
-      <div class="photos"${rs.images.length ? ' data-rsdrop="1"' : ' hidden'}>${rs.images.map((d, i) => '<div class="ph"><img src="' + d + '" alt="Receipt photo ' + (i + 1) + '"><button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
-        ${rs.images.length < RS_MAX_IMAGES ? '<label class="addph">📷 ' + (rs.images.length ? 'Add more' : 'Add photos') + '<input type="file" accept="image/*" multiple data-rsscan="1"></label>' : ''}${rsDemo ? '<button type="button" class="addph" data-rsdemoscan="1">Use sample Taobao receipt</button>' : ''}</div>
-      ${rs.images.length ? '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsRead" style="grid-column:1 / -1">🔍 Read receipt (' + rs.images.length + ' photo' + (rs.images.length > 1 ? 's' : '') + ')</button></div>' : ''}
+      <div class="photos"${rs.images.length ? ' data-rsdrop="1"' : ' hidden'}>${rs.images.map((d, i) => '<div class="ph">' + (rsIsPdf(d) ? '<span class="phpdf" role="img" aria-label="Receipt PDF ' + (i + 1) + '">📄<small>PDF</small></span>' : '<img src="' + d + '" alt="Receipt photo ' + (i + 1) + '">') + '<button type="button" data-rsimgdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">×</button></div>').join("")}
+        ${rs.images.length < RS_MAX_IMAGES ? '<label class="addph">📷 ' + (rs.images.length ? 'Add more' : 'Add photos') + '<input type="file" accept="image/*,application/pdf,.pdf" multiple data-rsscan="1"></label>' : ''}${rsDemo ? '<button type="button" class="addph" data-rsdemoscan="1">Use sample Taobao receipt</button>' : ''}</div>
+      ${rs.images.length ? '<div class="hoactions" style="margin-top:12px"><button type="button" class="primary" id="rsRead" style="grid-column:1 / -1">🔍 Read receipt (' + rs.images.length + ' file' + (rs.images.length > 1 ? 's' : '') + ')</button></div>' : ''}
     </div>
     <div class="stage rs-p rs-details">
       <h2><span class="n">2</span>Details</h2>
@@ -4354,7 +4364,7 @@ rsPane.addEventListener("dragleave", e => { const z = e.target.closest && e.targ
 rsPane.addEventListener("drop", e => {
   const z = e.target.closest && e.target.closest("[data-rsdrop]"); if(!z) return;
   e.preventDefault(); z.classList.remove("over");
-  const files = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type)); if(files.length) rsAddImages(files);
+  const files = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type) || f.type === "application/pdf" || /\.pdf$/i.test(f.name || "")); if(files.length) rsAddImages(files);
 });
 // Remember whether the stock item's price section is open, so saving or switching tabs keeps it open.
 rsPane.addEventListener("toggle", e => {
