@@ -311,6 +311,8 @@
   .pp .pdir input{height:32px;font-size:14px;flex:1;width:auto}
   .rsbox{font-weight:700;color:var(--green-ink)}
   .rsboxsug{flex-basis:100%;font-size:13px;color:var(--ink-2)} .rsboxline{margin-top:8px;font-size:13px;color:var(--ink-2)}
+  .repsig{max-width:220px;max-height:90px;display:block;margin-top:4px}
+  .onsiteblk{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line-strong)}
   .takenhint{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:var(--amber-wash);font-size:13.5px;line-height:1.5} .takenhint .ok{color:var(--green-ink);font-weight:600}
   .rsjobhint{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-2);font-weight:400}
   .rsdupwarn{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--red-wash);color:var(--red-ink);font-size:13.5px;line-height:1.45}
@@ -995,7 +997,8 @@ const SPECIALIST_KEY = "mdr-specialist"; // remembered on this device, not sensi
 function blank(){
   return {
     shop:{ name:SHOP_NAME, contact:SHOP_CONTACT, tech:"" },
-    job:{ ref:"", quoteNo:"", custom:false, serviceType:"", date:today(), status:"" },
+    job:{ ref:"", quoteNo:"", custom:false, serviceType:"", date:today(), status:"", onsite:false, onsitePart:"" },
+    onsite:{ payment:"", signature:"", hadSig:false }, // on-site visit: customer signs the report at the end and pays
     cust:{ name:"", phone:"", email:"", intake:"" },
     machine:{ brand:"", model:"", serial:"", mfms:"None", mfmsSerial:"", nozzle:"", plate:"", filament:"",
               serialCorrected:false, mfmsSerialCorrected:false },
@@ -1276,6 +1279,11 @@ function fillGateNames(){
 }
 
 // Copies the read-only job details from the Sheet into the report.
+// On-site jobs (we come to you, known part replacement): no handover / takeover; the customer signs the
+// service report at the end of the visit and it marks the job Completed. Taken to the workshop = a Handover.
+const ONSITE_PAY = ["PayNow", "Cash", "Card", "Invoice later"];
+const isOnsiteMode = m => /on-?site/i.test(m || "") && !/workshop/i.test(m || "");
+const isOnsiteJob = j => !!j && isOnsiteMode(j.serviceMode) && !j.handover;
 function applyJob(j){
   state.job.quoteNo = j.quoteNo;
   state.job.serviceType = j.serviceType || "Printer only";
@@ -1287,6 +1295,7 @@ function applyJob(j){
   });
   // The handover form supplies the service date and the parts handed over (read-only on the report).
   state.job.handoverLocked = !!j.handover;
+  state.job.onsite = isOnsiteJob(j); state.job.onsitePart = j.onsitePart || "";
   if(j.handover){
     if(j.handover.date) state.job.date = j.handover.date;
     ["nozzle","plate","filament"].forEach(k => { if(j.handover[k]) state.machine[k] = j.handover[k]; });
@@ -1303,6 +1312,7 @@ function openJob(j, quiet){
     applyJob(j); // Sheet details always win: they may have been edited since
     if(!state.std.length) state.std = stdFor(state);
     if(!state.shop.tech) state.shop.tech = tech;
+    state.onsite = Object.assign(blank().onsite, state.onsite || {}); state.onsite.hadSig = !!(state.onsite.hadSig || state.onsite.hasSignature || state.onsite.signature);
   } else {
     state = blank(); state.shop.tech = tech;
     applyJob(j);
@@ -1396,7 +1406,7 @@ const naButton = (key, v) => String(v).toUpperCase() === "NA" ? "" :
   '<button type="button" class="mini na" data-setna="'+key+'">Set to NA</button>';
 
 // Confirmed jobs are still waiting for their handover, so they are not reported on yet.
-const reportJobs = () => mineOnly(JOBS.filter(j => j.status !== "Confirmed"));
+const reportJobs = () => mineOnly(JOBS.filter(j => j.status !== "Confirmed" || isOnsiteJob(j)));
 // My jobs / All jobs: each job has one technician (Technician column in the Sheet). Signed-in staff
 // see their own jobs first; All jobs shows everyone's, with who has it (or Unassigned).
 let WHOSE = lsGet("lbl-whose") || "mine";
@@ -1415,7 +1425,7 @@ function whoseBar(all){
 }
 function renderForm(){
   const s = state, custom = s.job.custom, picked = !!(s.job.quoteNo || custom);
-  const shown = reportJobs(), allRep = JOBS.filter(j => j.status !== "Confirmed");
+  const shown = reportJobs(), allRep = JOBS.filter(j => j.status !== "Confirmed" || isOnsiteJob(j));
   const cur = s.job.quoteNo && !shown.some(j => j.quoteNo === s.job.quoteNo) ? JOBS.find(j => j.quoteNo === s.job.quoteNo) : null;
   const pick = JOBS_STATE === "loading" && !s.job.quoteNo ? skelPick() : whoseBar(allRep) + '<label class="f span2 jobpick">Job<span class="pickrow"><select data-pickjob="1"><option value="">'+
     (JOBS_STATE === "failed" ? "Could not load jobs. Press Refresh" : shown.length ? "Pick the job you are reporting on..." : allRep.length ? "No jobs here" : "No jobs are In Progress on the job sheet") + '</option>' +
@@ -1545,11 +1555,26 @@ function renderForm(){
       </div>
       ${aiTools("advice", true)}
       <p class="hint">Warranty and terms: the report links to our standard <a href="${TERMS_URL}" target="_blank" rel="noopener">Terms and Conditions</a> (same as the MDR form).</p>
+      ${s.job.onsite ? onsiteBlock(s) : ""}
     </div>
   `;
   updateSteps();
+  if(state.job.onsite && !state.onsite.signature && !state.onsite.hadSig) initSigPad("repSig", url => { state.onsite.signature = url; markDirty(); renderReport(); updateSteps(); });
 }
 
+// End of an on-site visit: how the customer paid, and their signature confirming the work.
+function onsiteBlock(s){
+  const o = s.onsite;
+  return '<div class="onsiteblk"><h3 class="sub">On-site visit: confirm and sign<small>Saving marks the job Completed</small></h3>' +
+    (s.job.onsitePart ? '<p class="hint">Part to replace (from the booking): <b>' + esc(s.job.onsitePart) + '</b></p>' : '') +
+    '<div class="f"><span>Payment received</span><div class="chips" role="radiogroup" aria-label="Payment received">' +
+      ONSITE_PAY.map(p => '<label class="chip"><input type="radio" name="onpay" data-onpay="1" value="' + p + '"' + (o.payment === p ? ' checked' : '') + '>' + p + '</label>').join("") + '</div></div>' +
+    '<div class="f" style="margin-top:12px"><span>Customer signature</span>' +
+      (o.signature ? '<div class="sigbox"><img src="' + o.signature + '" alt="Customer signature"></div><div class="sigctl"><span>Signed</span><button type="button" class="mini" data-repsigclear="1">Clear signature</button></div>'
+        : o.hadSig ? '<div class="sigctl"><span>✓ Signed when this report was first saved (kept)</span><button type="button" class="mini" data-repsigclear="1">Sign again</button></div>'
+        : '<div class="sigbox"><canvas id="repSig" aria-label="Customer signature pad"></canvas><span class="sighint">Customer signs here to confirm the work is done</span></div>') +
+    '</div><p class="hint">Not fixed on site? Don\'t sign: do a <b>Handover</b> to take it to the workshop instead (no transport charge). The job then follows the workshop flow.</p></div>';
+}
 /* ---------- form helpers: steps, notes, AI, auto parts ---------- */
 const STEPS = [["job","Job"],["inspect","Inspect"],["fix","Fix"],["test","Verification"],["handover","Handover"]];
 // What each step still needs, and whether it counts as done.
@@ -1560,6 +1585,8 @@ function stepStatus(s){
   if(!String(s.findings||"").trim()) need.inspect.push("Diagnosis");
   if(s.std.some(x => !x.done && !String(x.reason||"").trim())) need.fix.push("reason for each unticked item");
   if(!s.job.status) need.handover.push("Outcome");
+  if(s.job.onsite && !s.onsite.payment) need.handover.push("payment received");
+  if(s.job.onsite && !s.onsite.signature && !s.onsite.hadSig) need.handover.push("customer signature");
   const done = {
     job: !need.job.length, inspect: !need.inspect.length, fix: !need.fix.length,
     test: !!(s.verify.length || s.verifyCustom.length || String(s.verifyNotes||"").trim()),
@@ -1771,6 +1798,7 @@ function renderReport(){
       </div>
 
       ${s.advice?`<div class="sec"><h3>Recommendations</h3><p>${nl2br(s.advice)}</p></div>`:""}
+      ${s.job.onsite?`<div class="sec"><h3>On-site visit</h3><p>Work carried out at the customer's premises.${s.onsite.payment?" Payment received: <b>"+esc(s.onsite.payment)+"</b>.":""}</p>${s.onsite.signature?`<p class="k">Customer signature (work completed)</p><img class="repsig" src="${s.onsite.signature}" alt="Customer signature">`:s.onsite.hadSig?`<p class="k">Signed by the customer (work completed)</p>`:""}</div>`:""}
 
       <div class="terms">Warranty and service terms: This service is covered by our <a href="${TERMS_URL}" target="_blank" rel="noopener">Terms and Conditions</a>.</div>
     </div>`;
@@ -2026,6 +2054,7 @@ pane.addEventListener("change", e=>{
     return;
   }
   if(t.dataset.outcome){ state.job.status = t.value; markDirty(); renderReport(); updateSteps(); return; }
+  if(t.dataset.onpay){ state.onsite.payment = t.value; markDirty(); renderReport(); updateSteps(); return; }
   if(t.dataset.f === "shop.tech"){ try{ localStorage.setItem(SPECIALIST_KEY, t.value); }catch(err){} }
 });
 pane.addEventListener("input", e=>{
@@ -2096,6 +2125,7 @@ pane.addEventListener("click", e=>{
     return;
   }
   if(t.dataset.addverify){ if(!state.verify.includes(t.dataset.addverify)) state.verify.push(t.dataset.addverify); markDirty(); render(); return; }
+  if(t.dataset.repsigclear){ markDirty(); state.onsite.signature = ""; state.onsite.hadSig = false; renderForm(); renderReport(); return; }
   if(t.id === "addPart"){ markDirty(); state.parts.push({name:"",qty:"1"}); render(); return; }
   if(t.id === "addTaken"){ markDirty(); state.parts = state.parts.filter(p => p.name.trim());
     takenParts().forEach(x => { if(!state.parts.some(p => p.name.trim().toLowerCase() === String(x.name).toLowerCase())) state.parts.push({ name: x.name, qty: String(x.qty) }); }); render(); return; }
@@ -2186,7 +2216,7 @@ async function queueReport(){
 outbox.DONE.report = (it, out) => {
   const ref = out.reportNo || it.reportNo;
   const j = JOBS.find(x => x.quoteNo === it.snap.job.quoteNo);
-  if(j){ const r = reportPayload(it.snap); r.job.ref = ref; j.savedReport = r; if(out.tagged) j.report = ref; keepJobs(); }
+  if(j){ const r = reportPayload(it.snap); r.job.ref = ref; j.savedReport = r; if(out.tagged) j.report = ref; if(out.completed) j.status = "Completed"; keepJobs(); }
   if(state.job.localId === it.localId){
     state.job.ref = state.job.ref || ref; state.job.pdfFileId = out.pdfFileId || "";
     if(!dirty){
@@ -2406,6 +2436,15 @@ async function downloadPdf(asData, snap){
   bullets(s.verify.concat(s.verifyCustom));
   if(s.verifyNotes){ y += 1; para("Note: " + s.verifyNotes, {color:INK2}); }
   if(s.advice){ head("Recommendations"); para(s.advice); }
+  if(s.job.onsite){
+    head("On-site visit");
+    para("Work carried out at the customer's premises." + (s.onsite.payment ? " Payment received: " + s.onsite.payment + "." : ""));
+    if(s.onsite.signature){
+      ensure(40); y += 1; set(8.4, "normal", MUTED); doc.text("Customer signature (work completed)", M, y + 3); y += 5;
+      const props = doc.getImageProperties(s.onsite.signature), w = 70, h = Math.min(30, w * props.height / props.width);
+      doc.addImage(s.onsite.signature, s.onsite.signature.indexOf("image/jpeg") > 0 ? "JPEG" : "PNG", M, y, w, h, "onsig", "FAST"); y += h + 1;
+    }
+  }
 
   y += 6;
 
@@ -2686,7 +2725,7 @@ function renderHo(){
     (JOBS_STATE === "failed" ? "Could not load jobs. Press Refresh" : jobs.length ? W().pickPh : allJobs.length ? "No jobs here" : W().empty) + '</option>' +
     (ho.quoteNo && !jobs.some(j => j.quoteNo === ho.quoteNo) ? '<option value="'+esc(ho.quoteNo)+'" selected>'+esc(ho.quoteNo+" · "+ho.custName)+'</option>' : "") +
     jobs.map(j=>'<option value="'+esc(j.quoteNo)+'"'+(j.quoteNo===ho.quoteNo?" selected":"")+'>'+
-      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+((hoKind === "takeover" ? j.takeover : j.handover) ? W().doneTag : "")+techTag(j))+'</option>').join("") +
+      esc(j.quoteNo+" · "+j.name+" · "+(j.brand?j.brand+" "+j.model:j.mfms)+(isOnsiteJob(j) && hoKind === "handover" ? " · On-site job (only if taking it to the workshop)" : "")+((hoKind === "takeover" ? j.takeover : j.handover) ? W().doneTag : "")+techTag(j))+'</option>').join("") +
     '</select><button type="button" class="mini" data-horefresh="1" title="Reload jobs from the Sheet">Refresh</button></span></label>';
   if(!ho.quoteNo){
     p.innerHTML = `<div class="stage"><h2><span class="n">1</span>Job</h2><div class="grid">${pick}</div>
@@ -2811,8 +2850,9 @@ function hoField(key, label, opts){
 }
 
 // Signature pad: pointer events cover mouse, finger and stylus. Saved as a small PNG on lift.
-function initSigPad(){
-  const c = document.getElementById("hoSig");
+function initSigPad(id, done){
+  id = id || "hoSig"; done = done || (url => { ho.signature = url; hoMark(); });
+  const c = document.getElementById(id);
   if(!c) return;
   const ratio = window.devicePixelRatio || 1, rect = c.getBoundingClientRect();
   c.width = rect.width * ratio; c.height = rect.height * ratio;
@@ -2830,7 +2870,7 @@ function initSigPad(){
     const o = out.getContext("2d"); o.fillStyle = "#fff"; o.fillRect(0, 0, out.width, out.height); o.drawImage(c, 0, 0, out.width, out.height);
     let url = out.toDataURL("image/png");
     if(url.length > 40000) url = out.toDataURL("image/jpeg", 0.7);
-    ho.signature = url; hoMark();
+    done(url);
   };
   c.addEventListener("pointerup", end); c.addEventListener("pointercancel", end);
 }
