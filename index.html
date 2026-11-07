@@ -495,6 +495,18 @@
   #stView{display:none}
   body.mode-st #stView{display:block}
   body.mode-st .layout,body.mode-st .mobiletabs,body.mode-st #saveStatus,body.mode-st #hoView,body.mode-st #clView,body.mode-st #rsView,body.locked #stView{display:none!important}
+  /* Care Plans screen and the plan note on a job */
+  #plView{display:none}
+  body.mode-pl #plView{display:block}
+  body.mode-pl .layout,body.mode-pl .mobiletabs,body.mode-pl #saveStatus,body.mode-pl #hoView,body.mode-pl #clView,body.mode-pl #rsView,body.mode-pl #stView,body.mode-pl #dashView,body.locked #plView{display:none!important}
+  .pltools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 6px} .pltools .seg{max-width:100%;overflow-x:auto} .pltools .seg button{white-space:nowrap}.pltools input{flex:1 1 220px;height:40px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-sm);font:inherit;font-size:15px;background:var(--surface);color:var(--ink);min-width:0}
+  .plrow{border-bottom:1px solid var(--line)} .plrow:last-child{border-bottom:0}
+  .plhead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;width:100%;padding:12px 0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+  .plhead .nm{font-weight:600} .plhead .sub{font-size:13px;color:var(--ink-2)} .plhead .bal{font-size:13.5px;font-weight:600;text-align:right;white-space:nowrap}
+  .pldetail{padding:0 0 14px;font-size:14px} .pldetail dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;margin:0 0 10px} .pldetail dt{color:var(--ink-2)} .pldetail dd{margin:0}
+  .plhist{margin:6px 0 10px;padding:0;list-style:none} .plhist li{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:6px 0;border-top:1px dashed var(--line)} .plhist .undone{color:var(--ink-2);text-decoration:line-through}
+  .plform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:8px 0} .plform label.f{flex:0 1 170px} .plform .mini{height:40px}
+  .plnote{margin:10px 0 0;padding:10px 12px;border-radius:var(--radius-sm);background:var(--amber-wash);color:var(--amber-ink);font-size:13.5px;line-height:1.45}
   .strow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
   .strow:last-child{border-bottom:0}
   .strow .nm{font-weight:650;font-size:15px}
@@ -881,6 +893,7 @@
     <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
     <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
     <button type="button" id="modeRs" aria-pressed="false">Inventory</button>
+    <button type="button" id="modePl" aria-pressed="false">Plans</button>
   </div>
   <button type="button" class="who" id="barWho" hidden title="My account"></button>
   <button type="button" class="syncchip" id="syncChip" hidden aria-live="polite"></button>
@@ -916,6 +929,7 @@
 <main id="clView"><div class="howrap" id="clPane"></div></main>
 <main id="rsView"><div class="howrap" id="rsPane"></div></main>
 <main id="stView"><div class="howrap" id="stPane"></div></main>
+<main id="plView"><div class="howrap" id="plPane"></div></main>
 
 <dialog id="acctDlg" aria-labelledby="acctTitle">
   <header><h2 id="acctTitle">My account</h2><button type="button" id="acctClose">Close</button></header>
@@ -1119,6 +1133,7 @@ function lock(msg, forget){
   document.body.classList.add("locked");
   ["acctDlg","syncDlg","mailDlg"].forEach(id => { const d = document.getElementById(id); if(d && d.open) d.close(); });
   if(typeof ST === "object"){ ST.list = []; ST.code = null; }
+  if(typeof PL === "object"){ PL.list = []; PL.loaded = false; PL.open = ""; PL.form = null; }
   if(typeof setPeek === "function") setPeek(false); // never leave the password showing
   document.getElementById("gateMsg").textContent = msg || "";
   showWho();
@@ -1566,6 +1581,7 @@ function renderForm(){
       </div>
       <div class="refs"><span>${custom ? "<b>Custom job</b>" : "Job No. <b>"+esc(s.job.quoteNo)+"</b>"}</span><span>Report <b>${esc(s.job.ref || "given on first save")}</b></span><span>${esc(s.job.serviceType)}</span></div>
       ${summary}
+      ${custom ? "" : planNote(JOBS.find(x => x.quoteNo === s.job.quoteNo))}
       ${handedOver}
     </div>
 
@@ -2827,6 +2843,7 @@ function renderHo(){
         ${rep}
         ${hoField("date",W().date,{type:"date"})}
       </div>
+      ${planNote(JOBS.find(x => x.quoteNo === ho.quoteNo))}
       ${ho.noReport ? '<p class="hostatus err">The service report for this job is not saved yet. Save it in Service report first; the takeover cannot be saved until then.</p>' : ""}
       <h3 class="sub">${W().how}</h3>
       <div class="chips" role="radiogroup" aria-label="${W().how}">
@@ -3254,6 +3271,8 @@ function setMode(m){
   document.getElementById("modeDash").setAttribute("aria-pressed", String(m === "dash"));
   document.body.classList.toggle("mode-rs", m === "restock");
   document.body.classList.toggle("mode-st", m === "staff");
+  document.body.classList.toggle("mode-pl", m === "plans");
+  document.getElementById("modePl").setAttribute("aria-pressed", String(m === "plans"));
   document.getElementById("modeReport").setAttribute("aria-pressed", String(m === "report"));
   document.getElementById("modeHo").setAttribute("aria-pressed", String(m === "handover"));
   document.getElementById("modeTo").setAttribute("aria-pressed", String(m === "takeover"));
@@ -3267,6 +3286,7 @@ function setMode(m){
   if(m === "restock"){ renderRs(); loadStock(); }
   if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
+  if(m === "plans"){ renderPl(); loadPlans(); }
   else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
 }
@@ -3276,6 +3296,7 @@ document.getElementById("modeHo").addEventListener("click", () => setMode("hando
 document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
 document.getElementById("modeCl").addEventListener("click", () => setMode("claim"));
 document.getElementById("modeRs").addEventListener("click", () => setMode("restock"));
+document.getElementById("modePl").addEventListener("click", () => setMode("plans"));
 
 /* ---------- petrol claims ---------- */
 // Flat $15 per delivery / collection trip. Each claim goes to the "Petrol claims" tab and onto the
@@ -3763,6 +3784,149 @@ stPane.addEventListener("click", async e => {
   finally{ b.disabled = false; }
 });
 stPane.addEventListener("keydown", e => { if(e.key === "Enter" && e.target.id === "stName"){ e.preventDefault(); document.getElementById("stAdd").click(); } });
+
+/* ---------- Care Plans (Apps Script API 6: planList, planMarkPaid, planExtend, planUndoUsage, planCancel) ---------- */
+// Every printer on an MDR Care Plan: Service Jobs used / left, expiry and history. Anyone signed in can look;
+// admins mark sign-ups paid, cancel unpaid ones, extend First Layer Pro and take a job back off a plan.
+// A job booked on a plan is counted by the Apps Script when it is Completed (takeover or on-site sign-off).
+let PL = { list: [], loaded: false, loading: false, filter: "Active", find: "", open: "", form: null, admin: false, today: "", ext: { months: 6, price: 50 } };
+const PL_FILTERS = [["Pending Payment", "Unpaid"], ["Active", "Active"], ["Expired", "Expired"], ["all", "All"]];
+function plDate(s){ return s ? new Date(s + "T00:00:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : ""; }
+function plApiOk(){ return !!(SESSION && SESSION.api >= 6); }
+// The plan a job is booked on: a note on the Service report and Handover pages.
+function planNote(j){
+  const c = j && j.carePlan; if(!c) return "";
+  return '<p class="plnote"><b>Care Plan job.</b> ' + esc(c.plan) + ' (' + esc(c.id) + '): ' + c.left + ' of ' + c.jobs + ' Service Jobs left' +
+    (c.expiresOn ? ', valid until ' + plDate(c.expiresOn) : '') + '. This Service Job is on the plan and is counted when the job is Completed.' +
+    (c.status === "Active" ? '' : ' Plan status is <b>' + esc(c.status) + '</b>: check with an admin before going ahead.') + '</p>';
+}
+async function loadPlans(){
+  if(PL.loading || !plApiOk()) return; PL.loading = true;
+  try{
+    const out = await callSheet({ action: "planList" });
+    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message)); else plStatus("err", out.message); return; }
+    PL.list = out.plans || []; PL.admin = !!out.admin; PL.today = out.today || ""; if(out.extension) PL.ext = out.extension;
+    PL.loaded = true; renderPl();
+  }catch(e){ plStatus("err", "Could not load the plans. Check the connection and try again."); }
+  finally{ PL.loading = false; }
+}
+function plStatus(kind, msg){ const el = document.getElementById("plStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+function plTag(p){
+  const cls = p.status === "Active" ? "ok" : p.status === "Pending Payment" ? "warn" : "off";
+  return '<span class="tag ' + cls + '">' + esc(p.status === "Pending Payment" ? "Waiting for payment" : p.status) + '</span>';
+}
+function renderPl(){
+  const pane = document.getElementById("plPane"); if(!pane) return;
+  if(!plApiOk()){
+    pane.innerHTML = '<div class="stage"><h2>Care Plans</h2><p class="hint">Care Plans need the updated Apps Script (version 6). Ask an admin to deploy it, then reload this page.</p></div>';
+    return;
+  }
+  const count = f => PL.list.filter(p => f === "all" || p.status === f).length;
+  pane.innerHTML = `
+    <div class="stage">
+      <h2><span class="n">1</span>Care Plans</h2>
+      <p class="hint" style="margin-top:0">One row per printer. A job booked on a plan is counted when it is Completed.${PL.admin ? " As an admin you can mark sign-ups paid, cancel unpaid ones, extend First Layer Pro and undo a count." : ""}</p>
+      <div class="pltools">
+        <div class="seg" role="tablist" aria-label="Plan status">${PL_FILTERS.map(([f, l]) => '<button type="button" role="tab" data-plfilter="' + f + '" aria-selected="' + (PL.filter === f) + '">' + l + (PL.loaded ? ' (' + count(f) + ')' : '') + '</button>').join("")}</div>
+        <input id="plFind" type="search" placeholder="Search name, phone, SN or ref" value="${esc(PL.find)}" aria-label="Search plans">
+      </div>
+      <div id="plList"></div>
+      <p class="hostatus" id="plStatus" role="status"></p>
+    </div>`;
+  renderPlList();
+}
+function renderPlList(){
+  const box = document.getElementById("plList"); if(!box) return;
+  if(!PL.loaded){ box.innerHTML = skelRows(); return; }
+  const q = PL.find.trim().toLowerCase();
+  const shown = PL.list.filter(p => (PL.filter === "all" || p.status === PL.filter) &&
+    (!q || [p.customer, p.phone, p.email, p.sn, p.ref, p.id, p.printer].join(" ").toLowerCase().includes(q)));
+  box.innerHTML = shown.map(plRow).join("") || '<p class="hint">No plans here.</p>';
+}
+function plRow(p){
+  const open = PL.open === p.id;
+  const bal = p.status === "Pending Payment" ? (p.price !== "" && p.price != null ? "SGD " + esc(p.price) : "Price TBC") : p.left + " of " + p.jobs + " left";
+  return '<div class="plrow"><button type="button" class="plhead" data-plopen="' + esc(p.id) + '" aria-expanded="' + open + '">' +
+    '<span><span class="nm">' + esc(p.customer) + '</span> ' + plTag(p) + '<br><span class="sub">' + esc(p.printer) + ' · SN ' + esc(p.sn) + ' · ' + esc(p.plan) + '</span></span>' +
+    '<span class="bal">' + bal + (p.expiresOn ? '<br><span class="sub">until ' + plDate(p.expiresOn) + '</span>' : '') + '</span></button>' +
+    (open ? plDetail(p) : '') + '</div>';
+}
+function plDetail(p){
+  const sib = PL.list.filter(x => x.ref === p.ref);
+  const priced = p.price !== "" && p.price != null;
+  const info = [["Plan ID", p.id], ["Sign-up", p.ref + " (printer " + p.printerNo + ")"], ["Phone", p.phone], ["Email", p.email], ["Tier", p.tier],
+    ["Plan price", priced ? "SGD " + p.price + (sib.length > 1 && p.total !== "" ? " (sign-up total SGD " + p.total + ")" : "") : "To be quoted: fill in Plan Price (SGD) on the Care Plans tab"],
+    ["Paid", p.paidOn ? plDate(p.paidOn) + (p.method ? " by " + p.method : "") : "Not yet"],
+    ["Valid until", p.expiresOn ? plDate(p.expiresOn) + (p.extendedOn ? " (extended on " + plDate(p.extendedOn) + ")" : "") : "Starts when paid"],
+    ["Notes", p.notes]].filter(r => r[1]);
+  const hist = (p.history || []).length
+    ? '<ul class="plhist">' + p.history.map(h => '<li><span class="' + (h.status === "Used" ? "" : "undone") + '">' + esc(h.jobNo) + ' · ' + plDate(h.date) + '</span>' +
+        (h.status === "Used" ? '' : '<span class="tag off">' + esc(h.status) + '</span>') +
+        (PL.admin && h.status === "Used" ? '<button type="button" class="mini" data-plundo="' + esc(h.jobNo) + '">Undo</button>' : '') +
+        (h.notes ? '<small class="hint" style="margin:0">' + esc(h.notes) + '</small>' : '') + '</li>').join("") + '</ul>'
+    : '<p class="hint">No Service Jobs counted yet.</p>';
+  let acts = "";
+  if(PL.admin){
+    const f = PL.form && PL.form.id === p.id ? PL.form : null;
+    if(p.status === "Pending Payment"){
+      acts = f && f.kind === "paid"
+        ? plPayForm(f, "Mark paid" + (sib.length > 1 ? " (all " + sib.length + " printers)" : ""), true)
+        : '<div class="jmbtns"><button type="button" class="primary mini" data-plform="paid">Mark paid</button><button type="button" class="mini" data-plcancel="1">Cancel sign-up</button></div>';
+    } else if(p.extendable){
+      const label = "Extend " + PL.ext.months + " months ($" + PL.ext.price + ")";
+      acts = f && f.kind === "extend" ? plPayForm(f, label, false) : '<div class="jmbtns"><button type="button" class="mini" data-plform="extend">' + label + '</button></div>';
+    }
+  }
+  return '<div class="pldetail"><dl>' + info.map(([k, v]) => '<dt>' + k + '</dt><dd>' + esc(v) + '</dd>').join("") + '</dl>' +
+    '<h3 class="sub">Service Jobs on this plan</h3>' + hist + acts + '</div>';
+}
+function plPayForm(f, label, withDate){
+  return '<div class="plform">' +
+    (withDate ? '<label class="f">Paid on<input type="date" id="plPaidOn" value="' + esc(f.paidOn) + '" max="' + esc(PL.today) + '"></label>' : '') +
+    '<div class="f"><span>Paid by</span><div class="chips" role="radiogroup" aria-label="Paid by">' +
+      ["PayNow", "Cash"].map(m => '<label class="chip"><input type="radio" name="plmethod" data-plmethod="1" value="' + m + '"' + (f.method === m ? ' checked' : '') + '>' + m + '</label>').join("") + '</div></div>' +
+    '<button type="button" class="primary mini" data-plsubmit="1">' + esc(label) + '</button><button type="button" class="mini" data-plformclose="1">Back</button></div>';
+}
+const plPane = document.getElementById("plPane");
+plPane.addEventListener("input", e => {
+  if(e.target.id === "plFind"){ PL.find = e.target.value; renderPlList(); }
+  if(e.target.id === "plPaidOn" && PL.form) PL.form.paidOn = e.target.value;
+});
+plPane.addEventListener("change", e => { if(e.target.dataset.plmethod && PL.form) PL.form.method = e.target.value; });
+plPane.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.plfilter){ PL.filter = b.dataset.plfilter; PL.open = ""; PL.form = null; renderPl(); return; }
+  if(b.dataset.plopen){ PL.open = PL.open === b.dataset.plopen ? "" : b.dataset.plopen; PL.form = null; renderPlList(); return; }
+  if(b.dataset.plform){ PL.form = { id: PL.open, kind: b.dataset.plform, method: "", paidOn: PL.today }; renderPlList(); return; }
+  if(b.dataset.plformclose){ PL.form = null; renderPlList(); return; }
+  const p = PL.list.find(x => x.id === PL.open); if(!p) return;
+  let body = null, done = "";
+  if(b.dataset.plsubmit){
+    const f = PL.form; if(!f) return;
+    if(!f.method){ plStatus("err", "Pick PayNow or Cash."); return; }
+    body = f.kind === "paid" ? { action: "planMarkPaid", ref: p.ref, method: f.method, paidOn: f.paidOn }
+      : { action: "planExtend", planId: p.id, method: f.method };
+    done = f.kind === "paid" ? p.ref + " marked paid." : p.id + " extended.";
+  } else if(b.dataset.plcancel){
+    const why = prompt("Why is sign-up " + p.ref + " cancelled?"); if(!why || !why.trim()) return;
+    body = { action: "planCancel", ref: p.ref, reason: why.trim() }; done = p.ref + " cancelled.";
+  } else if(b.dataset.plundo){
+    const why = prompt("Take " + b.dataset.plundo + " off " + p.id + "? Say why (kept with the record)."); if(!why || !why.trim()) return;
+    body = { action: "planUndoUsage", jobNo: b.dataset.plundo, reason: why.trim() }; done = b.dataset.plundo + " taken off the plan.";
+  }
+  if(!body) return;
+  body.saveId = "pl-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); // a retry never acts twice
+  b.disabled = true;
+  try{
+    const out = await callSheet(body);
+    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message)); else plStatus("err", out.message); return; }
+    PL.form = null;
+    await loadPlans();
+    plStatus("ok", done + (body.action !== "planMarkPaid" ? "" : out.emailed ? " Confirmation emailed to the customer." : " The confirmation email did NOT go out: tell the customer."));
+    refreshJobsQuietly(); // plan notes on the jobs
+  }catch(err){ plStatus("err", "No connection? Try again."); }
+  finally{ b.disabled = false; }
+});
 
 /* ---------- restock: landed cost, stock, supplier prices ---------- */
 // Purchases (typed or scanned from receipt photos) -> landed cost per unit in SGD -> Stock tab.
