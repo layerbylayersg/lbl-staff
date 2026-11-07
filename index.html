@@ -3884,7 +3884,7 @@ function plPayForm(f, label, withDate){
   return '<div class="plform">' +
     (withDate ? '<label class="f">Paid on<input type="date" id="plPaidOn" value="' + esc(f.paidOn) + '" max="' + esc(PL.today) + '"></label>' : '') +
     '<div class="f"><span>Paid by</span><div class="chips" role="radiogroup" aria-label="Paid by">' +
-      ["PayNow", "Cash"].map(m => '<label class="chip"><input type="radio" name="plmethod" data-plmethod="1" value="' + m + '"' + (f.method === m ? ' checked' : '') + '>' + m + '</label>').join("") + '</div></div>' +
+      ["PayNow", "Card"].map(m => '<label class="chip"><input type="radio" name="plmethod" data-plmethod="1" value="' + m + '"' + (f.method === m ? ' checked' : '') + '>' + m + '</label>').join("") + '</div></div>' +
     '<button type="button" class="primary mini" data-plsubmit="1">' + esc(label) + '</button><button type="button" class="mini" data-plformclose="1">Back</button></div>';
 }
 const plPane = document.getElementById("plPane");
@@ -3903,7 +3903,7 @@ plPane.addEventListener("click", async e => {
   let body = null, done = "";
   if(b.dataset.plsubmit){
     const f = PL.form; if(!f) return;
-    if(!f.method){ plStatus("err", "Pick PayNow or Cash."); return; }
+    if(!f.method){ plStatus("err", "Pick PayNow or Card."); return; }
     body = f.kind === "paid" ? { action: "planMarkPaid", ref: p.ref, method: f.method, paidOn: f.paidOn }
       : { action: "planExtend", planId: p.id, method: f.method };
     done = f.kind === "paid" ? p.ref + " marked paid." : p.id + " extended.";
