@@ -1107,7 +1107,7 @@ const JOBS_KEY = "lbl-jobs";                // last job list, so the app opens i
 const NAMES_KEY = "lbl-staff-names";        // for the name box on the login screen
 let STAFF_PIN = "";
 let SESSION = null;
-let JOBS = [], STAFF = [];
+let JOBS = [], STAFF = [], PAST_JOBS = []; // PAST_JOBS: completed jobs, only for picking a job when parts are taken off stock
 const isNew = () => !!(SESSION && SESSION.token);   // signed in with name + PIN (new backend features)
 const ME = () => (SESSION && SESSION.name) || "";
 const AUTH_MSGS = ["Wrong password.", "Your sign-in has expired. Log in again.", "Log in with your own name and PIN."];
@@ -1160,6 +1160,7 @@ const skelPick = (label) => '<label class="f span2 jobpick">' + (label || "Job")
 const skelRows = () => '<div aria-label="Loading"><span class="skel skel-row"></span><span class="skel skel-row"></span><span class="skel skel-row"></span></div>';
 function takeJobs(out){
   JOBS = out.jobs || []; STAFF = out.staff || STAFF; JOBS_STATE = "ready";
+  if(Array.isArray(out.past)) PAST_JOBS = out.past;
   overlayPending();
   if(STAFF.length) lsSet(NAMES_KEY, STAFF);
   if(out.api && SESSION){ SESSION.api = out.api; if(out.admin !== undefined) SESSION.admin = !!out.admin; lsSet(SESSION_KEY, SESSION); showWho(); }
@@ -4588,8 +4589,8 @@ function renderRs(){
     (rsOut.kind === "out" ? '<div class="f"><span>Where did it go?</span><div class="chips" role="radiogroup" aria-label="Where it went">' +
       RS.channels.map(ch => '<label class="chip"><input type="radio" name="rschan" data-rso="channel" value="' + esc(ch) + '"' + (ch === rsOut.channel ? " checked" : "") + '>' + esc(ch) + '</label>').join("") + '</div></div>' : '') +
     (rsOut.kind === "out" && /^Repair/.test(rsOut.channel || "") && rsHas("jobParts") ? '<label class="f">Which job?<select data-rso="job"><option value="">Choose the job...</option>' +
-      JOBS.filter(j => j.status === "In Progress" || j.status === "Confirmed").map(j => '<option value="' + esc(j.quoteNo) + '"' + (j.quoteNo === rsOut.job ? " selected" : "") + '>' + esc(j.quoteNo + " · " + (j.name || "") + (j.model ? " · " + j.model : "")) + '</option>').join("") +
-      '</select><small class="rsjobhint">Taken off stock now. The job\'s service report lists it and won\'t take it off again.</small></label>' : '') +
+      rsJobOptions() +
+      '</select><small class="rsjobhint">' + (PAST_JOBS.some(j => j.quoteNo === rsOut.job) && !JOBS.some(j => j.quoteNo === rsOut.job) ? 'Past job: taken off stock now and logged against this job. Its saved service report is not changed.' : 'Taken off stock now. The job\'s service report lists it and won\'t take it off again.') + (rsHas("pastJobs") ? '' : ' Past jobs show here after the Apps Script update (v10).') + '</small></label>' : '') +
     '<label class="f">Note / order no. (optional)<input data-rso="note" value="' + esc(rsOut.note) + '" placeholder="e.g. Shopee order 2610xxxx"></label>' +
     '<p class="rsafter" id="rsAfter">' + rsAfterHtml(s) + '</p>' +
     '<div class="hoactions"><button type="button" class="primary" id="rsMove" style="grid-column:1 / -1">' + (rsOut.kind === "count" ? "Save count" : "Take off stock") + '</button></div>' +
@@ -4601,6 +4602,10 @@ function renderRs(){
       '<button type="button" class="mini" id="rsMinSave">Save' + (rsHas("location") ? '' : ' alert') + '</button>' +
       '<span class="rsalertprice">' + (Number(s.sell) ? 'Sells at $' + money(s.sell) : 'No price yet') + ' · <button type="button" class="linkbtn" data-rsgoprice="' + esc(s.code) + '">Set price in Pricing</button></span></div>' +
     '</div>';
+  const jobOpt = j => '<option value="' + esc(j.quoteNo) + '"' + (j.quoteNo === rsOut.job ? " selected" : "") + '>' + esc(j.quoteNo + " · " + (j.name || "") + (j.model ? " · " + j.model : "") + (j.past && j.date ? " · " + j.date : "")) + '</option>';
+  const rsJobOptions = () => { const open = JOBS.filter(j => j.status === "In Progress" || j.status === "Confirmed");
+    const past = PAST_JOBS.filter(j => !open.some(o => o.quoteNo === j.quoteNo)).map(j => Object.assign({ past: true }, j));
+    return past.length ? '<optgroup label="Open jobs">' + open.map(jobOpt).join("") + '</optgroup><optgroup label="Past jobs (completed)">' + past.map(jobOpt).join("") + '</optgroup>' : open.map(jobOpt).join(""); };
   const thumb = s => rsPhoto(s.code) ? '<img class="rsthumb" src="' + rsPhoto(s.code) + '" alt="" loading="lazy" decoding="async">' : '<span class="rsthumb" aria-hidden="true"></span>';
   const row = s => { const open = s.code === rsOut.code;
     return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' + thumb(s) +
@@ -4862,7 +4867,7 @@ rsPane.addEventListener("change", e => {
   if(t.dataset.rso){
     rsOut[t.dataset.rso] = t.value;
     if(t.dataset.rso === "code"){ rsOut.sellCode = ""; rsMarket = { code: "", loading: false, data: null, error: "" }; }
-    if(t.dataset.rso === "code" || t.dataset.rso === "kind" || t.dataset.rso === "channel") renderRs();
+    if(t.dataset.rso === "code" || t.dataset.rso === "kind" || t.dataset.rso === "channel" || t.dataset.rso === "job") renderRs();
     return;
   }
   if(t.dataset.rscost){ rs.costOnly = t.checked; rsDirty = true; renderRs(); return; }
