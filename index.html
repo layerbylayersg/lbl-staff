@@ -156,6 +156,11 @@
   .rsrowbtn{display:flex;align-items:center;gap:12px;width:100%;padding:11px 8px;border:0;background:transparent;font:inherit;color:var(--ink);text-align:left;cursor:pointer;border-radius:10px}
   .rsrowbtn:hover{background:var(--surface-2)}
   .rsrowbtn:focus-visible{outline:2px solid var(--green-600);outline-offset:-2px}
+  .rsthumb{flex:none;width:44px;height:44px;border-radius:8px;background:#fff;border:1px solid var(--line);object-fit:contain;display:block}
+  span.rsthumb{background:var(--surface-2);border-style:dashed}
+  .rsphoto{display:flex;gap:12px;align-items:center}
+  .rsphoto img{width:120px;height:120px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:12px;flex:none}
+  .rsphoto small{color:var(--muted);font-size:12px}
   .rsn{flex:1;min-width:0;font-size:14px;font-weight:600;line-height:1.35}
   .rsn small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
   .rsm{display:block;margin-top:2px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
@@ -1109,6 +1114,9 @@ const AUTH_MSGS = ["Wrong password.", "Your sign-in has expired. Log in again.",
 const isAuthMsg = m => AUTH_MSGS.includes(m);
 const authText = (m, tail) => (m === "Wrong password." ? "Password changed. Log in again" : m === AUTH_MSGS[2] ? "Log in with your own name and PIN" : "Your sign-in has expired. Log in again") + (tail || ".");
 
+// Item photos in img/items/<code>.jpg (official store pictures, staff reference only).
+const ITEM_PHOTOS = new Set(["ACC-CYB-TLK","PRT-BBL-CAB001","PRT-BBL-CAB002-N","PRT-BBL-CAB013","PRT-BBL-DLB010","PRT-BBL-DLB012","PRT-BBL-DLB014","PRT-BBL-DLB055","PRT-BBL-DLB067","PRT-BBL-FAB001","PRT-BBL-FAC004","PRT-BBL-FAC005","PRT-BBL-FAC009","PRT-BBL-FAC010","PRT-BBL-FAE010","PRT-BBL-FAE011","PRT-BBL-FAE016","PRT-BBL-FAE017","PRT-BBL-FAE035","PRT-BBL-FAE039","PRT-BBL-FAH022","PRT-BBL-FAH048","PRT-BBL-FAH051","PRT-BBL-FAH059","PRT-BBL-FAH060-V1","PRT-BBL-FAH061","PRT-BBL-FAH062","PRT-BBL-FAM001","PRT-BBL-FAM016","PRT-BBL-FAM017","PRT-BBL-FAZ001","PRT-BBL-FAZ005","PRT-BBL-LID001","PRT-BBL-SA001-F1H","PRT-BBL-SA003","PRT-BBL-SA011","PRT-BBL-SAA003","PRT-BBL-SAA038-V1","PRT-BBL-SPP015","PRT-BBL-SPP038"]);
+const rsPhoto = code => ITEM_PHOTOS.has(String(code || "").toUpperCase()) ? "img/items/" + encodeURIComponent(String(code).toUpperCase()) + ".jpg" : "";
 function lsGet(k){ try{ return JSON.parse(localStorage.getItem(k) || "null"); }catch(e){ return null; } }
 function lsSet(k, v){ try{ v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 
@@ -4550,6 +4558,7 @@ function renderRs(){
     return '<span class="rsq ' + st + '"><b>' + rsQty(s) + '</b><small>' + { out: "Out", low: "Low", ok: "in stock" }[st] + '</small></span>'; };
   const sug = s => !s.location && rsHas("location") ? rsBoxFor(s) : null;
   const panel = s => '<div class="rspanel">' +
+    (rsPhoto(s.code) ? '<div class="rsphoto"><img src="' + rsPhoto(s.code) + '" alt="' + esc(s.name) + '"><small>Photo from the ' + (/^PRT-BBL-|^ACC-CYB-/.test(s.code) ? 'Bambu Lab' : 'official') + ' store, for staff reference only. Use our own photos on Shopee / Carousell.</small></div>' : '') +
     (rsHas("rename") ? (rsOut.renaming
       ? '<div class="rsrename"><label class="f">New name<input id="rsNewName" value="' + esc(rsOut.newName !== undefined ? rsOut.newName : s.name) + '" maxlength="150"></label>' +
         '<button type="button" class="primary mini" id="rsRenameSave">Save name</button><button type="button" class="mini" data-rsrenamecancel="1">Cancel</button>' +
@@ -4592,8 +4601,9 @@ function renderRs(){
       '<button type="button" class="mini" id="rsMinSave">Save' + (rsHas("location") ? '' : ' alert') + '</button>' +
       '<span class="rsalertprice">' + (Number(s.sell) ? 'Sells at $' + money(s.sell) : 'No price yet') + ' · <button type="button" class="linkbtn" data-rsgoprice="' + esc(s.code) + '">Set price in Pricing</button></span></div>' +
     '</div>';
+  const thumb = s => rsPhoto(s.code) ? '<img class="rsthumb" src="' + rsPhoto(s.code) + '" alt="" loading="lazy" decoding="async">' : '<span class="rsthumb" aria-hidden="true"></span>';
   const row = s => { const open = s.code === rsOut.code;
-    return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' +
+    return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsopen="' + esc(s.code) + '" aria-expanded="' + open + '">' + thumb(s) +
       '<span class="rsn">' + esc(s.name) + '<small>' + esc(s.code) + (s.location ? ' · <b class="rsbox">Box ' + esc(s.location) + '</b>' : '') + '</small><span class="rsm">' + meta(s) + '</span></span>' +
       qtyBadge(s) + '<span class="rschev" aria-hidden="true">›</span></button>' + (open ? panel(s) : '') + '</li>';
   };
