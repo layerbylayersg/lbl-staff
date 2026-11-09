@@ -510,6 +510,13 @@
   body.mode-st #stView{display:block}
   body.mode-st .layout,body.mode-st .mobiletabs,body.mode-st #saveStatus,body.mode-st #hoView,body.mode-st #clView,body.mode-st #rsView,body.locked #stView{display:none!important}
   /* Care Plans screen and the plan note on a job */
+  #bbView{display:none}
+  body.mode-bb #bbView{display:block}
+  body.mode-bb .layout,body.mode-bb .mobiletabs,body.mode-bb #saveStatus,body.mode-bb #hoView,body.mode-bb #clView,body.mode-bb #rsView,body.mode-bb #stView,body.mode-bb #dashView,body.mode-bb #plView,body.locked #bbView{display:none!important}
+  .bbdecl{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;margin-bottom:12px} .bbdecl input{margin-top:3px;width:18px;height:18px;flex:none}
+  .sigdone{display:flex;gap:12px;align-items:center} .sigdone img{max-width:260px;width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .bbfacts{display:grid;gap:6px;font-size:13.5px} .bbfacts div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px} .bbfacts span{color:var(--muted)} .bbfacts b{font-weight:600}
+  .bbdone h2{color:var(--green-ink)}
   #plView{display:none}
   body.mode-pl #plView{display:block}
   body.mode-pl .layout,body.mode-pl .mobiletabs,body.mode-pl #saveStatus,body.mode-pl #hoView,body.mode-pl #clView,body.mode-pl #rsView,body.mode-pl #stView,body.mode-pl #dashView,body.locked #plView{display:none!important}
@@ -908,6 +915,7 @@
     <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
     <button type="button" id="modeRs" aria-pressed="false">Inventory</button>
     <button type="button" id="modePl" aria-pressed="false">Plans</button>
+    <button type="button" id="modeBb" aria-pressed="false">Buyback</button>
   </div>
   <button type="button" class="who" id="barWho" hidden title="My account"></button>
   <button type="button" class="syncchip" id="syncChip" hidden aria-live="polite"></button>
@@ -944,6 +952,7 @@
 <main id="rsView"><div class="howrap" id="rsPane"></div></main>
 <main id="stView"><div class="howrap" id="stPane"></div></main>
 <main id="plView"><div class="howrap" id="plPane"></div></main>
+<main id="bbView"><div class="howrap" id="bbPane"></div></main>
 
 <dialog id="acctDlg" aria-labelledby="acctTitle">
   <header><h2 id="acctTitle">My account</h2><button type="button" id="acctClose">Close</button></header>
@@ -3294,6 +3303,8 @@ function setMode(m){
   document.body.classList.toggle("mode-st", m === "staff");
   document.body.classList.toggle("mode-pl", m === "plans");
   document.getElementById("modePl").setAttribute("aria-pressed", String(m === "plans"));
+  document.body.classList.toggle("mode-bb", m === "buyback");
+  document.getElementById("modeBb").setAttribute("aria-pressed", String(m === "buyback"));
   document.getElementById("modeReport").setAttribute("aria-pressed", String(m === "report"));
   document.getElementById("modeHo").setAttribute("aria-pressed", String(m === "handover"));
   document.getElementById("modeTo").setAttribute("aria-pressed", String(m === "takeover"));
@@ -3307,6 +3318,7 @@ function setMode(m){
   if(m === "restock"){ renderRs(); loadStock(); }
   if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
+  if(m === "buyback"){ renderBb(); loadBb(); }
   if(m === "plans"){ renderPl(); loadPlans(); }
   else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
@@ -3318,6 +3330,7 @@ document.getElementById("modeTo").addEventListener("click", () => setMode("takeo
 document.getElementById("modeCl").addEventListener("click", () => setMode("claim"));
 document.getElementById("modeRs").addEventListener("click", () => setMode("restock"));
 document.getElementById("modePl").addEventListener("click", () => setMode("plans"));
+document.getElementById("modeBb").addEventListener("click", () => setMode("buyback"));
 
 /* ---------- petrol claims ---------- */
 // Flat $15 per delivery / collection trip. Each claim goes to the "Petrol claims" tab and onto the
@@ -3805,6 +3818,252 @@ stPane.addEventListener("click", async e => {
   finally{ b.disabled = false; }
 });
 stPane.addEventListener("keydown", e => { if(e.key === "Enter" && e.target.id === "stName"){ e.preventDefault(); document.getElementById("stAdd").click(); } });
+
+/* ---------- Buyback: old / faulty printers and MFMS bought from the public (Apps Script: buybackList, buybackSave, buybackUpdate) ---------- */
+// One signed receipt per unit (seller declares ownership), saved to the "Buybacks" tab; the unit goes into stock as
+// BUY-<brand>-<model>-<last 4 of SN> at the price paid. Units then end Sold, Parted out or Scrapped.
+const BB_STATUSES = ["In stock", "Refurbishing", "Sold", "Parted out", "Scrapped"];
+const BB_FILTERS = [["stock", "In stock"], ["Sold", "Sold"], ["Parted out", "Parted out"], ["Scrapped", "Scrapped"], ["all", "All"]];
+const BB_BRANDS = ["Bambu Lab", "Creality", "Elegoo", "Anycubic", "Prusa", "Other"];
+const BB_ACCESSORIES = ["Power cable", "Build plate", "Spool holder", "Nozzle / hotend", "PTFE tube", "Tools", "Original box"];
+const BB_PAYMENTS = ["PayNow", "Bank transfer", "Cash"];
+const BB_SELL_CHANNELS = ["Shopee", "Carousell", "Walk-in", "Website", "Other"];
+const BB_MAX_PHOTOS = 4;
+function bbToday(){ const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function bbBlank(){ return { date: bbToday(), sellerName: "", sellerPhone: "", idType: "NRIC", idLast4: "", kind: "Printer", brand: "Bambu Lab", model: "", serial: "", mfms: "", mfmsSerial: "",
+  powers: "", prints: "", faults: "", accessories: [], resale: "", paid: "", payment: "PayNow", by: (typeof ME === "function" && ME()) || "", photos: [], signature: "", declared: false }; }
+let BB = { list: [], loaded: false, loading: false, apiMissing: false, view: "new", filter: "stock", find: "", open: "", edit: null, saving: false, last: null };
+let bb = bbBlank(), bbDirty = false;
+const bbHasPrinter = () => bb.kind !== "MFMS", bbHasMfms = () => bb.kind !== "Printer";
+const bbItemName = u => [u.brand, u.model].filter(Boolean).join(" ") + (u.kind === "Printer + MFMS" && u.mfms ? " + " + u.mfms : u.kind === "MFMS" ? "" : "");
+const bbProfit = u => (Number(u.soldPrice) || 0) - (Number(u.paid) || 0) - (Number(u.extraCost) || 0);
+function bbStatus(kind, msg){ const el = document.getElementById("bbStatus"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
+async function loadBb(){
+  if(BB.loading) return; BB.loading = true;
+  try{
+    const out = await callSheet({ action: "buybackList" });
+    if(out.result !== "success"){
+      if(isAuthMsg(out.message)) lock(authText(out.message));
+      else if(/unknown|not supported|action/i.test(out.message || "")){ BB.apiMissing = true; renderBb(); }
+      else bbStatus("err", out.message);
+      return;
+    }
+    BB.list = out.buybacks || []; BB.loaded = true; BB.apiMissing = false; renderBb();
+  }catch(e){ bbStatus("err", "Could not load buybacks. Check the connection and try again."); }
+  finally{ BB.loading = false; }
+}
+// What to offer: keep about 40% of the expected resale / parts value for refurb work and margin.
+function bbOfferHint(){
+  const v = Number(bb.resale); if(!(v > 0)) return 'Enter what you expect to resell it for (or its parts are worth) to see a suggested offer.';
+  const max = Math.floor(v * 0.6 / 5) * 5;
+  return 'Offer up to <b>$' + max + '</b> (60% of $' + money(v) + '), leaving about 40% for refurb parts, time and margin.' +
+    (Number(bb.paid) > max ? ' <b class="up">Paying $' + money(bb.paid) + ' is above that.</b>' : '');
+}
+function bbMissing(){
+  const m = [];
+  if(!bb.sellerName.trim()) m.push("seller's name");
+  if(!/^\+?[0-9 ]{8,}$/.test(bb.sellerPhone.trim())) m.push("seller's phone");
+  if(!/^[A-Za-z0-9]{4}$/.test(bb.idLast4.trim())) m.push("last 4 characters of the ID");
+  if(bbHasPrinter() && !bb.model.trim()) m.push("printer model");
+  if(bbHasPrinter() && !bb.serial.trim()) m.push("printer serial number");
+  if(bbHasMfms() && !bb.mfms.trim()) m.push("MFMS model");
+  if(bbHasMfms() && !bb.mfmsSerial.trim()) m.push("MFMS serial number");
+  if(!bb.powers) m.push("does it power on?");
+  if(!(Number(bb.paid) > 0)) m.push("price paid");
+  if(!bb.by) m.push("bought by");
+  if(!bb.photos.length) m.push("at least 1 photo");
+  if(!bb.declared) m.push("seller's declaration tick");
+  if(!bb.signature) m.push("seller's signature");
+  return m;
+}
+function bbDeclHtml(){ return 'I, <b>' + esc(bb.sellerName || "the seller") + '</b>, confirm I am the owner of the item(s) above, they are not stolen, under finance or owed to anyone, and I sell them to Layer By Layer Pte. Ltd. as-is for <b>S$' + money(Number(bb.paid) || 0) + '</b>.'; }
+function bbChips(name, list, val){
+  return '<div class="chips" role="radiogroup">' + list.map(v => '<label class="chip"><input type="radio" name="bb' + name + '" data-bbr="' + name + '" value="' + esc(v) + '"' + (v === val ? " checked" : "") + '>' + esc(v) + '</label>').join("") + '</div>';
+}
+function bbFormHtml(){
+  if(BB.last) return '<div class="stage bbdone"><h2>✅ Buyback saved: ' + esc(BB.last.bbNo) + '</h2>' +
+    '<p>' + esc(bbItemName(BB.last)) + ' from ' + esc(BB.last.sellerName) + ' for <b>$' + money(BB.last.paid) + '</b> (' + esc(BB.last.payment) + ').' +
+    (BB.last.stockCode ? ' Added to stock as <b>' + esc(BB.last.stockCode) + '</b>.' : '') + '</p>' +
+    '<p class="hint">Send the seller the receipt. ' + (BB.last.payment === "Cash" ? 'Cash: get the receipt signed before handing over the money.' : 'Pay the seller now and note the PayNow / transfer reference in Xero (Spend Money, account 310, reference ' + esc(BB.last.bbNo) + ').') + '</p>' +
+    '<div class="hoactions"><button type="button" class="primary" data-bbpdf="1">Download receipt PDF</button><button type="button" data-bbnew="1">New buyback</button></div></div>';
+  const staff = (STAFF && STAFF.length ? STAFF : [bb.by].filter(Boolean));
+  const miss = bbMissing();
+  return '<div class="stage"><h2><span class="n">1</span>Seller</h2><div class="grid">' +
+      '<label class="f">Seller\'s name<input data-bb="sellerName" value="' + esc(bb.sellerName) + '" autocomplete="off"></label>' +
+      '<label class="f">Phone<input data-bb="sellerPhone" type="tel" inputmode="tel" value="' + esc(bb.sellerPhone) + '" placeholder="e.g. 9123 4567"></label>' +
+      '<label class="f">ID type<select data-bb="idType">' + ["NRIC", "FIN", "Passport"].map(v => '<option' + (v === bb.idType ? " selected" : "") + '>' + v + '</option>').join("") + '</select></label>' +
+      '<label class="f">Last 4 characters of ID<input data-bb="idLast4" class="upper" maxlength="4" value="' + esc(bb.idLast4) + '" placeholder="e.g. 567A" autocapitalize="characters"><small>Only the last 4, never the full number (PDPA).</small></label>' +
+    '</div></div>' +
+    '<div class="stage"><h2><span class="n">2</span>What we\'re buying</h2>' + bbChips("kind", ["Printer", "MFMS", "Printer + MFMS"], bb.kind) + '<div class="grid" style="margin-top:12px">' +
+      '<label class="f">Brand<select data-bb="brand">' + BB_BRANDS.map(v => '<option' + (v === bb.brand ? " selected" : "") + '>' + v + '</option>').join("") + '</select></label>' +
+      (bbHasPrinter() ? '<label class="f">Printer model<input data-bb="model" value="' + esc(bb.model) + '" placeholder="e.g. P1S"></label><label class="f span2">Printer serial number<input data-bb="serial" class="upper" value="' + esc(bb.serial) + '" placeholder="On the label at the back" autocapitalize="characters"></label>' : '') +
+      (bbHasMfms() ? '<label class="f">MFMS model<input data-bb="mfms" value="' + esc(bb.mfms) + '" placeholder="e.g. AMS, AMS lite, CFS"></label><label class="f">MFMS serial number<input data-bb="mfmsSerial" class="upper" value="' + esc(bb.mfmsSerial) + '" autocapitalize="characters"></label>' : '') +
+    '</div></div>' +
+    '<div class="stage"><h2><span class="n">3</span>Condition</h2>' +
+      '<div class="f"><span>Does it power on?</span>' + bbChips("powers", ["Yes", "No", "Not tested"], bb.powers) + '</div>' +
+      '<div class="f" style="margin-top:10px"><span>Does it print?</span>' + bbChips("prints", ["Yes", "No", "Not tested"], bb.prints) + '</div>' +
+      '<label class="f" style="margin-top:10px">Faults / what\'s wrong<textarea data-bb="faults" rows="3" placeholder="e.g. AMS slot 3 not feeding, hotend clogged, cracked front door">' + esc(bb.faults) + '</textarea></label>' +
+      '<div class="f" style="margin-top:10px"><span>Comes with</span><div class="chips">' + BB_ACCESSORIES.map(a => '<label class="chip"><input type="checkbox" data-bbacc="' + esc(a) + '"' + (bb.accessories.includes(a) ? " checked" : "") + '>' + esc(a) + '</label>').join("") + '</div></div>' +
+    '</div>' +
+    '<div class="stage"><h2><span class="n">4</span>Photos <small>' + bb.photos.length + ' of ' + BB_MAX_PHOTOS + ', include the serial label</small></h2><div class="photos">' +
+      bb.photos.map((p, i) => '<div class="ph"><img src="' + p + '" alt="Photo ' + (i + 1) + '"><button type="button" data-bbphdel="' + i + '" aria-label="Remove photo">×</button></div>').join("") +
+      (bb.photos.length < BB_MAX_PHOTOS ? '<label class="addph">📷 Add photos<input type="file" accept="image/*" multiple data-bbphoto="1"></label>' : '') +
+    '</div></div>' +
+    '<div class="stage"><h2><span class="n">5</span>Price</h2><div class="grid">' +
+      '<label class="f">Expected resale / parts value (S$)<input data-bb="resale" type="number" inputmode="decimal" min="0" step="any" value="' + esc(bb.resale) + '" placeholder="Optional"></label>' +
+      '<label class="f">Price paid to seller (S$)<input data-bb="paid" type="number" inputmode="decimal" min="0" step="any" value="' + esc(bb.paid) + '"></label>' +
+      '<p class="hint span2" id="bbOffer">' + bbOfferHint() + '</p>' +
+      '<div class="f span2"><span>Paid by</span>' + bbChips("payment", BB_PAYMENTS, bb.payment) + '</div>' +
+      '<label class="f">Bought by<select data-bb="by"><option value="">Choose...</option>' + staff.map(n => '<option' + (n === bb.by ? " selected" : "") + '>' + esc(n) + '</option>').join("") + '</select></label>' +
+      '<label class="f">Date<input data-bb="date" type="date" value="' + esc(bb.date) + '"></label>' +
+    '</div></div>' +
+    '<div class="stage"><h2><span class="n">6</span>Seller signs</h2>' +
+      '<label class="bbdecl"><input type="checkbox" data-bbdecl="1"' + (bb.declared ? " checked" : "") + '><span id="bbDecl">' + bbDeclHtml() + '</span></label>' +
+      (bb.signature ? '<div class="sigdone"><img src="' + bb.signature + '" alt="Seller signature"><button type="button" class="mini" data-bbsigclear="1">Sign again</button></div>'
+        : '<div class="sigbox"><canvas id="bbSig" aria-label="Seller signature pad"></canvas><span class="sighint">Seller signs here</span></div>') +
+    '</div>' +
+    '<div class="stage"><div class="hoactions"><button type="button" class="primary" id="bbSave" style="grid-column:1 / -1"' + (BB.saving ? " disabled" : "") + '>' + (BB.saving ? "Saving..." : "Save buyback" + (Number(bb.paid) > 0 ? " ($" + money(bb.paid) + ")" : "")) + '</button></div>' +
+      (miss.length ? '<p class="hint">Still needed: ' + esc(miss.join(", ")) + '.</p>' : '') + '<p class="hostatus" id="bbStatus" role="status"></p></div>';
+}
+function bbUnitsHtml(){
+  if(!BB.loaded) return '<div class="stage"><p class="hint">Loading buybacks...</p><p class="hostatus" id="bbStatus" role="status"></p></div>';
+  const ym = bbToday().slice(0, 7), inMonth = (d, u) => String(d || "").slice(0, 7) === ym;
+  const stock = BB.list.filter(u => u.status === "In stock" || u.status === "Refurbishing");
+  const bought = BB.list.filter(u => inMonth(u.date)), sold = BB.list.filter(u => u.status === "Sold" && inMonth(u.soldDate));
+  const sum = (l, f) => l.reduce((a, u) => a + (Number(f(u)) || 0), 0);
+  const tiles = '<div class="rsutiles"><div><b>' + stock.length + '</b><span>In stock · $' + money(sum(stock, u => Number(u.paid) + Number(u.extraCost || 0))) + '</span></div>' +
+    '<div><b>' + bought.length + '</b><span>Bought this month · $' + money(sum(bought, u => u.paid)) + '</span></div>' +
+    '<div><b>$' + money(sum(sold, bbProfit)) + '</b><span>Profit this month · ' + sold.length + ' sold</span></div></div>';
+  const words = BB.find.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const list = BB.list.filter(u => BB.filter === "all" || (BB.filter === "stock" ? (u.status === "In stock" || u.status === "Refurbishing") : u.status === BB.filter))
+    .filter(u => words.every(w => [u.bbNo, u.sellerName, u.sellerPhone, u.brand, u.model, u.serial, u.mfms, u.mfmsSerial, u.stockCode].join(" ").toLowerCase().includes(w)));
+  const chip = ([f, t]) => '<button type="button" class="prchip" data-bbfilter="' + f + '" aria-pressed="' + (BB.filter === f) + '">' + t + ' <small>' + BB.list.filter(u => f === "all" || (f === "stock" ? (u.status === "In stock" || u.status === "Refurbishing") : u.status === f)).length + '</small></button>';
+  const tag = s => '<span class="tag ' + (s === "Sold" ? "ok" : s === "In stock" || s === "Refurbishing" ? "warn" : "off") + '">' + esc(s) + '</span>';
+  const row = u => { const open = BB.open === u.bbNo, e = open ? (BB.edit || {}) : {};
+    return '<li class="rsrow' + (open ? " open" : "") + '"><button type="button" class="rsrowbtn" data-bbopen="' + esc(u.bbNo) + '" aria-expanded="' + open + '">' +
+      (u.photo ? '<img class="rsthumb" src="' + esc(u.photo) + '" alt="" loading="lazy">' : '<span class="rsthumb" aria-hidden="true"></span>') +
+      '<span class="rsn">' + esc(bbItemName(u)) + '<small>' + esc(u.bbNo + " · " + fmtShort(u.date) + " · from " + u.sellerName) + '</small><span class="rsm">Paid $' + money(u.paid) +
+      (u.status === "Sold" ? ' · sold $' + money(u.soldPrice) + ' · <b class="' + (bbProfit(u) >= 0 ? "down" : "up") + '">' + (bbProfit(u) >= 0 ? "+" : "−") + '$' + money(Math.abs(bbProfit(u))) + '</b>' : '') + '</span></span>' +
+      tag(u.status) + '<span class="rschev" aria-hidden="true">›</span></button>' + (open ? bbPanel(u, e) : '') + '</li>'; };
+  return '<div class="stage"><h2>Buyback units</h2>' + tiles +
+    '<div class="prchips" style="margin-bottom:10px">' + BB_FILTERS.map(chip).join("") + '</div>' +
+    '<label class="f rssearch">Search<input type="search" data-bbfind="1" value="' + esc(BB.find) + '" placeholder="BB no., seller, model or serial" aria-label="Search buybacks"></label>' +
+    (list.length ? '<ul class="rslist">' + list.map(row).join("") + '</ul>' : '<p class="rsempty">No buybacks' + (BB.filter === "all" ? '' : ' here') + ' yet.</p>') +
+    '<p class="hostatus" id="bbStatus" role="status"></p></div>';
+}
+function fmtShort(d){ const x = new Date(String(d) + "T00:00:00"); return isNaN(x) ? String(d || "") : x.toLocaleDateString("en-SG", { day: "numeric", month: "short" }); }
+function bbProfitLine(u, e){
+  const v = k => Number(e[k] !== undefined ? e[k] : u[k]) || 0, p = v("soldPrice") - Number(u.paid) - v("extraCost");
+  return 'Profit: $' + money(v("soldPrice")) + ' sold − $' + money(u.paid) + ' paid − $' + money(v("extraCost")) + ' refurb = <b class="' + (p >= 0 ? "down" : "up") + '">' + (p < 0 ? "−" : "") + '$' + money(Math.abs(p)) + '</b>';
+}
+function bbPanel(u, e){
+  const st = e.status || u.status, sold = st === "Sold";
+  const line = (k, v) => v ? '<div><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
+  return '<div class="rspanel">' +
+    '<div class="bbfacts">' + line("Seller", u.sellerName + " · " + u.sellerPhone + " · " + u.idType + " ••••" + u.idLast4) + line("Printer SN", u.serial) + line("MFMS", [u.mfms, u.mfmsSerial].filter(Boolean).join(" · ")) +
+      line("Condition", "Powers on: " + (u.powers || "?") + " · Prints: " + (u.prints || "?")) + line("Faults", u.faults) + line("Came with", (u.accessories || []).join(", ")) +
+      line("Paid", "$" + money(u.paid) + " by " + u.payment + " · bought by " + u.by) + line("Stock code", u.stockCode) + '</div>' +
+    ((u.photos || []).length ? '<div class="photos">' + u.photos.map((p, i) => '<a class="ph" href="' + esc(p) + '" target="_blank" rel="noopener"><img src="' + esc(p) + '" alt="Photo ' + (i + 1) + '"></a>').join("") + '</div>' : '') +
+    (u.receiptUrl ? '<p><a href="' + esc(u.receiptUrl) + '" target="_blank" rel="noopener">Open signed receipt (PDF)</a></p>' : '<p><button type="button" class="linkbtn" data-bbpdfof="' + esc(u.bbNo) + '">Download receipt PDF</button></p>') +
+    '<div class="f"><span>What happened to it?</span><div class="chips">' + BB_STATUSES.map(s => '<label class="chip"><input type="radio" name="bbst" data-bbe="status" value="' + s + '"' + (s === st ? " checked" : "") + '>' + s + '</label>').join("") + '</div></div>' +
+    '<div class="grid">' +
+      '<label class="f">Refurb parts / costs added (S$)<input type="number" inputmode="decimal" min="0" step="any" data-bbe="extraCost" value="' + esc(e.extraCost !== undefined ? e.extraCost : (u.extraCost || "")) + '" placeholder="0"></label>' +
+      (sold ? '<label class="f">Sold for (S$)<input type="number" inputmode="decimal" min="0" step="any" data-bbe="soldPrice" value="' + esc(e.soldPrice !== undefined ? e.soldPrice : (u.soldPrice || "")) + '"></label>' +
+        '<label class="f">Sold on<select data-bbe="soldChannel">' + BB_SELL_CHANNELS.map(c => '<option' + (c === (e.soldChannel || u.soldChannel) ? " selected" : "") + '>' + c + '</option>').join("") + '</select></label>' +
+        '<label class="f">Sold date<input type="date" data-bbe="soldDate" value="' + esc(e.soldDate || u.soldDate || bbToday()) + '"></label>' : '') +
+      '<label class="f span2">Note<input data-bbe="note" value="' + esc(e.note !== undefined ? e.note : (u.note || "")) + '" placeholder="' + (st === "Parted out" ? "e.g. AMS hub and extruder kept as used parts" : "e.g. new hotend fitted") + '"></label>' +
+    '</div>' +
+    (sold ? '<p class="hint" id="bbProfit">' + bbProfitLine(u, e) + '</p>' : '') +
+    (st === "Parted out" ? '<p class="hint">Add the parts you kept to stock (Inventory → Purchase, "used" codes such as PRT-BBL-FAE035-U) with their share of the $' + money(u.paid) + '.</p>' : '') +
+    '<div class="hoactions"><button type="button" class="primary" data-bbupdate="' + esc(u.bbNo) + '" style="grid-column:1 / -1">Save</button></div></div>';
+}
+function renderBb(){
+  const pane = document.getElementById("bbPane"); if(!pane) return;
+  const tab = (v, t) => '<button type="button" role="tab" data-bbview="' + v + '" aria-selected="' + (BB.view === v) + '">' + t + '</button>';
+  pane.innerHTML = '<div class="subtabs"><div class="seg" role="tablist" aria-label="Buyback">' + tab("new", "New buyback") + tab("units", "Units" + (BB.loaded ? " (" + BB.list.filter(u => u.status === "In stock" || u.status === "Refurbishing").length + ")" : "")) + '</div></div>' +
+    (BB.apiMissing ? '<div class="stage"><p class="hint">Buyback needs the updated Apps Script. Ask an admin to deploy it, then reload this page.</p></div>' : BB.view === "new" ? bbFormHtml() : bbUnitsHtml());
+  if(BB.view === "new" && !BB.last && !bb.signature) initSigPad("bbSig", url => { bb.signature = url; bbDirty = true; renderBb(); });
+}
+async function bbPdf(u){
+  try{
+    const jsPDF = await loadJsPDF(), doc = new jsPDF({ unit: "mm", format: "a4" });
+    let y = 18; const L = 16, W = 178;
+    const t = (s, size, bold, color) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(color || "#1F2421"); const lines = doc.splitTextToSize(String(s), W); doc.text(lines, L, y); y += lines.length * size * 0.42 + 2; };
+    t("Layer By Layer Pte. Ltd.", 11, true, "#3E7D2A"); t("Buyback receipt", 18, true); t(u.bbNo + "   ·   " + fmtShort(u.date) + " " + String(u.date).slice(0, 4), 10, false, "#555");
+    y += 2; doc.setDrawColor("#3E7D2A"); doc.line(L, y, L + W, y); y += 7;
+    const row = (k, v) => { if(!v) return; doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor("#555"); doc.text(k, L, y); doc.setFont("helvetica", "normal"); doc.setTextColor("#1F2421");
+      const lines = doc.splitTextToSize(String(v), W - 45); doc.text(lines, L + 45, y); y += lines.length * 4.6 + 2; };
+    row("Seller", u.sellerName); row("Phone", u.sellerPhone); row(u.idType, "•••••" + u.idLast4);
+    row("Item", u.kind + ": " + bbItemName(u)); row("Printer SN", u.serial); row("MFMS", [u.mfms, u.mfmsSerial ? "SN " + u.mfmsSerial : ""].filter(Boolean).join(", "));
+    row("Condition", "Powers on: " + (u.powers || "-") + ". Prints: " + (u.prints || "-") + "."); row("Faults", u.faults); row("Comes with", (u.accessories || []).join(", "));
+    y += 2; row("Price paid", "S$" + money(u.paid) + " by " + u.payment); row("Bought by", u.by + " for Layer By Layer Pte. Ltd.");
+    y += 4; t("Seller's declaration", 11, true);
+    t("I confirm I am the owner of the item(s) above, they are not stolen, under finance or owed to anyone, and I sell them to Layer By Layer Pte. Ltd. as-is for S$" + money(u.paid) + ". I have received the payment shown above.", 10);
+    if(u.signature){ try{ doc.addImage(u.signature, u.signature.indexOf("image/png") > -1 ? "PNG" : "JPEG", L, y, 70, 26); }catch(e){} y += 28; }
+    doc.setDrawColor("#999"); doc.line(L, y, L + 70, y); y += 5; t("Seller: " + u.sellerName + "   Date: " + fmtShort(u.date) + " " + String(u.date).slice(0, 4), 9, false, "#555");
+    y = 285; t("Layer By Layer Pte. Ltd. · layerbylayersg.com · Keep this receipt for your records.", 8, false, "#888");
+    doc.save(u.bbNo + " Buyback receipt.pdf");
+  }catch(e){ bbStatus("err", "Could not make the PDF. Check the connection and try again."); }
+}
+const bbPane = document.getElementById("bbPane");
+bbPane.addEventListener("input", e => {
+  const t = e.target;
+  if(t.dataset.bb){ bb[t.dataset.bb] = t.dataset.bb === "idLast4" ? t.value.toUpperCase() : t.value; bbDirty = true;
+    if(t.dataset.bb === "resale" || t.dataset.bb === "paid"){ const o = document.getElementById("bbOffer"); if(o) o.innerHTML = bbOfferHint(); }
+    if(t.dataset.bb === "sellerName" || t.dataset.bb === "paid"){ const d = document.getElementById("bbDecl"); if(d) d.innerHTML = bbDeclHtml(); const sv = document.getElementById("bbSave"); if(sv && !BB.saving) sv.textContent = "Save buyback" + (Number(bb.paid) > 0 ? " ($" + money(bb.paid) + ")" : ""); }
+    return; }
+  if(t.dataset.bbfind !== undefined){ BB.find = t.value; const pos = t.selectionStart; renderBb(); const f = bbPane.querySelector("[data-bbfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } return; }
+  if(t.dataset.bbe && t.type !== "radio"){ BB.edit = BB.edit || {}; BB.edit[t.dataset.bbe] = t.value;
+    const u = BB.list.find(x => x.bbNo === BB.open), pl = document.getElementById("bbProfit"); if(u && pl) pl.innerHTML = bbProfitLine(u, BB.edit); }
+});
+bbPane.addEventListener("change", async e => {
+  const t = e.target;
+  if(t.dataset.bbr){ bb[t.dataset.bbr] = t.value; bbDirty = true; renderBb(); return; }
+  if(t.dataset.bbacc){ const a = t.dataset.bbacc; bb.accessories = t.checked ? bb.accessories.concat([a]) : bb.accessories.filter(x => x !== a); return; }
+  if(t.dataset.bbdecl){ bb.declared = t.checked; renderBb(); return; }
+  if(t.dataset.bbe === "status"){ BB.edit = BB.edit || {}; BB.edit.status = t.value; renderBb(); return; }
+  if(t.dataset.bbe === "soldChannel"){ BB.edit = BB.edit || {}; BB.edit.soldChannel = t.value; return; }
+  if(t.dataset.bbphoto){
+    const files = [...t.files].slice(0, BB_MAX_PHOTOS - bb.photos.length);
+    for(const f of files){ try{ bb.photos.push(await shrinkPhoto(f)); }catch(err){} }
+    bbDirty = true; renderBb();
+  }
+});
+bbPane.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.bbview){ BB.view = b.dataset.bbview; if(BB.view === "units") loadBb(); renderBb(); return; }
+  if(b.dataset.bbnew){ bb = bbBlank(); bbDirty = false; BB.last = null; renderBb(); scrollTo(0, 0); return; }
+  if(b.dataset.bbpdf && BB.last){ bbPdf(BB.last); return; }
+  if(b.dataset.bbpdfof){ const u = BB.list.find(x => x.bbNo === b.dataset.bbpdfof); if(u) bbPdf(u); return; }
+  if(b.dataset.bbphdel !== undefined){ bb.photos.splice(Number(b.dataset.bbphdel), 1); renderBb(); return; }
+  if(b.dataset.bbsigclear){ bb.signature = ""; renderBb(); return; }
+  if(b.dataset.bbfilter){ BB.filter = b.dataset.bbfilter; BB.open = ""; BB.edit = null; renderBb(); return; }
+  if(b.dataset.bbopen){ BB.open = BB.open === b.dataset.bbopen ? "" : b.dataset.bbopen; BB.edit = null; renderBb(); return; }
+  if(b.id === "bbSave"){
+    const miss = bbMissing(); if(miss.length){ bbStatus("err", "Still needed: " + miss.join(", ") + "."); return; }
+    BB.saving = true; renderBb();
+    try{
+      const out = await callSheet({ action: "buybackSave", buyback: Object.assign({}, bb, { staffName: ME() }) });
+      if(out.result !== "success"){ BB.saving = false; renderBb(); bbStatus("err", out.message || "Could not save."); return; }
+      BB.last = Object.assign({}, bb, { bbNo: out.bbNo, stockCode: out.stockCode || "", photo: bb.photos[0] || "", status: "In stock" });
+      BB.list.unshift(Object.assign({}, BB.last, { photos: out.photoUrls || bb.photos, receiptUrl: out.receiptUrl || "" }));
+      bb = bbBlank(); bbDirty = false; BB.saving = false; renderBb(); scrollTo(0, 0);
+    }catch(err){ BB.saving = false; renderBb(); bbStatus("err", "No connection. Nothing was saved, try again."); }
+    return;
+  }
+  if(b.dataset.bbupdate){
+    const u = BB.list.find(x => x.bbNo === b.dataset.bbupdate); if(!u) return;
+    const ch = Object.assign({ status: u.status }, BB.edit || {});
+    if(ch.status === "Sold" && !(Number(ch.soldPrice !== undefined ? ch.soldPrice : u.soldPrice) > 0)){ bbStatus("err", "Enter what it sold for."); return; }
+    if(ch.status === "Sold"){ ch.soldChannel = ch.soldChannel || u.soldChannel || BB_SELL_CHANNELS[0]; ch.soldDate = ch.soldDate || u.soldDate || bbToday(); }
+    b.disabled = true;
+    try{
+      const out = await callSheet({ action: "buybackUpdate", bbNo: u.bbNo, change: ch });
+      if(out.result !== "success"){ bbStatus("err", out.message || "Could not save."); b.disabled = false; return; }
+      Object.assign(u, ch); BB.edit = null; renderBb(); bbStatus("ok", "Saved: " + u.bbNo + " is " + u.status + ".");
+    }catch(err){ bbStatus("err", "No connection. Try again."); b.disabled = false; }
+  }
+});
 
 /* ---------- Care Plans (Apps Script API 6: planList, planMarkPaid, planExtend, planUndoUsage, planCancel) ---------- */
 // Every printer on an MDR Care Plan: Service Jobs used / left, expiry and history. Anyone signed in can look;
