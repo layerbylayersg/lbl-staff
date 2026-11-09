@@ -3830,7 +3830,7 @@ const BB_PAYMENTS = ["PayNow", "Bank transfer", "Cash"];
 const BB_SELL_CHANNELS = ["Shopee", "Carousell", "Walk-in", "Website", "Other"];
 const BB_MAX_PHOTOS = 4;
 function bbToday(){ const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
-function bbBlank(){ return { date: bbToday(), sellerName: "", sellerPhone: "", idType: "NRIC", idLast4: "", kind: "Printer", brand: "Bambu Lab", model: "", serial: "", mfms: "", mfmsSerial: "",
+function bbBlank(){ return { date: bbToday(), sellerName: "", sellerPhone: "", kind: "Printer", brand: "Bambu Lab", model: "", serial: "", mfms: "", mfmsSerial: "",
   powers: "", prints: "", faults: "", accessories: [], resale: "", paid: "", payment: "PayNow", by: (typeof ME === "function" && ME()) || "", photos: [], signature: "", declared: false }; }
 let BB = { list: [], loaded: false, loading: false, apiMissing: false, view: "new", filter: "stock", find: "", open: "", edit: null, saving: false, last: null };
 let bb = bbBlank(), bbDirty = false;
@@ -3863,7 +3863,6 @@ function bbMissing(){
   const m = [];
   if(!bb.sellerName.trim()) m.push("seller's name");
   if(!/^\+?[0-9 ]{8,}$/.test(bb.sellerPhone.trim())) m.push("seller's phone");
-  if(!/^[A-Za-z0-9]{4}$/.test(bb.idLast4.trim())) m.push("last 4 characters of the ID");
   if(bbHasPrinter() && !bb.model.trim()) m.push("printer model");
   if(bbHasPrinter() && !bb.serial.trim()) m.push("printer serial number");
   if(bbHasMfms() && !bb.mfms.trim()) m.push("MFMS model");
@@ -3891,8 +3890,7 @@ function bbFormHtml(){
   return '<div class="stage"><h2><span class="n">1</span>Seller</h2><div class="grid">' +
       '<label class="f">Seller\'s name<input data-bb="sellerName" value="' + esc(bb.sellerName) + '" autocomplete="off"></label>' +
       '<label class="f">Phone<input data-bb="sellerPhone" type="tel" inputmode="tel" value="' + esc(bb.sellerPhone) + '" placeholder="e.g. 9123 4567"></label>' +
-      '<label class="f">ID type<select data-bb="idType">' + ["NRIC", "FIN", "Passport"].map(v => '<option' + (v === bb.idType ? " selected" : "") + '>' + v + '</option>').join("") + '</select></label>' +
-      '<label class="f">Last 4 characters of ID<input data-bb="idLast4" class="upper" maxlength="4" value="' + esc(bb.idLast4) + '" placeholder="e.g. 567A" autocapitalize="characters"><small>Only the last 4, never the full number (PDPA).</small></label>' +
+      '<p class="hint span2">No NRIC or other ID needed: name, phone and the signed declaration are enough.</p>' +
     '</div></div>' +
     '<div class="stage"><h2><span class="n">2</span>What we\'re buying</h2>' + bbChips("kind", ["Printer", "MFMS", "Printer + MFMS"], bb.kind) + '<div class="grid" style="margin-top:12px">' +
       '<label class="f">Brand<select data-bb="brand">' + BB_BRANDS.map(v => '<option' + (v === bb.brand ? " selected" : "") + '>' + v + '</option>').join("") + '</select></label>' +
@@ -3960,7 +3958,7 @@ function bbPanel(u, e){
   const st = e.status || u.status, sold = st === "Sold";
   const line = (k, v) => v ? '<div><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
   return '<div class="rspanel">' +
-    '<div class="bbfacts">' + line("Seller", u.sellerName + " · " + u.sellerPhone + " · " + u.idType + " ••••" + u.idLast4) + line("Printer SN", u.serial) + line("MFMS", [u.mfms, u.mfmsSerial].filter(Boolean).join(" · ")) +
+    '<div class="bbfacts">' + line("Seller", u.sellerName + " · " + u.sellerPhone) + line("Printer SN", u.serial) + line("MFMS", [u.mfms, u.mfmsSerial].filter(Boolean).join(" · ")) +
       line("Condition", "Powers on: " + (u.powers || "?") + " · Prints: " + (u.prints || "?")) + line("Faults", u.faults) + line("Came with", (u.accessories || []).join(", ")) +
       line("Paid", "$" + money(u.paid) + " by " + u.payment + " · bought by " + u.by) + line("Stock code", u.stockCode) + '</div>' +
     ((u.photos || []).length ? '<div class="photos">' + u.photos.map((p, i) => '<a class="ph" href="' + esc(p) + '" target="_blank" rel="noopener"><img src="' + esc(p) + '" alt="Photo ' + (i + 1) + '"></a>').join("") + '</div>' : '') +
@@ -3993,7 +3991,7 @@ async function bbPdf(u){
     y += 2; doc.setDrawColor("#3E7D2A"); doc.line(L, y, L + W, y); y += 7;
     const row = (k, v) => { if(!v) return; doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor("#555"); doc.text(k, L, y); doc.setFont("helvetica", "normal"); doc.setTextColor("#1F2421");
       const lines = doc.splitTextToSize(String(v), W - 45); doc.text(lines, L + 45, y); y += lines.length * 4.6 + 2; };
-    row("Seller", u.sellerName); row("Phone", u.sellerPhone); row(u.idType, "•••••" + u.idLast4);
+    row("Seller", u.sellerName); row("Phone", u.sellerPhone);
     row("Item", u.kind + ": " + bbItemName(u)); row("Printer SN", u.serial); row("MFMS", [u.mfms, u.mfmsSerial ? "SN " + u.mfmsSerial : ""].filter(Boolean).join(", "));
     row("Condition", "Powers on: " + (u.powers || "-") + ". Prints: " + (u.prints || "-") + "."); row("Faults", u.faults); row("Comes with", (u.accessories || []).join(", "));
     y += 2; row("Price paid", "S$" + money(u.paid) + " by " + u.payment); row("Bought by", u.by + " for Layer By Layer Pte. Ltd.");
@@ -4008,7 +4006,7 @@ async function bbPdf(u){
 const bbPane = document.getElementById("bbPane");
 bbPane.addEventListener("input", e => {
   const t = e.target;
-  if(t.dataset.bb){ bb[t.dataset.bb] = t.dataset.bb === "idLast4" ? t.value.toUpperCase() : t.value; bbDirty = true;
+  if(t.dataset.bb){ bb[t.dataset.bb] = t.value; bbDirty = true;
     if(t.dataset.bb === "resale" || t.dataset.bb === "paid"){ const o = document.getElementById("bbOffer"); if(o) o.innerHTML = bbOfferHint(); }
     if(t.dataset.bb === "sellerName" || t.dataset.bb === "paid"){ const d = document.getElementById("bbDecl"); if(d) d.innerHTML = bbDeclHtml(); const sv = document.getElementById("bbSave"); if(sv && !BB.saving) sv.textContent = "Save buyback" + (Number(bb.paid) > 0 ? " ($" + money(bb.paid) + ")" : ""); }
     return; }
