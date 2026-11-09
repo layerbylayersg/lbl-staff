@@ -137,13 +137,22 @@
   .seg{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
   .seg button{height:36px;padding:0 18px;border:0;background:transparent;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:600;border-radius:7px;cursor:pointer}
   .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-  #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s,#rsPane:not([data-view="pricing"]) .rs-pr,#rsPane[data-view="pricing"] .rs-p,#rsPane[data-view="pricing"] .rs-s{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
+  #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s,#rsPane:not([data-view="pricing"]) .rs-pr,#rsPane[data-view="pricing"] .rs-p,#rsPane[data-view="pricing"] .rs-s,#rsPane[data-view="used"] .rs-p,#rsPane[data-view="used"] .rs-s,#rsPane:not([data-view="used"]) .rs-u{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
   /* Stock view: summary tiles that filter, a tappable list, and the item's actions opening under its row */
   .rsstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
   .rsstats button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:inherit;color:var(--ink-2);cursor:pointer;text-align:left;min-width:0}
   .rsstats button b{font-size:22px;line-height:1.1;color:var(--ink)} .rsstats button span{font-size:12.5px;font-weight:600}
   .rsstats button.low b{color:var(--amber-ink)} .rsstats button.out b{color:var(--red-ink)}
   .rsstats button[aria-pressed="true"]{background:var(--green-wash);border-color:var(--green-600);box-shadow:inset 0 0 0 1px var(--green-600)}
+  .rsutiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+  .rsutiles div{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2)} .rsutiles b{display:block;font-size:22px;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums} .rsutiles span{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+  .rsujobs{display:grid;gap:10px;margin-top:12px;list-style:none;padding:0}
+  .rsujob{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)}
+  .rsujob h3{margin:0;font-size:14px;display:flex;gap:8px;justify-content:space-between;align-items:baseline} .rsujob h3 b{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rsujob h3 small,.rsujob > small{font-weight:500;color:var(--muted);font-size:12px}
+  .rsujob ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+  .rsujob li{display:flex;gap:10px;align-items:center;font-size:13.5px} .rsujob li .rsthumb{width:34px;height:34px}
+  .rsujob li span{flex:1;min-width:0} .rsujob li small{display:block;color:var(--muted);font-size:12px} .rsujob li b{font-variant-numeric:tabular-nums;white-space:nowrap}
   .rstools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
   .rssearch{position:relative} .rssearch input{padding-right:40px!important}
   .rssearch button{position:absolute;right:4px;bottom:4px;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
@@ -4203,7 +4212,7 @@ async function loadStock(){
     const out = await rsCall({ action: "stockData" });
     if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); return; }
     RS = { stock: out.stock || [], history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
-      target: out.targetMargin || 0.3, features: out.features || [], loaded: true, loading: false };
+      target: out.targetMargin || 0.3, features: out.features || [], jobParts: out.jobParts || [], loaded: true, loading: false };
     if(out.staff && out.staff.length) STAFF = out.staff;
     if(!rs.merchant) rs.merchantNew = !RS.merchants.length; // dropdown once saved merchants exist
     if(!rs.fxRate) rsAutoFx(); // rate for the default currency, before any scan
@@ -4221,6 +4230,7 @@ function fillStockNames(){
 
 // ----- Demo mode: the real Restock screens on sample data, answered in the browser. Nothing reaches the Sheet. -----
 let rsDemo = null;
+let rsUsedMonth = "this", rsUsedFind = ""; // Parts used tab
 let rsView = "purchase"; // Inventory sub-tab: "purchase" (record a buy) or "stock" (what we have)
 function rsDemoStart(){
   rsDemo = {
@@ -4687,6 +4697,7 @@ function renderRs(){
         <button type="button" role="tab" data-rsview="purchase" aria-selected="${rsView === "purchase"}">Purchase</button>
         <button type="button" role="tab" data-rsview="stock" aria-selected="${rsView === "stock"}">Stock</button>
         <button type="button" role="tab" data-rsview="pricing" aria-selected="${rsView === "pricing"}">Pricing</button>
+        <button type="button" role="tab" data-rsview="used" aria-selected="${rsView === "used"}">Used</button>
       </div>
       ${rsDemo || !RS_DEMO_ALLOWED ? '' : '<button type="button" class="mini" data-rsdemo="on">Try demo</button>'}
     </div>
@@ -4743,12 +4754,48 @@ function renderRs(){
       ${stockBody}
     </div>
     ${pricing}
+    ${rsUsedHtml()}
     ${sheet}
     <datalist id="rsExtraNames">${RS_EXTRAS.map(m => '<option value="' + esc(m) + '">').join("")}</datalist>`;
   if(rsMsg) rsStatus(rsMsg.kind, rsMsg.msg);
   if(rsMsg2 && rsMsg2.code === rsOut.code) rsStatus2(rsMsg2.kind, rsMsg2.msg);
   const sc = p.querySelector(".rsscroll"); if(sc) sc.scrollTop = keepTop; // redraws keep the window's scroll place
   document.body.classList.toggle("rs-sheet-open", !!rsBrowse && rsView === "stock");
+}
+// Parts used on repair jobs, per job, with each part's cost (its current average cost on the Stock tab).
+function rsUsedHtml(){
+  const head = '<div class="stage rs-u"><h2>Parts used on repair jobs</h2>';
+  if(!rsHas("partsUsed")) return head + '<p class="hint">Shows after the Apps Script update (v12).</p></div>';
+  const now = new Date(), ym = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  const month = rsUsedMonth === "this" ? ym(now) : rsUsedMonth === "last" ? ym(new Date(now.getFullYear(), now.getMonth() - 1, 1)) : "";
+  const jobInfo = {}; JOBS.concat(PAST_JOBS).forEach(j => { if(j && j.quoteNo && !jobInfo[j.quoteNo]) jobInfo[j.quoteNo] = j; });
+  const item = c => RS.stock.find(x => x.code === c) || RS.stock.find(x => (x.aliases || []).includes(c));
+  const byJob = {};
+  (RS.jobParts || []).filter(m => !month || String(m.date).slice(0, 7) === month).forEach(m => {
+    const j = byJob[m.job || "(no job)"] = byJob[m.job || "(no job)"] || { job: m.job || "(no job)", last: "", parts: {} };
+    if(m.date > j.last) j.last = m.date;
+    const it = item(m.code), key = it ? it.code : m.code;
+    const p = j.parts[key] = j.parts[key] || { code: key, name: it ? it.name : m.code, qty: 0, unit: it ? Number(it.avg) || 0 : 0, it };
+    p.qty += Number(m.qty) || 0;
+  });
+  const words = rsUsedFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const jobs = Object.values(byJob).map(j => { j.list = Object.values(j.parts).filter(p => p.qty > 0); j.cost = j.list.reduce((a, p) => a + p.qty * p.unit, 0); j.info = jobInfo[j.job] || {}; return j; })
+    .filter(j => j.list.length && words.every(w => (j.job + " " + (j.info.name || "") + " " + (j.info.model || "") + " " + j.list.map(p => p.code + " " + p.name).join(" ")).toLowerCase().includes(w)))
+    .sort((a, b) => b.last.localeCompare(a.last));
+  const qty = jobs.reduce((a, j) => a + j.list.reduce((x, p) => x + p.qty, 0), 0), cost = jobs.reduce((a, j) => a + j.cost, 0);
+  const noCost = jobs.some(j => j.list.some(p => !p.unit));
+  const seg = (v, t) => '<button type="button" role="tab" data-rsusedmonth="' + v + '" aria-selected="' + (rsUsedMonth === v) + '">' + t + '</button>';
+  const fmtD = d => { const x = new Date(d + "T00:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-SG", { day: "numeric", month: "short" }); };
+  return head +
+    '<div class="seg" role="tablist" aria-label="Period" style="margin-bottom:12px">' + seg("this", "This month") + seg("last", "Last month") + seg("all", "All") + '</div>' +
+    '<div class="rsutiles"><div><b>' + jobs.length + '</b><span>Jobs with parts</span></div><div><b>' + qty + '</b><span>Parts used</span></div><div><b>$' + money(cost) + '</b><span>Parts cost</span></div></div>' +
+    '<label class="f rssearch">Search<input type="search" data-rsusedfind="1" value="' + esc(rsUsedFind) + '" placeholder="Job no., customer, model or part" aria-label="Search parts used">' + (rsUsedFind ? '<button type="button" data-rsusedclear="1" aria-label="Clear search">×</button>' : '') + '</label>' +
+    (jobs.length ? '<ul class="rsujobs">' + jobs.map(j => '<li class="rsujob"><h3><span>' + esc(j.job) + '</span><b>$' + money(j.cost) + '</b></h3>' +
+      '<small>' + esc([j.info.name, j.info.model, j.info.status].filter(Boolean).join(" · ") || "Job not in the current list") + ' · last part ' + esc(fmtD(j.last)) + '</small>' +
+      '<ul>' + j.list.map(p => '<li>' + (rsPhotoOf(p.it || { code: p.code }) ? '<img class="rsthumb" src="' + rsPhotoOf(p.it || { code: p.code }) + '" alt="" loading="lazy">' : '<span class="rsthumb" aria-hidden="true" style="flex:none"></span>') +
+        '<span>' + esc(p.name) + '<small>' + esc(p.code) + ' · ' + p.qty + ' × ' + (p.unit ? '$' + money(p.unit) : 'no cost yet') + '</small></span><b>' + (p.unit ? '$' + money(p.qty * p.unit) : '–') + '</b></li>').join("") + '</ul></li>').join("") + '</ul>'
+      : '<p class="rsempty">' + (RS.loaded ? 'No parts taken for repair jobs' + (month ? ' in this period' : '') + (words.length ? ' match “' + esc(rsUsedFind.trim()) + '”' : '') + '.' : 'Loading...') + '</p>') +
+    '<p class="hint" style="margin-top:10px">Parts taken off stock for a job (Inventory → Stock → Repair job) and parts on saved service reports. Cost = each part\'s current average cost' + (noCost ? '; parts with no cost yet count as $0' : '') + '.</p></div>';
 }
 function rsStatus2(kind, msg){ rsMsg2 = msg ? { kind, msg, code: rsOut.code } : null; const el = document.getElementById("rsStatus2"); if(el){ el.className = "hostatus " + kind; el.textContent = msg; } }
 // Typing redraws the pane after a short pause instead of on leaving the box: a redraw while a button is being
@@ -4799,6 +4846,7 @@ rsPane.addEventListener("input", e => {
   else if(t.dataset.prmin){ const v = Number(t.value); if(v >= 0 && v < 80){ try{ localStorage.setItem(RS_MIN_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => { rsPrRow(r.dataset.prrow); const s = stockOf(r.dataset.prrow), k = r.querySelector(".pk"); if(s && k) k.innerHTML = rsPrMktHtml(s); }); } }
   else if(t.dataset.prfee){ const v = Number(t.value); if(v > 0 && v < 60){ try{ localStorage.setItem(RS_FEE_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => { rsPrRow(r.dataset.prrow); const s = stockOf(r.dataset.prrow), k = r.querySelector(".pk"); if(s && k) k.innerHTML = rsPrMktHtml(s); }); } }
   else if(t.dataset.rssfind){ rsSheetFind = t.value; const sc = rsPane.querySelector(".rsscroll"); if(sc) sc.scrollTop = 0; rsRenderKeep(); }
+  else if(t.dataset.rsusedfind !== undefined){ rsUsedFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsusedfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   // Purchase boxes: landed costs and price comparisons refresh shortly after typing stops.
   if((t.dataset.rs || (t.dataset.rsi !== undefined && t.dataset.k !== "pick") || t.dataset.rse !== undefined) && t.tagName !== "SELECT" && t.type !== "date"){ rsMsg = null; rsRenderSoon(); }
@@ -4889,6 +4937,8 @@ rsPane.addEventListener("click", async e => {
   if(e.target.dataset && e.target.dataset.rssheet){ rsCloseSheet(); return; } // tap outside the window closes it
   const b = e.target.closest("button");
   if(!b) return;
+  if(b.dataset.rsusedmonth){ rsUsedMonth = b.dataset.rsusedmonth; renderRs(); return; }
+  if(b.dataset.rsusedclear){ rsUsedFind = ""; renderRs(); return; }
   if(b.dataset.rsview){ rsView = b.dataset.rsview; renderRs(); scrollTo(0, 0); return; }
   if(b.dataset.rsdemo){ b.dataset.rsdemo === "on" ? rsDemoStart() : rsDemoStop(); return; }
   // Stock list: open / close an item, filters, group tabs, search clear, and the item panel's controls.
