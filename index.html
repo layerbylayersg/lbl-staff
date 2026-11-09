@@ -338,6 +338,10 @@
   .rscodewarn{margin-top:8px;padding:8px 12px;border-radius:10px;background:var(--red-wash, #FDECEA);color:var(--red-ink);font-size:13px;line-height:1.45}
   .rsedits{display:flex;gap:16px;flex-wrap:wrap}
   .rsrecodehint{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:13.5px} .rsmerge{display:flex;flex-wrap:wrap;gap:8px} .rsrecodehint .mini{height:40px} .rscostf{flex:0 1 170px!important}
+  .rsaddform{border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 14px;background:var(--surface-2)}
+  .rsaddform h3{margin:0 0 10px;font-size:15px} .rsaddform .grid{margin-bottom:8px} .rsaddhint{font-size:12.5px;margin:2px 0 0}
+  .rsdelbox{border:1px solid #E8C4C0;background:#FCF1EF;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:grid;gap:8px} .rsdelbox p{margin:0;font-size:13.5px}
+  button.danger{background:#B3261E;color:#fff;border-color:#B3261E}
   .rsrenamebtn{margin-bottom:8px;font-size:13px} .rsrename{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:12px}
   .rsrename label.f{flex:1 1 260px} .rsrename .mini{height:40px} .rsrename small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .rsboxf input{text-transform:uppercase;max-width:110px}
   .rsdet label.rscost,.rscost{display:flex;flex-direction:row;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;cursor:pointer;font-size:14px}
@@ -4345,6 +4349,34 @@ const RS_CAT_KEY = { Parts: "part", Filament: "fil", Accessories: "acc" };
 // Built-in categories plus any new ones typed on an item (Stock tab "Category" column).
 const rsCats = () => RS_CATS.concat([...new Set(RS.stock.map(x => String(x.category || "").trim()).filter(c => c && !RS_CAT_KEY[c]))].sort().map(c => ["c:" + c, c]));
 // Change an item's category / brand (blank = automatic from its code and name), or type a new one.
+// "+ Add item": an item added by hand (no receipt). Same code rules as a receipt; cost optional.
+function rsAddFormHtml(){
+  const a = rsAdd, f = (k, label, extra) => '<label class="f">' + label + '<input data-rsaddf="' + k + '" value="' + esc(a[k] || "") + '"' + (extra || "") + '></label>';
+  const cats = rsCats().map(c => c[1]), brands = [...new Set(RS_BRANDS.map(b => b[0]).concat(RS.stock.map(x => String(x.brand || "").trim()).filter(Boolean)))];
+  return '<div class="rsaddform"><h3>Add an item by hand</h3><div class="grid">' +
+    f("code", "Item code", ' class="upper" maxlength="40" autocapitalize="characters" placeholder="e.g. PRT-BBL-FAH051"') +
+    f("name", "Item name", ' maxlength="150" placeholder="e.g. Bambu Lab Hotend – A1 Series – 0.4mm"') +
+    '<p class="rsaddhint span2" id="rsAddHint">' + rsAddHint() + '</p>' +
+    f("qty", "Qty on hand", ' type="number" inputmode="decimal" min="0" step="any"') +
+    f("cost", "Cost per unit (SGD, optional)", ' type="number" inputmode="decimal" min="0" step="any" placeholder="blank = unknown"') +
+    f("sell", "Sell price (optional)", ' type="number" inputmode="decimal" min="0" step="any"') +
+    (rsHas("location") ? f("location", "Box (optional)", ' class="upper" maxlength="20" placeholder="e.g. 3C"') : '') +
+    f("category", "Category (optional)", ' list="rsCatList" maxlength="40" placeholder="blank = automatic"') +
+    f("brand", "Brand (optional)", ' list="rsBrandList" maxlength="40" placeholder="blank = automatic"') +
+    '<label class="f span2">Note (optional)<input data-rsaddf="note" value="' + esc(a.note || "") + '" maxlength="200" placeholder="e.g. found in stock count, no receipt"></label>' +
+    '</div><datalist id="rsCatList">' + cats.map(c => '<option value="' + esc(c) + '">').join("") + '</datalist><datalist id="rsBrandList">' + brands.map(b => '<option value="' + esc(b) + '">').join("") + '</datalist>' +
+    '<button type="button" class="primary mini" id="rsAddSave">Add item</button> <button type="button" class="mini" data-rsaddcancel="1">Cancel</button>' +
+    '<p class="hint rsaddhint">For stock you bought, scan the receipt on <b>Purchase</b> instead: it records the cost. Added items are logged on Stock moves as "Added by hand".</p></div>';
+}
+function rsAddHint(){
+  const a = rsAdd || {}, code = String(a.code || "").trim().toUpperCase();
+  if(!code) return '<span class="muted">Codes: PRT-&lt;brand&gt;-&lt;part no.&gt; for parts, FIL-… filament, ACC-… accessories.</span>';
+  if(!/^[A-Z0-9][A-Z0-9.\-]*$/.test(code)) return '<span class="up">Use capital letters, numbers and dashes only.</span>';
+  const same = RS.stock.find(x => x.code === code); if(same) return '<span class="up">' + esc(code) + ' is already “' + esc(same.name) + '”.</span>';
+  const bad = rsCodeProblem(code); if(bad) return '<span class="up">' + esc(bad) + '</span>';
+  const box = rsHas("location") && !a.location && /^PRT-/.test(code) && a.name ? rsBoxFor({ code, name: a.name }) : null;
+  return '<span class="down">✓ New code.</span>' + (box ? ' 📦 Suggested box <b>' + esc(box.loc) + '</b> (' + esc(box.why) + ').' : '');
+}
 function rsCatForm(s){
   const o = rsOut, cats = rsCats().map(c => c[1]), brands = [...new Set(RS_BRANDS.map(b => b[0]).concat([RS_OTHER], RS.stock.map(x => String(x.brand || "").trim()).filter(Boolean)))];
   const catVal = o.catSel !== undefined ? o.catSel : String(s.category || ""), brandVal = o.brandSel !== undefined ? o.brandSel : String(s.brand || "");
@@ -4511,7 +4543,8 @@ function fillStockNames(){
 
 // ----- Demo mode: the real Restock screens on sample data, answered in the browser. Nothing reaches the Sheet. -----
 let rsDemo = null;
-let rsUsedMonth = "this", rsUsedFind = ""; // Parts used tab
+let rsUsedMonth = "this", rsUsedFind = "";
+let rsAdd = null; // "+ Add item" form (an item added by hand, no receipt) // Parts used tab
 let rsView = "purchase"; // Inventory sub-tab: "purchase" (record a buy) or "stock" (what we have)
 function rsDemoStart(){
   rsDemo = {
@@ -4870,11 +4903,17 @@ function renderRs(){
         '<div class="rsrecodehint" id="rsRecodeHint">' + rsRecodeHint(s) + '</div>' +
         '<small>Past purchases and stock moves move to the new code, and the old code still matches receipts. Change the SKU on Shopee / Carousell yourself.</small></div>' : '') +
     (rsHas("category") && rsOut.catEdit ? rsCatForm(s) : '') +
-    (!rsOut.renaming && !rsOut.costEdit && !rsOut.recoding && !rsOut.catEdit && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
+    (rsHas("deleteItem") && rsOut.deleting ? (Number(s.qty) !== 0
+      ? '<div class="rsdelbox"><p><b>' + esc(s.code) + ' still has ' + s.qty + ' on hand.</b> Use <b>Stock count</b> below to set it to 0 (or <b>Sold / used</b> to say where they went), then remove it.</p><div><button type="button" class="mini" data-rsdelcancel="1">OK</button></div></div>'
+      : '<div class="rsdelbox"><p>Remove <b>' + esc(s.name) + '</b> (' + esc(s.code) + ') from the stock list? Its past purchases and stock moves are kept.</p>' +
+        '<label class="f">Why?<input id="rsDelWhy" maxlength="200" placeholder="e.g. duplicate item, no longer sold, added by mistake"></label>' +
+        '<div><button type="button" class="mini danger" id="rsDelGo">Remove item</button> <button type="button" class="mini" data-rsdelcancel="1">Cancel</button></div></div>') : '') +
+    (!rsOut.renaming && !rsOut.costEdit && !rsOut.recoding && !rsOut.catEdit && !rsOut.deleting && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
       (rsHas("rename") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>' : '') +
       (rsHas("editCost") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscostedit="1">✏️ Edit cost</button>' : '') +
       (rsHas("recode") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrecode="1">✏️ Change code</button>' : '') +
-      (rsHas("category") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscatedit="1">✏️ Category</button>' : '') + '</div>' : '') +
+      (rsHas("category") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscatedit="1">✏️ Category</button>' : '') +
+      (rsHas("deleteItem") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsitemdel="1">🗑 Remove</button>' : '') + '</div>' : '') +
     '<div class="seg" role="tablist" aria-label="What happened">' +
       '<button type="button" role="tab" data-rskind="out" aria-selected="' + (rsOut.kind === "out") + '">Sold / used</button>' +
       '<button type="button" role="tab" data-rskind="count" aria-selected="' + (rsOut.kind === "count") + '">Stock count</button></div>' +
@@ -5027,7 +5066,7 @@ function renderRs(){
       <small class="rsbarhint">${Number(rs.paidSGD) > 0 ? "Spread over the items as their final cost" : paidAuto ? (cur === "SGD" ? "Filled in from the receipt total" : "Filled in at today's rate. Change it if your card charged a different amount") : "Includes shipping, tax and card fees"}</small>
       <p class="hostatus" id="rsStatus" role="status"></p></div>
     <div class="stage rs-s">
-      <h2>Stock on hand ${rsHas("location") && RS.loaded && rsBoxPlan().length ? '<button type="button" class="mini rsboxall" data-rsboxall="1" style="margin-left:auto">📦 Find boxes for ' + rsBoxPlan().length + ' part' + (rsBoxPlan().length === 1 ? '' : 's') + '</button>' : ''}<button type="button" class="mini" data-rsrefresh="1"${rsHas("location") && RS.loaded && rsBoxPlan().length ? '' : ' style="margin-left:auto"'}>↻ Refresh</button></h2>
+      <h2>Stock on hand ${rsHas("location") && RS.loaded && rsBoxPlan().length ? '<button type="button" class="mini rsboxall" data-rsboxall="1" style="margin-left:auto">📦 Find boxes for ' + rsBoxPlan().length + ' part' + (rsBoxPlan().length === 1 ? '' : 's') + '</button>' : ''}<button type="button" class="mini" data-rsrefresh="1"${rsHas("location") && RS.loaded && rsBoxPlan().length ? '' : ' style="margin-left:auto"'}>↻ Refresh</button>${rsHas("addItem") && !rsAdd ? '<button type="button" class="mini" data-rsaddopen="1">+ Add item</button>' : ''}</h2>
       ${RS.error ? '<p class="hostatus err" role="alert">' + esc(RS.error) + '</p>' : ''}
       ${RS.stock.length ? `<div class="rsstats">${stat("all", "Items", "")}${stat("low", "Low stock", "low")}${stat("out", "Out of stock", "out")}${stat("noprice", "No price yet", "")}</div>
       <div class="rstools">
@@ -5035,6 +5074,7 @@ function renderRs(){
         <label class="f">Sort<select data-rssort="1">${[["sheet", "As listed"], ["name", "A to Z"], ["qty", "Lowest qty first"]].map(([v, t]) => '<option value="' + v + '"' + (rsSort === v ? " selected" : "") + '>' + t + '</option>').join("")}</select></label>
       </div>
 ` : ''}
+      ${rsAdd ? rsAddFormHtml() : ''}
       ${stockBody}
     </div>
     ${pricing}
@@ -5130,6 +5170,8 @@ rsPane.addEventListener("input", e => {
   else if(t.dataset.prmin){ const v = Number(t.value); if(v >= 0 && v < 80){ try{ localStorage.setItem(RS_MIN_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => { rsPrRow(r.dataset.prrow); const s = stockOf(r.dataset.prrow), k = r.querySelector(".pk"); if(s && k) k.innerHTML = rsPrMktHtml(s); }); } }
   else if(t.dataset.prfee){ const v = Number(t.value); if(v > 0 && v < 60){ try{ localStorage.setItem(RS_FEE_KEY, String(v)); }catch(e){} rsPane.querySelectorAll("[data-prrow]").forEach(r => { rsPrRow(r.dataset.prrow); const s = stockOf(r.dataset.prrow), k = r.querySelector(".pk"); if(s && k) k.innerHTML = rsPrMktHtml(s); }); } }
   else if(t.dataset.rssfind){ rsSheetFind = t.value; const sc = rsPane.querySelector(".rsscroll"); if(sc) sc.scrollTop = 0; rsRenderKeep(); }
+  else if(t.dataset.rsaddf && rsAdd){ rsAdd[t.dataset.rsaddf] = t.dataset.rsaddf === "code" || t.dataset.rsaddf === "location" ? t.value.toUpperCase() : t.value;
+    if(t.dataset.rsaddf === "code" || t.dataset.rsaddf === "name"){ const h = document.getElementById("rsAddHint"); if(h) h.innerHTML = rsAddHint(); } }
   else if(t.dataset.rsusedfind !== undefined){ rsUsedFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsusedfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   else if(t.dataset.rsfind){ rsFind = t.value; const pos = t.selectionStart; renderRs(); const f = rsPane.querySelector("[data-rsfind]"); if(f){ f.focus(); f.setSelectionRange(pos, pos); } }
   // Purchase boxes: landed costs and price comparisons refresh shortly after typing stops.
@@ -5367,6 +5409,34 @@ rsPane.addEventListener("click", async e => {
       rsOut.costEdit = false; await loadStock(); rsStatus2("ok", "Cost saved: $" + money(v) + " per unit.");
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
     finally{ const x = document.getElementById("rsCostSave"); if(x){ x.disabled = false; x.textContent = "Save cost"; } }
+    return;
+  }
+  if(b.dataset.rsaddopen){ rsAdd = { code: "", name: "", qty: "1", cost: "", sell: "", location: "", category: "", brand: "", note: "" }; renderRs(); const x = rsPane.querySelector('[data-rsaddf="code"]'); if(x) x.focus(); return; }
+  if(b.dataset.rsaddcancel){ rsAdd = null; renderRs(); return; }
+  if(b.id === "rsAddSave" && rsAdd){
+    const a = rsAdd, code = String(a.code || "").trim().toUpperCase();
+    const bad = !/^[A-Z0-9][A-Z0-9.\-]*$/.test(code) ? "Enter an item code." : RS.stock.some(x => x.code === code) ? code + " is already in stock." : rsCodeProblem(code) || (!String(a.name || "").trim() ? "Enter the item name." : !(Number(a.qty) >= 0) || String(a.qty).trim() === "" ? "Enter the qty on hand (0 or more)." : "");
+    if(bad){ const h = document.getElementById("rsAddHint"); if(h) h.innerHTML = '<span class="up">' + esc(bad) + '</span>'; return; }
+    b.disabled = true; b.textContent = "Adding...";
+    try{
+      const out = await rsCall({ action: "stockAdd", item: Object.assign({}, a, { code }) });
+      if(out.result !== "success"){ const h = document.getElementById("rsAddHint"); if(h) h.innerHTML = '<span class="up">NOT added: ' + esc(out.message) + '</span>'; return; }
+      rsAdd = null; rsFind = code; await loadStock(); rsOut = { code, kind: "out", qty: 1, channel: "", note: "" }; renderRs(); rsStatus2("ok", "Added " + code + ".");
+    }catch(err){ const h = document.getElementById("rsAddHint"); if(h) h.innerHTML = '<span class="up">NOT added: no connection? Try again.</span>'; }
+    finally{ const x = document.getElementById("rsAddSave"); if(x){ x.disabled = false; x.textContent = "Add item"; } }
+    return;
+  }
+  if(b.dataset.rsitemdel){ rsOut.deleting = true; renderRs(); const x = document.getElementById("rsDelWhy"); if(x) x.focus(); return; }
+  if(b.dataset.rsdelcancel){ rsOut.deleting = false; renderRs(); return; }
+  if(b.id === "rsDelGo"){
+    const s = stockOf(rsOut.code), why = (document.getElementById("rsDelWhy") || {}).value || ""; if(!s) return;
+    if(!why.trim()){ rsStatus2("err", "Say why the item is being removed."); return; }
+    b.disabled = true; b.textContent = "Removing...";
+    try{
+      const out = await rsCall({ action: "stockDelete", code: s.code, reason: why.trim() });
+      if(out.result !== "success"){ rsStatus2("err", "NOT removed: " + out.message); b.disabled = false; b.textContent = "Remove item"; return; }
+      rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; RS.stock = RS.stock.filter(x => x.code !== s.code); renderRs(); toast("Removed " + s.code + " from stock."); loadStock();
+    }catch(err){ rsStatus2("err", "NOT removed: no connection? Try again."); b.disabled = false; b.textContent = "Remove item"; }
     return;
   }
   if(b.dataset.rscatedit){ rsOut.catEdit = true; rsOut.catSel = rsOut.brandSel = undefined; rsOut.catNew = rsOut.brandNew = ""; renderRs(); return; }
