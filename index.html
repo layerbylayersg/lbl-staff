@@ -4471,7 +4471,7 @@ async function loadStock(){
   RS.loading = true;
   try{
     const out = await rsCall({ action: "stockData" });
-    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); return; }
+    if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); else { RS.error = "Could not load stock: " + (out.message || "unknown error") + ". Press Refresh to try again."; if(document.body.classList.contains("mode-rs")) renderRs(); } return; }
     RS = { stock: out.stock || [], history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
       target: out.targetMargin || 0.3, features: out.features || [], jobParts: out.jobParts || [], loaded: true, loading: false };
     if(out.staff && out.staff.length) STAFF = out.staff;
@@ -4479,7 +4479,7 @@ async function loadStock(){
     if(!rs.fxRate) rsAutoFx(); // rate for the default currency, before any scan
     fillStockNames();
     if(document.body.classList.contains("mode-rs")) renderRs();
-  }catch(err){ rsStatus("err", "Could not load stock. Check the connection and press Refresh."); }
+  }catch(err){ RS.error = "Could not load stock. Check the connection and press Refresh."; if(document.body.classList.contains("mode-rs")) renderRs(); }
   finally{ RS.loading = false; }
 }
 // Service report "Parts replaced": suggest stock item names so used parts come off stock.
@@ -5006,6 +5006,7 @@ function renderRs(){
       <p class="hostatus" id="rsStatus" role="status"></p></div>
     <div class="stage rs-s">
       <h2>Stock on hand ${rsHas("location") && RS.loaded && rsBoxPlan().length ? '<button type="button" class="mini rsboxall" data-rsboxall="1" style="margin-left:auto">📦 Find boxes for ' + rsBoxPlan().length + ' part' + (rsBoxPlan().length === 1 ? '' : 's') + '</button>' : ''}<button type="button" class="mini" data-rsrefresh="1"${rsHas("location") && RS.loaded && rsBoxPlan().length ? '' : ' style="margin-left:auto"'}>↻ Refresh</button></h2>
+      ${RS.error ? '<p class="hostatus err" role="alert">' + esc(RS.error) + '</p>' : ''}
       ${RS.stock.length ? `<div class="rsstats">${stat("all", "Items", "")}${stat("low", "Low stock", "low")}${stat("out", "Out of stock", "out")}${stat("noprice", "No price yet", "")}</div>
       <div class="rstools">
         <label class="f rssearch">Search<input type="search" data-rsfind="1" value="${esc(rsFind)}" placeholder="Name or code, e.g. FAH051 or PETG" aria-label="Search stock">${rsFind ? '<button type="button" data-rsfindclear="1" aria-label="Clear search">×</button>' : ''}</label>
@@ -5252,7 +5253,7 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.rsdel !== undefined){ rs.items.splice(+b.dataset.rsdel, 1); if(!rs.items.length) rs.items.push(rsItem()); renderRs(); return; }
   if(b.dataset.rseadd){ rs.extras.push({ label: "", amount: "" }); renderRs(); return; }
   if(b.dataset.rsedel !== undefined){ rs.extras.splice(+b.dataset.rsedel, 1); renderRs(); return; }
-  if(b.dataset.rsrefresh){ loadStock(); return; }
+  if(b.dataset.rsrefresh){ RS.error = ""; b.disabled = true; b.textContent = "Loading..."; loadStock().finally(() => renderRs()); return; }
   if(b.id === "rsSave"){
     const c = rsCalc();
     const missing = [!rs.merchant.trim() && "merchant", !rs.by && "entered by",
