@@ -516,7 +516,7 @@
   .bbdecl{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;margin-bottom:12px} .bbdecl input{margin-top:3px;width:18px;height:18px;flex:none}
   .sigdone{display:flex;gap:12px;align-items:center} .sigdone img{max-width:260px;width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
   .bbfacts{display:grid;gap:6px;font-size:13.5px} .bbfacts div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px} .bbfacts span{color:var(--muted)} .bbfacts b{font-weight:600}
-  .bbdone h2{color:var(--green-ink)}
+  .bbdone h2{color:var(--green-ink)} .bbphotos{font-size:13.5px} .bbphotos img{width:72px;height:72px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:4px}
   #plView{display:none}
   body.mode-pl #plView{display:block}
   body.mode-pl .layout,body.mode-pl .mobiletabs,body.mode-pl #saveStatus,body.mode-pl #hoView,body.mode-pl #clView,body.mode-pl #rsView,body.mode-pl #stView,body.mode-pl #dashView,body.locked #plView{display:none!important}
@@ -3961,7 +3961,7 @@ function bbPanel(u, e){
     '<div class="bbfacts">' + line("Seller", u.sellerName + " · " + u.sellerPhone) + line("Printer SN", u.serial) + line("MFMS", [u.mfms, u.mfmsSerial].filter(Boolean).join(" · ")) +
       line("Condition", "Powers on: " + (u.powers || "?") + " · Prints: " + (u.prints || "?")) + line("Faults", u.faults) + line("Came with", (u.accessories || []).join(", ")) +
       line("Paid", "$" + money(u.paid) + " by " + u.payment + " · bought by " + u.by) + line("Stock code", u.stockCode) + '</div>' +
-    ((u.photos || []).length ? '<div class="photos">' + u.photos.map((p, i) => '<a class="ph" href="' + esc(p) + '" target="_blank" rel="noopener"><img src="' + esc(p) + '" alt="Photo ' + (i + 1) + '"></a>').join("") + '</div>' : '') +
+    ((u.photos || []).length ? '<p class="bbphotos">Photos: ' + u.photos.map((p, i) => /^data:/.test(p) ? '<img src="' + p + '" alt="Photo ' + (i + 1) + '">' : '<a href="' + esc(p) + '" target="_blank" rel="noopener">Photo ' + (i + 1) + '</a>').join(" · ") + '</p>' : '') +
     (u.receiptUrl ? '<p><a href="' + esc(u.receiptUrl) + '" target="_blank" rel="noopener">Open signed receipt (PDF)</a></p>' : '<p><button type="button" class="linkbtn" data-bbpdfof="' + esc(u.bbNo) + '">Download receipt PDF</button></p>') +
     '<div class="f"><span>What happened to it?</span><div class="chips">' + BB_STATUSES.map(s => '<label class="chip"><input type="radio" name="bbst" data-bbe="status" value="' + s + '"' + (s === st ? " checked" : "") + '>' + s + '</label>').join("") + '</div></div>' +
     '<div class="grid">' +
@@ -3982,6 +3982,9 @@ function renderBb(){
     (BB.apiMissing ? '<div class="stage"><p class="hint">Buyback needs the updated Apps Script. Ask an admin to deploy it, then reload this page.</p></div>' : BB.view === "new" ? bbFormHtml() : bbUnitsHtml());
   if(BB.view === "new" && !BB.last && !bb.signature) initSigPad("bbSig", url => { bb.signature = url; bbDirty = true; renderBb(); });
 }
+// Small square-ish thumbnail (longest side 200 px) kept in the Sheet for the units list; full photos go to Drive.
+function bbThumb(src){ return new Promise(ok => { const img = new Image(); img.onload = () => { const k = 200 / Math.max(img.width, img.height), c = document.createElement("canvas");
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); ok(c.toDataURL("image/jpeg", 0.7)); }; img.onerror = () => ok(""); img.src = src; }); }
 async function bbPdf(u){
   try{
     const jsPDF = await loadJsPDF(), doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -4041,9 +4044,10 @@ bbPane.addEventListener("click", async e => {
     const miss = bbMissing(); if(miss.length){ bbStatus("err", "Still needed: " + miss.join(", ") + "."); return; }
     BB.saving = true; renderBb();
     try{
-      const out = await callSheet({ action: "buybackSave", buyback: Object.assign({}, bb, { staffName: ME() }) });
+      const thumb = bb.photos[0] ? await bbThumb(bb.photos[0]) : "";
+      const out = await callSheet({ action: "buybackSave", buyback: Object.assign({}, bb, { staffName: ME(), thumb }) });
       if(out.result !== "success"){ BB.saving = false; renderBb(); bbStatus("err", out.message || "Could not save."); return; }
-      BB.last = Object.assign({}, bb, { bbNo: out.bbNo, stockCode: out.stockCode || "", photo: bb.photos[0] || "", status: "In stock" });
+      BB.last = Object.assign({}, bb, { bbNo: out.bbNo, stockCode: out.stockCode || "", photo: thumb, status: "In stock" });
       BB.list.unshift(Object.assign({}, BB.last, { photos: out.photoUrls || bb.photos, receiptUrl: out.receiptUrl || "" }));
       bb = bbBlank(); bbDirty = false; BB.saving = false; renderBb(); scrollTo(0, 0);
     }catch(err){ BB.saving = false; renderBb(); bbStatus("err", "No connection. Nothing was saved, try again."); }
