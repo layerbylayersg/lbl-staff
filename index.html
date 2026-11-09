@@ -4341,9 +4341,28 @@ async function rsPrSave(codes){
 }
 let rsBrowse = null, rsSheetFind = ""; // the category + brand folder open in the item window: { g, brand }, and its search
 const RS_CATS = [["part", "Parts"], ["fil", "Filament"], ["acc", "Accessories"]];
+const RS_CAT_KEY = { Parts: "part", Filament: "fil", Accessories: "acc" };
+// Built-in categories plus any new ones typed on an item (Stock tab "Category" column).
+const rsCats = () => RS_CATS.concat([...new Set(RS.stock.map(x => String(x.category || "").trim()).filter(c => c && !RS_CAT_KEY[c]))].sort().map(c => ["c:" + c, c]));
+// Change an item's category / brand (blank = automatic from its code and name), or type a new one.
+function rsCatForm(s){
+  const o = rsOut, cats = rsCats().map(c => c[1]), brands = [...new Set(RS_BRANDS.map(b => b[0]).concat([RS_OTHER], RS.stock.map(x => String(x.brand || "").trim()).filter(Boolean)))];
+  const catVal = o.catSel !== undefined ? o.catSel : String(s.category || ""), brandVal = o.brandSel !== undefined ? o.brandSel : String(s.brand || "");
+  const autoCat = (RS_CATS.find(c => c[0] === rsGroupAuto(s)) || [, ""])[1];
+  const opt = (v, t, cur) => '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + '>' + esc(t) + '</option>';
+  return '<div class="rsrename rscatform">' +
+    '<label class="f">Category<select id="rsCatSel" data-rscat="cat">' + opt("", "Automatic (" + autoCat + ")", catVal) + cats.map(c => opt(c, c, catVal)).join("") + opt("__new", "+ New category...", catVal) + '</select></label>' +
+    (catVal === "__new" ? '<label class="f">New category name<input id="rsCatNew" maxlength="40" value="' + esc(o.catNew || "") + '" placeholder="e.g. Printers, Buyback units, Tools"></label>' : '') +
+    '<label class="f">Brand<select id="rsBrandSel" data-rscat="brand">' + opt("", "Automatic (" + rsBrandAuto(s) + ")", brandVal) + brands.map(b => opt(b, b, brandVal)).join("") + opt("__new", "+ New brand...", brandVal) + '</select></label>' +
+    (brandVal === "__new" ? '<label class="f">New brand name<input id="rsBrandNew" maxlength="40" value="' + esc(o.brandNew || "") + '" placeholder="e.g. Elegoo"></label>' : '') +
+    '<button type="button" class="primary mini" id="rsCatSave">Save category</button><button type="button" class="mini" data-rscatcancel="1">Cancel</button>' +
+    '<small>Automatic = worked out from the item code and name. The item moves to the new folder in Stock and Pricing.</small></div>';
+}
+const rsCatName = s => (RS_CATS.find(c => c[0] === rsGroupOf(s)) || [, String(s.category || "")])[1];
 const RS_OTHER = "Other brands";
+const rsBrandOf = s => String(s.brand || "").trim() || rsBrandAuto(s); // a brand set on the item wins
 const RS_BRANDS = [["Bambu Lab", /\bbambu\b|cyberbrick/i], ["Panda", /\bpanda\b/i], ["Creality", /creality/i], ["Soleyin", /soleyin/i], ["Layer By Layer", /layer by layer/i]];
-const rsBrandOf = s => /\(for bambu( lab)?\)/i.test(s.name) ? RS_OTHER : ((RS_BRANDS.find(([, re]) => re.test(s.name)) || [RS_OTHER])[0]);
+const rsBrandAuto = s => /\(for bambu( lab)?\)/i.test(s.name) ? RS_OTHER : ((RS_BRANDS.find(([, re]) => re.test(s.name)) || [RS_OTHER])[0]);
 // ----- Storage boxes (e.g. "3C" = shelf 3, box C) -----
 // Shelf by part type. Shelf 1 (toolhead) gives each part type + printer series its own box (hotends for H2/P2S/X2D,
 // X1 extruders, ...); shelves 2-4 group by printer series (all X1 boards and cables together). A part joins the
@@ -4419,7 +4438,8 @@ function rsCloseSheet(){
 const RS_DEMO_ALLOWED = /[?&]demo\b/.test(location.search);
 const rsQty = s => Number(s.qty) || 0;
 const rsIsOut = s => rsQty(s) <= 0, rsIsLow = s => !rsIsOut(s) && rsQty(s) <= (Number(s.min) || 0);
-const rsGroupOf = s => /^FIL-/.test(s.code) ? "fil" : /^(PRT|PART)-/.test(s.code) ? "part" : "acc";
+const rsGroupAuto = s => /^FIL-/.test(s.code) ? "fil" : /^(PRT|PART)-/.test(s.code) ? "part" : "acc";
+const rsGroupOf = s => { const c = String(s.category || "").trim(); return c ? (RS_CAT_KEY[c] || "c:" + c) : rsGroupAuto(s); }; // a category set on the item wins
 const RS_FILTERS = { all: () => true, low: rsIsLow, out: rsIsOut, noprice: s => !Number(s.sell) };
 function rsAfterHtml(s){
   const n = rsQty(s), q = Number(rsOut.qty) || 0, after = rsOut.kind === "count" ? q : n - q;
@@ -4849,10 +4869,12 @@ function renderRs(){
         '<button type="button" class="mini" data-rsrecodecancel="1">Cancel</button>' +
         '<div class="rsrecodehint" id="rsRecodeHint">' + rsRecodeHint(s) + '</div>' +
         '<small>Past purchases and stock moves move to the new code, and the old code still matches receipts. Change the SKU on Shopee / Carousell yourself.</small></div>' : '') +
-    (!rsOut.renaming && !rsOut.costEdit && !rsOut.recoding && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
+    (rsHas("category") && rsOut.catEdit ? rsCatForm(s) : '') +
+    (!rsOut.renaming && !rsOut.costEdit && !rsOut.recoding && !rsOut.catEdit && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
       (rsHas("rename") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>' : '') +
       (rsHas("editCost") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscostedit="1">✏️ Edit cost</button>' : '') +
-      (rsHas("recode") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrecode="1">✏️ Change code</button>' : '') + '</div>' : '') +
+      (rsHas("recode") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrecode="1">✏️ Change code</button>' : '') +
+      (rsHas("category") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscatedit="1">✏️ Category</button>' : '') + '</div>' : '') +
     '<div class="seg" role="tablist" aria-label="What happened">' +
       '<button type="button" role="tab" data-rskind="out" aria-selected="' + (rsOut.kind === "out") + '">Sold / used</button>' +
       '<button type="button" role="tab" data-rskind="count" aria-selected="' + (rsOut.kind === "count") + '">Stock count</button></div>' +
@@ -4912,7 +4934,7 @@ function renderRs(){
     '<p class="hint" style="margin-top:-6px">Suggested prices follow the market: Shopee sellers first, then other local sellers, then the official store (incl. GST + shipping, about 5% under). Never below your floor: cost + Shopee fees + minimum margin. Profit each shows what you keep on Shopee (after fees) and on Carousell (no fees).</p>' +
     (!RS.stock.length ? (RS.loaded ? '<p class="hint">No stock yet.</p>' : skelRows()) :
     '<div class="prtools"><label class="f rssearch">Search<input type="search" data-prfind="1" value="' + esc(rsPrFind) + '" placeholder="Name or code">' + (rsPrFind ? '<button type="button" data-prfindclear="1" aria-label="Clear search">×</button>' : '') + '</label>' +
-      '<div class="seg prcats" role="tablist" aria-label="Category">' + prCatTab("all", "All") + RS_CATS.map(([g, l]) => prCatTab(g, l)).join("") + '</div></div>' +
+      '<div class="seg prcats" role="tablist" aria-label="Category">' + prCatTab("all", "All") + rsCats().map(([g, l]) => prCatTab(g, l)).join("") + '</div></div>' +
     (prBrands.length > 1 ? '<div class="prbrands" role="group" aria-label="Brand"><span>Brand</span>' + prBrandChip("all", "All brands", prInCat.length) +
       prBrands.map(br => prBrandChip(br, br, prInCat.filter(x => rsBrandOf(x) === br).length)).join("") + '</div>' : '') +
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
@@ -4921,7 +4943,7 @@ function renderRs(){
     '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin · you keep per sale</span><span>Market / suggested</span><span></span></div>' +
     (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
     '</div>';
-  const folders = RS_CATS.map(([g, label]) => {
+  const folders = rsCats().map(([g, label]) => {
     const inCat = shown.filter(s => rsGroupOf(s) === g); if(!inCat.length) return "";
     const brands = [...new Set(inCat.map(rsBrandOf))].sort((a, b) => (a === RS_OTHER) - (b === RS_OTHER) || a.localeCompare(b));
     return '<section class="rscat"><h3>' + label + '<small>' + inCat.length + ' ' + filterName + 'item' + (inCat.length === 1 ? '' : 's') + '</small></h3><div class="rsbrands">' + brands.map(br => {
@@ -4935,7 +4957,7 @@ function renderRs(){
   const sWords = rsSheetFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const sheetItems = sorted(folderShown.filter(s => sWords.every(w => (s.code + " " + s.name + (s.location ? " box " + s.location : "")).toLowerCase().includes(w))));
   const sheet = rsBrowse ? '<div class="rssheet rs-s" data-rssheet="1"><div class="rssheetbox" role="dialog" aria-modal="true" aria-labelledby="rsSheetTitle">' +
-    '<div class="rssheethead"><div><small>' + esc((RS_CATS.find(c => c[0] === rsBrowse.g) || [, ""])[1]) + ' · ' + folderShown.length + ' ' + filterName + 'item' + (folderShown.length === 1 ? '' : 's') +
+    '<div class="rssheethead"><div><small>' + esc((rsCats().find(c => c[0] === rsBrowse.g) || [, ""])[1]) + ' · ' + folderShown.length + ' ' + filterName + 'item' + (folderShown.length === 1 ? '' : 's') +
       (rsFilter !== "all" && folderAll.length > folderShown.length ? ' <button type="button" class="linkbtn" data-rsshowall="1">Show all ' + folderAll.length + '</button>' : '') + '</small><h3 id="rsSheetTitle">' + esc(rsBrowse.brand) + '</h3>' + flags(folderAll) + '</div>' +
     '<button type="button" class="mini" data-rsclose="1" aria-label="Close">✕</button></div>' +
     (folderShown.length > 4 ? '<div class="rssheetfind rssearch"><input type="search" data-rssfind="1" value="' + esc(rsSheetFind) + '" placeholder="Search ' + esc(rsBrowse.brand) + ', e.g. hotend or 0.4" aria-label="Search in ' + esc(rsBrowse.brand) + '">' +
@@ -5177,6 +5199,8 @@ rsPane.addEventListener("change", e => {
     else { const s = stockOf(t.value); it.isNew = false; it.code = t.value; it.name = s ? s.name : ""; }
     rsDirty = true; renderRs(); return;
   }
+  if(t.dataset.rscat){ const nw = document.getElementById("rsCatNew"), nb = document.getElementById("rsBrandNew"); if(nw) rsOut.catNew = nw.value; if(nb) rsOut.brandNew = nb.value;
+    rsOut[t.dataset.rscat === "cat" ? "catSel" : "brandSel"] = t.value; renderRs(); const f = document.getElementById(t.value === "__new" ? (t.dataset.rscat === "cat" ? "rsCatNew" : "rsBrandNew") : ""); if(f) f.focus(); return; }
   if(t.dataset.rso){
     rsOut[t.dataset.rso] = t.value;
     if(t.dataset.rso === "code"){ rsOut.sellCode = ""; rsMarket = { code: "", loading: false, data: null, error: "" }; }
@@ -5343,6 +5367,26 @@ rsPane.addEventListener("click", async e => {
       rsOut.costEdit = false; await loadStock(); rsStatus2("ok", "Cost saved: $" + money(v) + " per unit.");
     }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
     finally{ const x = document.getElementById("rsCostSave"); if(x){ x.disabled = false; x.textContent = "Save cost"; } }
+    return;
+  }
+  if(b.dataset.rscatedit){ rsOut.catEdit = true; rsOut.catSel = rsOut.brandSel = undefined; rsOut.catNew = rsOut.brandNew = ""; renderRs(); return; }
+  if(b.dataset.rscatcancel){ rsOut.catEdit = false; renderRs(); return; }
+  if(b.id === "rsCatSave"){
+    const s = stockOf(rsOut.code); if(!s) return;
+    const pick = (sel, nw) => sel === "__new" ? String(nw || "").trim().replace(/\s+/g, " ") : sel;
+    const cat = pick(rsOut.catSel !== undefined ? rsOut.catSel : String(s.category || ""), (document.getElementById("rsCatNew") || {}).value);
+    const brand = pick(rsOut.brandSel !== undefined ? rsOut.brandSel : String(s.brand || ""), (document.getElementById("rsBrandNew") || {}).value);
+    if((rsOut.catSel === "__new" && !cat) || (rsOut.brandSel === "__new" && !brand)){ rsStatus2("err", "Type the new name."); return; }
+    b.disabled = true; b.textContent = "Saving...";
+    try{
+      const out = await rsCall({ action: "stockPrice", code: s.code, category: cat, brand: brand });
+      if(out.result !== "success"){ rsStatus2("err", "NOT saved: " + out.message); return; }
+      rsOut.catEdit = false; s.category = cat; s.brand = brand;
+      if(rsBrowse) rsBrowse = { g: rsGroupOf(s), brand: rsBrandOf(s) }; // follow the item to its new folder
+      renderRs(); rsStatus2("ok", "Saved: " + rsCatName(s) + " · " + rsBrandOf(s) + ".");
+      loadStock();
+    }catch(err){ rsStatus2("err", "NOT saved: no connection? Try again."); }
+    finally{ const x = document.getElementById("rsCatSave"); if(x){ x.disabled = false; x.textContent = "Save category"; } }
     return;
   }
   if(b.dataset.rsrename){ rsOut.renaming = true; rsOut.newName = undefined; renderRs(); const x = document.getElementById("rsNewName"); if(x){ x.focus(); x.select(); } return; }
