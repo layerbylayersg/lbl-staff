@@ -4903,11 +4903,11 @@ function renderRs(){
         '<div class="rsrecodehint" id="rsRecodeHint">' + rsRecodeHint(s) + '</div>' +
         '<small>Past purchases and stock moves move to the new code, and the old code still matches receipts. Change the SKU on Shopee / Carousell yourself.</small></div>' : '') +
     (rsHas("category") && rsOut.catEdit ? rsCatForm(s) : '') +
-    (rsHas("deleteItem") && rsOut.deleting ? (Number(s.qty) !== 0
-      ? '<div class="rsdelbox"><p><b>' + esc(s.code) + ' still has ' + s.qty + ' on hand.</b> Use <b>Stock count</b> below to set it to 0 (or <b>Sold / used</b> to say where they went), then remove it.</p><div><button type="button" class="mini" data-rsdelcancel="1">OK</button></div></div>'
-      : '<div class="rsdelbox"><p>Remove <b>' + esc(s.name) + '</b> (' + esc(s.code) + ') from the stock list? Its past purchases and stock moves are kept.</p>' +
+    (rsHas("deleteItem") && rsOut.deleting ? '<div class="rsdelbox"><p>Remove <b>' + esc(s.name) + '</b> (' + esc(s.code) + ') from the stock list? Its past purchases and stock moves are kept.</p>' +
+        (Number(s.qty) !== 0 ? '<p><b>It shows ' + s.qty + ' in stock.</b> Removing sets the count to 0 first (logged as a stock count with your reason). If they were sold or used, record that with <b>Sold / used</b> instead.</p>' : '') +
         '<label class="f">Why?<input id="rsDelWhy" maxlength="200" placeholder="e.g. duplicate item, no longer sold, added by mistake"></label>' +
-        '<div><button type="button" class="mini danger" id="rsDelGo">Remove item</button> <button type="button" class="mini" data-rsdelcancel="1">Cancel</button></div></div>') : '') +
+        '<p class="hostatus err" id="rsDelMsg" role="alert"></p>' +
+        '<div><button type="button" class="mini danger" id="rsDelGo">' + (Number(s.qty) !== 0 ? 'Set to 0 and remove' : 'Remove item') + '</button> <button type="button" class="mini" data-rsdelcancel="1">Cancel</button></div></div>' : '') +
     (!rsOut.renaming && !rsOut.costEdit && !rsOut.recoding && !rsOut.catEdit && !rsOut.deleting && (rsHas("rename") || rsHas("editCost")) ? '<div class="rsedits">' +
       (rsHas("rename") ? '<button type="button" class="linkbtn rsrenamebtn" data-rsrename="1">✏️ Rename</button>' : '') +
       (rsHas("editCost") ? '<button type="button" class="linkbtn rsrenamebtn" data-rscostedit="1">✏️ Edit cost</button>' : '') +
@@ -5430,13 +5430,19 @@ rsPane.addEventListener("click", async e => {
   if(b.dataset.rsdelcancel){ rsOut.deleting = false; renderRs(); return; }
   if(b.id === "rsDelGo"){
     const s = stockOf(rsOut.code), why = (document.getElementById("rsDelWhy") || {}).value || ""; if(!s) return;
-    if(!why.trim()){ rsStatus2("err", "Say why the item is being removed."); return; }
+    const msg = t => { const m = document.getElementById("rsDelMsg"); if(m) m.textContent = t; }, label = b.textContent;
+    if(!why.trim()){ msg("Say why the item is being removed."); return; }
     b.disabled = true; b.textContent = "Removing...";
     try{
+      if(Number(s.qty) !== 0){ // count it to 0 first, so every unit is accounted for
+        const c = await rsCall({ action: "stockMove", kind: "count", code: s.code, qty: 0, channel: "", note: "Removing item: " + why.trim(), by: rs.by });
+        if(c.result !== "success"){ msg("NOT removed: " + c.message); b.disabled = false; b.textContent = label; return; }
+        s.qty = 0;
+      }
       const out = await rsCall({ action: "stockDelete", code: s.code, reason: why.trim() });
-      if(out.result !== "success"){ rsStatus2("err", "NOT removed: " + out.message); b.disabled = false; b.textContent = "Remove item"; return; }
+      if(out.result !== "success"){ msg("NOT removed: " + out.message); b.disabled = false; b.textContent = label; return; }
       rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; RS.stock = RS.stock.filter(x => x.code !== s.code); renderRs(); toast("Removed " + s.code + " from stock."); loadStock();
-    }catch(err){ rsStatus2("err", "NOT removed: no connection? Try again."); b.disabled = false; b.textContent = "Remove item"; }
+    }catch(err){ msg("NOT removed: no connection? Try again."); b.disabled = false; b.textContent = label; }
     return;
   }
   if(b.dataset.rscatedit){ rsOut.catEdit = true; rsOut.catSel = rsOut.brandSel = undefined; rsOut.catNew = rsOut.brandNew = ""; renderRs(); return; }
