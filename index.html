@@ -4630,7 +4630,7 @@ async function loadStock(){
   try{
     const out = await rsCall({ action: "stockData" });
     if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message, ".")); else { RS.error = "Could not load stock: " + (out.message || "unknown error") + ". Press Refresh to try again."; if(document.body.classList.contains("mode-rs")) renderRs(); } return; }
-    RS = { stock: out.stock || [], history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
+    RS = { stock: (out.stock || []).filter((x, i, a) => a.findIndex(y => y.code === x.code) === i), /* one row per code: the first (master) row; later copies are the owner's notes */ history: out.history || [], merchants: out.merchants || [], channels: out.channels || [],
       target: out.targetMargin || 0.3, features: out.features || [], jobParts: out.jobParts || [], loaded: true, loading: false };
     if(out.staff && out.staff.length) STAFF = out.staff;
     if(!rs.merchant) rs.merchantNew = !RS.merchants.length; // dropdown once saved merchants exist
