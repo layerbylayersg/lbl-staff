@@ -1282,10 +1282,14 @@ async function resume(){
 }
 // Once a day while in use, swap the token for a fresh 30-day one.
 async function renewIfDue(){
-  if(!isNew() || !(SESSION.api >= 3) || Date.now() - (SESSION.renewed || 0) < 24 * 3600 * 1000) return;
+  // Due every 24 hours, and once straight away on a device that has never refreshed the script version (apiAt),
+  // so a session saved before a script update learns the new version without logging out.
+  if(!isNew() || !(SESSION.api >= 3)) return;
+  if(SESSION.apiAt && Date.now() - (SESSION.renewed || 0) < 24 * 3600 * 1000) return;
+  const apiBefore = SESSION.api;
   try{
     const out = await callSheet({ action:"renew" });
-    if(out.result === "success" && out.token){ SESSION = Object.assign(SESSION, { token: out.token, exp: out.exp, renewed: Date.now() }, out.admin !== undefined ? { admin: !!out.admin } : {}); lsSet(SESSION_KEY, SESSION); showWho(); }
+    if(out.result === "success" && out.token){ SESSION = Object.assign(SESSION, { token: out.token, exp: out.exp, renewed: Date.now(), apiAt: Date.now() }, out.api ? { api: out.api } : {}, out.admin !== undefined ? { admin: !!out.admin } : {}); lsSet(SESSION_KEY, SESSION); if(SESSION.api !== apiBefore && document.body.classList.contains("mode-pl")){ renderPl(); loadPlans(); } showWho(); }
     else if(isAuthMsg(out.message)) lock(out.message);
   }catch(e){}
 }
