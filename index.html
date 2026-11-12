@@ -4992,7 +4992,7 @@ function renderRs(){
     return '<span class="rsq ' + st + '"><b>' + rsQty(s) + '</b><small>' + { out: "Out", low: "Low", ok: "in stock" }[st] + '</small></span>'; };
   const sug = s => !s.location && rsHas("location") ? rsBoxFor(s) : null;
   const panel = s => '<div class="rspanel">' +
-    (rsPhotoOf(s) ? '<div class="rsphoto"><img src="' + rsPhotoOf(s) + '" alt="' + esc(s.name) + '"><small>Photo from the ' + (/^PRT-BBL-|^ACC-CYB-/.test(s.code) ? 'Bambu Lab' : 'official') + ' store, for staff reference only. Use our own photos on Shopee / Carousell.</small></div>' : '') +
+    (rsPhotoOf(s) ? '<div class="rsphoto"><img src="' + rsPhotoOf(s) + '" alt="' + esc(s.name) + '"><small>Photo from the ' + (/^PRT-BBL-|^ACC-CYB-|^FIL-BBL-/.test(s.code) ? 'Bambu Lab' : /^PRT-ACC-/.test(s.code) ? 'BIQU (Panda)' : /CRL/.test(s.code) ? 'Creality' : 'official') + ' store, for staff reference only. Use our own photos on Shopee / Carousell.</small></div>' : '') +
     (rsHas("rename") ? (rsOut.renaming
       ? '<div class="rsrename"><label class="f">New name<input id="rsNewName" value="' + esc(rsOut.newName !== undefined ? rsOut.newName : s.name) + '" maxlength="150"></label>' +
         '<button type="button" class="primary mini" id="rsRenameSave">Save name</button><button type="button" class="mini" data-rsrenamecancel="1">Cancel</button>' +
