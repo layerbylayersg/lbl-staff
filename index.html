@@ -531,6 +531,9 @@
   .pldetail{padding:0 0 14px;font-size:14px} .pldetail dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;margin:0 0 10px} .pldetail dt{color:var(--ink-2)} .pldetail dd{margin:0}
   .plhist{margin:6px 0 10px;padding:0;list-style:none} .plhist li{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:6px 0;border-top:1px dashed var(--line)} .plhist .undone{color:var(--ink-2);text-decoration:line-through}
   .plform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:8px 0} .plform label.f{flex:0 1 170px} .plform .mini{height:40px}
+  .pltodo{display:inline-block;margin-top:3px;font-size:12.5px;font-weight:600;color:#6B4700}
+  .plfu li{justify-content:space-between} .plfu a.mini{display:inline-flex;align-items:center;justify-content:center;text-decoration:none} .plfu a.mini.primary{background:var(--green-700);border-color:var(--green-700);color:#fff} .plfu a.mini.primary:hover{background:#335A19;border-color:#335A19}
+  .pledit label.f{flex:1 1 200px} .pledit small{flex-basis:100%;font-size:12.5px;color:var(--ink-2)} .plcheck{flex-basis:100%;display:flex;gap:8px;align-items:center;font-size:13.5px}
   .plnote{margin:10px 0 0;padding:10px 12px;border-radius:var(--radius-sm);background:var(--amber-wash);color:var(--amber-ink);font-size:13.5px;line-height:1.45}
   .strow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
   .strow:last-child{border-bottom:0}
@@ -4071,14 +4074,21 @@ bbPane.addEventListener("click", async e => {
   }
 });
 
-/* ---------- Care Plans (Apps Script API 6: planList, planMarkPaid, planExtend, planUndoUsage, planCancel) ---------- */
+/* ---------- Care Plans (Apps Script API 6: planList, planMarkPaid, planExtend, planUndoUsage, planCancel;
+   API 7: planLinkJob, planUnlinkJob, planEditDetails, planContacted, and jobs / follow-ups in planList) ---------- */
 // Every printer on an MDR Care Plan: Service Jobs used / left, expiry and history. Anyone signed in can look;
 // admins mark sign-ups paid, cancel unpaid ones, extend First Layer Pro and take a job back off a plan.
 // A job booked on a plan is counted by the Apps Script when it is Completed (takeover or on-site sign-off).
-let PL = { list: [], loaded: false, loading: false, filter: "Active", find: "", open: "", form: null, admin: false, today: "", ext: { months: 6, price: 50 } };
-const PL_FILTERS = [["Pending Payment", "Unpaid"], ["Active", "Active"], ["Expired", "Expired"], ["all", "All"]];
+let PL = { list: [], loaded: false, loading: false, filter: "", find: "", open: "", form: null, admin: false, today: "", api: 0, sent: null, ext: { months: 6, price: 50 } };
+const PL_FILTERS = [["action", "Needs action"], ["Pending Payment", "Unpaid"], ["Active", "Active"], ["Expired", "Expired"], ["all", "All"]];
+// For the payment message (same as the website's footer).
+const PL_BIZ = { uen: "202644729N", legal: "Layer By Layer Pte. Ltd.", account: "layerbylayersg.com/account" };
 function plDate(s){ return s ? new Date(s + "T00:00:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : ""; }
 function plApiOk(){ return !!(SESSION && SESSION.api >= 6); }
+// API 7 (planList with jobs, follow-ups and actions); planList says which version is deployed.
+function plV7(){ return PL.api >= 7; }
+// Follow-ups not logged in the last week.
+function plTodo(p){ return (p.actions || []).filter(a => !a.snoozed); }
 // The plan a job is booked on: a note on the Service report and Handover pages.
 function planNote(j){
   const c = j && j.carePlan; if(!c) return "";
@@ -4091,7 +4101,9 @@ async function loadPlans(){
   try{
     const out = await callSheet({ action: "planList" });
     if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message)); else plStatus("err", out.message); return; }
-    PL.list = out.plans || []; PL.admin = !!out.admin; PL.today = out.today || ""; if(out.extension) PL.ext = out.extension;
+    PL.list = out.plans || []; PL.admin = !!out.admin; PL.today = out.today || ""; PL.api = out.api || 6; if(out.extension) PL.ext = out.extension;
+    // Open on "Needs action" when there is something to do, otherwise on Active.
+    if(!PL.filter) PL.filter = plV7() && PL.list.some(p => plTodo(p).length) ? "action" : "Active";
     PL.loaded = true; renderPl();
   }catch(e){ plStatus("err", "Could not load the plans. Check the connection and try again."); }
   finally{ PL.loading = false; }
@@ -4101,19 +4113,21 @@ function plTag(p){
   const cls = p.status === "Active" ? "ok" : p.status === "Pending Payment" ? "warn" : "off";
   return '<span class="tag ' + cls + '">' + esc(p.status === "Pending Payment" ? "Waiting for payment" : p.status) + '</span>';
 }
+function plMatches(p, f){ return f === "all" || (f === "action" ? plTodo(p).length > 0 : p.status === f); }
 function renderPl(){
   const pane = document.getElementById("plPane"); if(!pane) return;
   if(!plApiOk()){
     pane.innerHTML = '<div class="stage"><h2>Care Plans</h2><p class="hint">Care Plans need the updated Apps Script (version 6). Ask an admin to deploy it, then reload this page.</p></div>';
     return;
   }
-  const count = f => PL.list.filter(p => f === "all" || p.status === f).length;
+  const filters = PL_FILTERS.filter(([f]) => f !== "action" || !PL.loaded || plV7());
+  const count = f => PL.list.filter(p => plMatches(p, f)).length;
   pane.innerHTML = `
     <div class="stage">
       <h2><span class="n">1</span>Care Plans</h2>
-      <p class="hint" style="margin-top:0">One row per printer. A job booked on a plan is counted when it is Completed.${PL.admin ? " As an admin you can mark sign-ups paid, cancel unpaid ones, extend First Layer Pro and undo a count." : ""}</p>
+      <p class="hint" style="margin-top:0">One row per printer. A job booked on a plan is counted when it is Completed.${PL.admin ? " As an admin you can mark sign-ups paid, cancel unpaid ones, extend First Layer Pro, put jobs on or off a plan, fix details and undo a count." : ""}</p>
       <div class="pltools">
-        <div class="seg" role="tablist" aria-label="Plan status">${PL_FILTERS.map(([f, l]) => '<button type="button" role="tab" data-plfilter="' + f + '" aria-selected="' + (PL.filter === f) + '">' + l + (PL.loaded ? ' (' + count(f) + ')' : '') + '</button>').join("")}</div>
+        <div class="seg" role="tablist" aria-label="Plan status">${filters.map(([f, l]) => '<button type="button" role="tab" data-plfilter="' + f + '" aria-selected="' + (PL.filter === f) + '">' + l + (PL.loaded ? ' (' + count(f) + ')' : '') + '</button>').join("")}</div>
         <input id="plFind" type="search" placeholder="Search name, phone, SN or ref" value="${esc(PL.find)}" aria-label="Search plans">
       </div>
       <div id="plList"></div>
@@ -4125,17 +4139,70 @@ function renderPlList(){
   const box = document.getElementById("plList"); if(!box) return;
   if(!PL.loaded){ box.innerHTML = skelRows(); return; }
   const q = PL.find.trim().toLowerCase();
-  const shown = PL.list.filter(p => (PL.filter === "all" || p.status === PL.filter) &&
+  const shown = PL.list.filter(p => plMatches(p, PL.filter) &&
     (!q || [p.customer, p.phone, p.email, p.sn, p.ref, p.id, p.printer].join(" ").toLowerCase().includes(q)));
-  box.innerHTML = shown.map(plRow).join("") || '<p class="hint">No plans here.</p>';
+  box.innerHTML = shown.map(plRow).join("") || '<p class="hint">' + (PL.filter === "action" ? "Nothing needs doing. 🎉" : "No plans here.") + '</p>';
 }
 function plRow(p){
-  const open = PL.open === p.id;
+  const open = PL.open === p.id, todo = plTodo(p);
   const bal = p.status === "Pending Payment" ? (p.price !== "" && p.price != null ? "SGD " + esc(p.price) : "Price TBC") : p.left + " of " + p.jobs + " left";
   return '<div class="plrow"><button type="button" class="plhead" data-plopen="' + esc(p.id) + '" aria-expanded="' + open + '">' +
-    '<span><span class="nm">' + esc(p.customer) + '</span> ' + plTag(p) + '<br><span class="sub">' + esc(p.printer) + ' · SN ' + esc(p.sn) + ' · ' + esc(p.plan) + '</span></span>' +
+    '<span><span class="nm">' + esc(p.customer) + '</span> ' + plTag(p) + '<br><span class="sub">' + esc(p.printer) + ' · SN ' + esc(p.sn) + ' · ' + esc(p.plan) + '</span>' +
+    (todo.length ? '<br><span class="pltodo">' + todo.map(a => esc(a.text)).join(" · ") + '</span>' : '') + '</span>' +
     '<span class="bal">' + bal + (p.expiresOn ? '<br><span class="sub">until ' + plDate(p.expiresOn) + '</span>' : '') + '</span></button>' +
     (open ? plDetail(p) : '') + '</div>';
+}
+
+/* WhatsApp follow-ups: one message per reason, ready to send from the staff member's phone. */
+function plWaNumber(phone){ const d = String(phone || "").replace(/\D/g, ""); return d.length === 8 ? "65" + d : d; }
+function plFirst(name){ return String(name || "").trim().split(/\s+/)[0] || "there"; }
+function plWaText(p, kind){
+  const hi = "Hi " + plFirst(p.customer) + ", this is Layer By Layer. ";
+  const left = p.left + " of " + p.jobs + " Service Job" + (p.jobs === 1 ? "" : "s");
+  const amount = p.total !== "" && p.total != null ? p.total : p.price;
+  if(kind === "pending") return hi + "Thanks for signing up for the " + p.plan + " Care Plan for your " + p.printer + ". To start it, please PayNow SGD " + amount +
+    " to UEN " + PL_BIZ.uen + " (" + PL_BIZ.legal + ") with " + p.ref + " as the reference, or pay by card at our workshop. Let us know if you have any questions!";
+  if(kind === "price") return hi + "Thanks for signing up for the " + p.plan + " Care Plan for your " + p.printer + ". Your printer isn't on our standard price list, so here's your quote: SGD [price]. ";
+  if(kind === "due") return hi + (p.used ? "Your " + p.printer + " is due for its next service. " : "You haven't used any Service Jobs on your " + p.plan + " Care Plan yet. ") +
+    "You have " + left + " left. Book at " + PL_BIZ.account + ", or reply here with a day that suits you.";
+  if(kind === "expiring") return hi + "Your " + p.plan + " Care Plan for your " + p.printer + " expires on " + plDate(p.expiresOn) + " with " + left +
+    " left. Unused Service Jobs can't be refunded or carried over, so do book soon at " + PL_BIZ.account + "." +
+    (p.extendable ? " You can also extend the plan once, by " + PL.ext.months + " months for $" + PL.ext.price + ", before it expires." : "");
+  return hi + "About your " + p.plan + " Care Plan for your " + p.printer + ": ";
+}
+function plWaLink(p, kind){ return "https://wa.me/" + plWaNumber(p.phone) + "?text=" + encodeURIComponent(plWaText(p, kind)); }
+const PL_KIND_LABEL = { pending: "Payment", price: "Quote", due: "Service due", expiring: "Expiring", other: "Other" };
+function plFollowUp(p){
+  const acts = p.actions || [], sent = PL.sent && PL.sent.id === p.id ? PL.sent.kind : "";
+  const c = p.contact;
+  const last = c ? '<p class="hint" style="margin:4px 0">Last follow-up: ' + plDate(c.date) + ' by ' + esc(c.by) + ' (' + esc(PL_KIND_LABEL[c.kind] || c.kind) + ')' + (c.note ? ': ' + esc(c.note) : '') + '</p>' : '';
+  const row = (kind, text, snoozed) => '<li><span>' + esc(text) + (snoozed ? ' <span class="tag off">followed up</span>' : '') + '</span>' +
+    '<span class="jmbtns" style="margin:0"><a class="mini' + (kind === "other" || snoozed ? '' : ' primary') + '" href="' + esc(plWaLink(p, kind)) + '" target="_blank" rel="noopener" data-plwa="' + kind + '">WhatsApp</a>' +
+    (sent === kind ? '<button type="button" class="mini primary" data-plcontact="' + kind + '">Sent it? Log follow-up</button>' : '<button type="button" class="mini" data-plcontact="' + kind + '">Log follow-up</button>') + '</span></li>';
+  const items = acts.map(a => row(a.kind, a.text, a.snoozed)).join("") + row("other", "Other message", false);
+  return '<h3 class="sub">Follow-up</h3>' + last + '<ul class="plhist plfu">' + items + '</ul>';
+}
+function plJobs(p){
+  if(!PL.admin && !(p.openJobs || []).length) return "";
+  const open = (p.openJobs || []).map(j => '<li><span>' + esc(j.jobNo) + ' · ' + esc(j.status) + (j.date ? ' · ' + plDate(j.date) : '') + '</span>' +
+    (PL.admin ? '<button type="button" class="mini" data-plunlink="' + esc(j.jobNo) + '">Take off plan</button>' : '') + '</li>').join("");
+  let link = "";
+  if(PL.admin && p.status === "Active"){
+    const cands = (p.candidates || []).map(j => '<li><span>' + esc(j.jobNo) + ' · ' + esc(j.status) + (j.date ? ' · ' + plDate(j.date) : '') + '<br><small class="hint" style="margin:0">' +
+      esc(j.name) + ' · ' + esc(j.printer) + ' · SN ' + esc(j.serial || "none") + (j.sameSerial ? '' : ' (not the plan\'s SN)') + '</small></span>' +
+      '<button type="button" class="mini" data-pllink="' + esc(j.jobNo) + '">Put on plan</button></li>').join("");
+    link = (cands ? '<p class="hint" style="margin:8px 0 0">Open jobs from this customer that are not on a plan:</p><ul class="plhist">' + cands + '</ul>' : '') +
+      '<div class="plform"><label class="f">Job No.<input id="plLinkNo" placeholder="LBL-MDR-20261112-01" autocomplete="off"></label><button type="button" class="mini" data-pllink="typed">Put on plan</button></div>';
+  }
+  return '<h3 class="sub">Booked on this plan</h3>' + (open ? '<ul class="plhist">' + open + '</ul>' : '<p class="hint">No open jobs booked on this plan.</p>') + link;
+}
+function plEditForm(p, f){
+  const sib = PL.list.filter(x => x.ref === p.ref).length;
+  const field = (id, label, val, type) => '<label class="f">' + label + '<input id="' + id + '" type="' + (type || "text") + '" value="' + esc(val) + '" autocomplete="off"></label>';
+  return '<div class="plform pledit">' + field("plEdName", "Name", f.name) + field("plEdPhone", "Phone", f.phone, "tel") + field("plEdEmail", "Email", f.email, "email") + field("plEdSn", "Printer SN", f.sn) +
+    (sib > 1 ? '<label class="plcheck"><input type="checkbox" id="plEdAll"' + (f.all ? ' checked' : '') + '> Change name, phone and email on all ' + sib + ' printers of ' + esc(p.ref) + '</label>' : '') +
+    '<small>A new email changes the email the customer signs in to My Care Plans with.</small>' +
+    '<button type="button" class="primary mini" data-pledsave="1">Save details</button><button type="button" class="mini" data-plformclose="1">Back</button></div>';
 }
 function plDetail(p){
   const sib = PL.list.filter(x => x.ref === p.ref);
@@ -4144,6 +4211,7 @@ function plDetail(p){
     ["Plan price", priced ? "SGD " + p.price + (sib.length > 1 && p.total !== "" ? " (sign-up total SGD " + p.total + ")" : "") : "To be quoted: fill in Plan Price (SGD) on the Care Plans tab"],
     ["Paid", p.paidOn ? plDate(p.paidOn) + (p.method ? " by " + p.method : "") : "Not yet"],
     ["Valid until", p.expiresOn ? plDate(p.expiresOn) + (p.extendedOn ? " (extended on " + plDate(p.extendedOn) + ")" : "") : "Starts when paid"],
+    ["Last Service Job", p.lastUsed ? plDate(p.lastUsed) : ""],
     ["Notes", p.notes]].filter(r => r[1]);
   const hist = (p.history || []).length
     ? '<ul class="plhist">' + p.history.map(h => '<li><span class="' + (h.status === "Used" ? "" : "undone") + '">' + esc(h.jobNo) + ' · ' + plDate(h.date) + '</span>' +
@@ -4151,9 +4219,9 @@ function plDetail(p){
         (PL.admin && h.status === "Used" ? '<button type="button" class="mini" data-plundo="' + esc(h.jobNo) + '">Undo</button>' : '') +
         (h.notes ? '<small class="hint" style="margin:0">' + esc(h.notes) + '</small>' : '') + '</li>').join("") + '</ul>'
     : '<p class="hint">No Service Jobs counted yet.</p>';
+  const f = PL.form && PL.form.id === p.id ? PL.form : null;
   let acts = "";
   if(PL.admin){
-    const f = PL.form && PL.form.id === p.id ? PL.form : null;
     if(p.status === "Pending Payment"){
       acts = f && f.kind === "paid"
         ? plPayForm(f, "Mark paid" + (sib.length > 1 ? " (all " + sib.length + " printers)" : ""), true)
@@ -4163,8 +4231,12 @@ function plDetail(p){
       acts = f && f.kind === "extend" ? plPayForm(f, label, false) : '<div class="jmbtns"><button type="button" class="mini" data-plform="extend">' + label + '</button></div>';
     }
   }
-  return '<div class="pldetail"><dl>' + info.map(([k, v]) => '<dt>' + k + '</dt><dd>' + esc(v) + '</dd>').join("") + '</dl>' +
-    '<h3 class="sub">Service Jobs on this plan</h3>' + hist + acts + '</div>';
+  const edit = PL.admin && plV7() && p.status !== "Cancelled"
+    ? (f && f.kind === "edit" ? plEditForm(p, f) : '<div class="jmbtns"><button type="button" class="mini" data-plform="edit">Edit details</button></div>') : "";
+  return '<div class="pldetail"><dl>' + info.map(([k, v]) => '<dt>' + k + '</dt><dd>' + esc(v) + '</dd>').join("") + '</dl>' + edit +
+    (plV7() && p.status !== "Cancelled" && p.status !== "Expired" ? plFollowUp(p) : '') +
+    (plV7() ? plJobs(p) : '') +
+    '<h3 class="sub">Service Jobs counted on this plan</h3>' + hist + acts + '</div>';
 }
 function plPayForm(f, label, withDate){
   return '<div class="plform">' +
@@ -4177,13 +4249,27 @@ const plPane = document.getElementById("plPane");
 plPane.addEventListener("input", e => {
   if(e.target.id === "plFind"){ PL.find = e.target.value; renderPlList(); }
   if(e.target.id === "plPaidOn" && PL.form) PL.form.paidOn = e.target.value;
+  const ed = { plEdName: "name", plEdPhone: "phone", plEdEmail: "email", plEdSn: "sn" }[e.target.id];
+  if(ed && PL.form) PL.form[ed] = e.target.value;
 });
-plPane.addEventListener("change", e => { if(e.target.dataset.plmethod && PL.form) PL.form.method = e.target.value; });
+plPane.addEventListener("change", e => {
+  if(e.target.dataset.plmethod && PL.form) PL.form.method = e.target.value;
+  if(e.target.id === "plEdAll" && PL.form) PL.form.all = e.target.checked;
+});
 plPane.addEventListener("click", async e => {
+  // The WhatsApp link opens normally; afterwards the row asks to log the follow-up.
+  const wa = e.target.closest("a[data-plwa]");
+  if(wa){ PL.sent = { id: PL.open, kind: wa.dataset.plwa }; setTimeout(renderPlList, 300); return; }
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.plfilter){ PL.filter = b.dataset.plfilter; PL.open = ""; PL.form = null; renderPl(); return; }
-  if(b.dataset.plopen){ PL.open = PL.open === b.dataset.plopen ? "" : b.dataset.plopen; PL.form = null; renderPlList(); return; }
-  if(b.dataset.plform){ PL.form = { id: PL.open, kind: b.dataset.plform, method: "", paidOn: PL.today }; renderPlList(); return; }
+  if(b.dataset.plopen){ PL.open = PL.open === b.dataset.plopen ? "" : b.dataset.plopen; PL.form = null; PL.sent = null; renderPlList(); return; }
+  if(b.dataset.plform){
+    const cur = PL.list.find(x => x.id === PL.open) || {};
+    PL.form = b.dataset.plform === "edit"
+      ? { id: PL.open, kind: "edit", name: cur.customer || "", phone: cur.phone || "", email: cur.email || "", sn: cur.sn || "", all: true }
+      : { id: PL.open, kind: b.dataset.plform, method: "", paidOn: PL.today };
+    renderPlList(); return;
+  }
   if(b.dataset.plformclose){ PL.form = null; renderPlList(); return; }
   const p = PL.list.find(x => x.id === PL.open); if(!p) return;
   let body = null, done = "";
@@ -4199,6 +4285,22 @@ plPane.addEventListener("click", async e => {
   } else if(b.dataset.plundo){
     const why = prompt("Take " + b.dataset.plundo + " off " + p.id + "? Say why (kept with the record)."); if(!why || !why.trim()) return;
     body = { action: "planUndoUsage", jobNo: b.dataset.plundo, reason: why.trim() }; done = b.dataset.plundo + " taken off the plan.";
+  } else if(b.dataset.pllink){
+    const jobNo = b.dataset.pllink === "typed" ? (document.getElementById("plLinkNo") || {}).value || "" : b.dataset.pllink;
+    if(!jobNo.trim()){ plStatus("err", "Enter the Job No."); return; }
+    if(!confirm("Put " + jobNo.trim() + " on " + p.id + " (" + p.customer + ", " + p.printer + ")?\n\nIts Service Job becomes $0 on the plan. You'll need to update the quote in Xero.")) return;
+    body = { action: "planLinkJob", planId: p.id, jobNo: jobNo.trim() };
+  } else if(b.dataset.plunlink){
+    const why = prompt("Take " + b.dataset.plunlink + " off " + p.id + "? Say why (kept with the record)."); if(!why || !why.trim()) return;
+    body = { action: "planUnlinkJob", planId: p.id, jobNo: b.dataset.plunlink, reason: why.trim() };
+  } else if(b.dataset.pledsave){
+    const f = PL.form; if(!f) return;
+    body = { action: "planEditDetails", planId: p.id, name: f.name, phone: f.phone, email: f.email, sn: f.sn, applyToSignup: !!f.all };
+  } else if(b.dataset.plcontact){
+    const kind = b.dataset.plcontact;
+    const note = prompt("Log a " + (PL_KIND_LABEL[kind] || "").toLowerCase() + " follow-up for " + p.customer + ". Add a short note (optional):", PL.sent && PL.sent.kind === kind ? "WhatsApp sent" : "");
+    if(note === null) return;
+    body = { action: "planContacted", planId: p.id, kind: kind, note: note.trim() }; done = "Follow-up logged.";
   }
   if(!body) return;
   body.saveId = "pl-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); // a retry never acts twice
@@ -4206,9 +4308,9 @@ plPane.addEventListener("click", async e => {
   try{
     const out = await callSheet(body);
     if(out.result !== "success"){ if(isAuthMsg(out.message)) lock(authText(out.message)); else plStatus("err", out.message); return; }
-    PL.form = null;
+    PL.form = null; PL.sent = null;
     await loadPlans();
-    plStatus("ok", done + (body.action !== "planMarkPaid" ? "" : out.emailed ? " Confirmation emailed to the customer." : " The confirmation email did NOT go out: tell the customer."));
+    plStatus("ok", out.message || (done + (body.action !== "planMarkPaid" ? "" : out.emailed ? " Confirmation emailed to the customer." : " The confirmation email did NOT go out: tell the customer.")));
     refreshJobsQuietly(); // plan notes on the jobs
   }catch(err){ plStatus("err", "No connection? Try again."); }
   finally{ b.disabled = false; }
