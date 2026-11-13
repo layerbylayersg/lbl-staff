@@ -311,7 +311,7 @@
   .prbrand[aria-pressed="true"]{background:var(--green-700);border-color:var(--green-700);color:#fff} .prbrand[aria-pressed="true"] small{color:#E4F0D2}
   .prgroup{display:flex;align-items:baseline;gap:8px;padding:16px 10px 6px;font-size:14.5px;font-weight:700;color:var(--ink);border-bottom:2px solid var(--line)}
   .prgroup small{font-size:12.5px;font-weight:500;color:var(--muted)}
-  .prcheckall{height:36px;border-radius:10px;margin-left:auto} .prcheckall + .prsaveall{margin-left:0}
+  .prcheckall{height:36px;border-radius:10px;margin-left:auto} .prseo{display:flex;align-items:center;gap:8px;height:auto} .prcheckall + .prsaveall{margin-left:0}
   .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
   .prhead,.prow{display:grid;grid-template-columns:minmax(0,2fr) 76px 170px 190px minmax(0,1.3fr) 92px;gap:10px;align-items:center}
   .prhead{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line)}
@@ -4387,17 +4387,19 @@ function rsPrMarginHtml(s){
       : v < rsPrSuggest(s).floor ? '<small class="pwarn">⚠ Under your ' + rsMinMargin() + '% minimum (floor $' + money(rsPrSuggest(s).floor) + ')</small>' : '') +
     (v < c ? '<small class="pwarn">⚠ Below cost: loses money everywhere</small>' : '');
 }
+// Market checks are done by Seo (Claude), not here: these links open Claude with the request typed in.
+const SEO_SHEET = "LBL_Operations Stock tab";
+const askSeoUrl = items => "https://claude.ai/new?q=" + encodeURIComponent("Seo, check market prices now for these Layer By Layer stock items (" + SEO_SHEET + "), as a set where they are the same product in different colours. Write only Market Typical (K), Recommended (L) and Market Checked (M); do not change Sell Price or Direct Price. Items: " + items.map(x => x.name + " (" + x.code + ")").join("; "));
+const askSeoLink = (items, label) => '<a class="linkbtn" href="' + esc(askSeoUrl(items)) + '" target="_blank" rel="noopener">' + label + '</a>';
 function rsPrMktHtml(s){
   const m = rsPrMkt[s.code];
-  if(m && m.loading) return '<span class="muted">Checking Shopee, local sellers and the official store…</span>';
-  if(m && m.error) return '<span class="up">' + esc(m.error) + '</span> <button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">Try again</button>';
   const g = rsPrSuggest(s), d = m && m.data;
   return (g.src ? '<small class="muted">' + esc(g.src) + '</small><br>' : '') +
     (g.price ? '<button type="button" class="linkbtn" data-pruse="' + esc(s.code) + '" data-v="' + g.price + '">Use $' + money(g.price) + '</button> <small class="muted">suggested</small><br>' : '') +
     (g.belowFloor ? '<small class="pwarn">⛔ Market ~$' + money(g.bench) + ' is below your floor $' + money(g.floor) + '. Bundle it, or sell direct only</small>' : '') +
     (g.direct && g.direct < g.price ? (rsHas("direct") ? '<button type="button" class="linkbtn" data-prusedir="' + esc(s.code) + '" data-v="' + g.direct + '">Use $' + money(g.direct) + '</button> <small class="muted">for Carousell / website</small><br>'
       : '<small>Direct (Carousell / website) could be $' + money(g.direct) + '</small><br>') : '') +
-    '<button type="button" class="linkbtn" data-prmkt="' + esc(s.code) + '">🔎 ' + (d || s.mktChecked ? 'Check again' : 'Check market') + '</button>';
+    askSeoLink([s], '🔎 Ask Seo to check' + (d || s.mktChecked ? ' again' : ''));
 }
 function rsPrRowHtml(s){
   const changed = rsPrChanged(s.code), msg = rsPrMsg[s.code];
@@ -5115,7 +5117,7 @@ function renderRs(){
     (prBrands.length > 1 ? '<div class="prbrands" role="group" aria-label="Brand"><span>Brand</span>' + prBrandChip("all", "All brands", prInCat.length) +
       prBrands.map(br => prBrandChip(br, br, prInCat.filter(x => rsBrandOf(x) === br).length)).join("") + '</div>' : '') +
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
-      '<button type="button" class="mini prcheckall" data-prcheckall="1"' + (rsPrBusy ? ' disabled' : '') + '>' + (rsPrBusy ? '🔎 Checking ' + rsPrBusy + '…' : '🔎 Check market for these ' + Math.min(prList.filter(x => !(rsPrMkt[x.code] || {}).data).length, 20)) + '</button>' +
+      '<span class="prcheckall prseo"><small class="muted">Seo checks prices every morning at 8am.</small> ' + askSeoLink(prList.slice(0, 20), '🔎 Ask Seo for these ' + Math.min(prList.length, 20)) + '</span>' +
       '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
     '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin · you keep per sale</span><span>Market / suggested</span><span></span></div>' +
     (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
