@@ -137,7 +137,6 @@
   .seg{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
   .seg button{height:36px;padding:0 18px;border:0;background:transparent;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:600;border-radius:7px;cursor:pointer}
   .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-  .rsbundle{margin:10px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px} .rsbundle summary{cursor:pointer} .rsbundle[open] summary{margin-bottom:8px}
   #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s,#rsPane:not([data-view="pricing"]) .rs-pr,#rsPane[data-view="pricing"] .rs-p,#rsPane[data-view="pricing"] .rs-s,#rsPane[data-view="used"] .rs-p,#rsPane[data-view="used"] .rs-s,#rsPane:not([data-view="used"]) .rs-u{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
   /* Stock view: summary tiles that filter, a tappable list, and the item's actions opening under its row */
   .rsstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
@@ -4570,7 +4569,7 @@ function rsBoxPlan(){
   return plan;
 }
 function rsCloseSheet(){
-  const g = rsBrowse; rsBrowse = null; rsSheetFind = ""; rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; renderRs();
+  const g = rsBrowse; rsBrowse = null; rsSheetFind = ""; rsB = { id: "", qty: 1, channel: "", note: "", sold: "" }; rsOut = { code: "", kind: "out", qty: 1, channel: "", note: "" }; renderRs();
   const b = g && rsPane.querySelector('[data-rsbrowse="' + g.g + '|' + CSS.escape(g.brand) + '"]'); if(b) b.focus({ preventScroll: true });
 }
 // Demo mode is for testing only: its button shows when the address ends in ?demo, never on the normal live page.
@@ -4863,10 +4862,10 @@ const stockOf = code => RS.stock.find(s => s.code === code);
 // Bundles: sold as one, but stock is kept only on the items inside. Selling a bundle takes each item off.
 // ponytail: recipes live here, not in the Sheet; move to a "Bundles" tab if they change often.
 const BUNDLES = [
-  { id: "BDL-DB2-WB", price: null, name: "Dry Box 2.0 + Wire Brush", items: [["DB-V2", 1], ["ACC-WB", 1]] },
-  { id: "BDL-DB2-PT", price: null, name: "Dry Box 2.0 + Prying Tool", items: [["DB-V2", 1], ["ACC-PT", 1]] },
-  { id: "BDL-DB2-DBT", price: null, name: "Dry Box 2.0 + Deburring Tool Set", items: [["DB-V2", 1], ["ACC-DBT", 1], ["ACC-BLD", 1]] },
-  { id: "BDL-DB2-SL", price: null, name: "Dry Box 2.0 + 10 Silica Packs", items: [["DB-V2", 1], ["ACC-SL", 10]] }
+  { id: "BDL-DB2-WB", group: "Dry Box 2.0", price: null, name: "Dry Box 2.0 + Wire Brush", items: [["DB-V2", 1], ["ACC-WB", 1]] },
+  { id: "BDL-DB2-PT", group: "Dry Box 2.0", price: null, name: "Dry Box 2.0 + Prying Tool", items: [["DB-V2", 1], ["ACC-PT", 1]] },
+  { id: "BDL-DB2-DBT", group: "Dry Box 2.0", price: null, name: "Dry Box 2.0 + Deburring Tool Set", items: [["DB-V2", 1], ["ACC-DBT", 1], ["ACC-BLD", 1]] },
+  { id: "BDL-DB2-SL", group: "Dry Box 2.0", price: null, name: "Dry Box 2.0 + 10 Silica Packs", items: [["DB-V2", 1], ["ACC-SL", 10]] }
 ];
 let rsB = { id: "", qty: 1, channel: "", note: "", sold: "" };
 // Cost = items inside at their average cost; unknown if any item has no cost yet.
@@ -4877,18 +4876,16 @@ function rsBundleMoney(b){
     (sold ? ' · Sells at $' + money(sold) + ' · Profit <b class="' + (sold - cost >= 0 ? 'down' : 'up') + '">$' + money(sold - cost) + '</b>' + (miss.length ? ' (before the missing costs)' : '') : ' · <span class="up">No price set</span>');
 }
 const bundleCan = b => Math.min(...b.items.map(([c, n]) => Math.floor(rsQty(stockOf(c) || {}) / n)));
-function rsBundleHtml(){
-  const b = BUNDLES.find(x => x.id === rsB.id);
-  return '<details class="rsbundle"' + (rsB.id ? ' open' : '') + '><summary><b>Sell a bundle</b> <small>takes each item inside off stock</small></summary>' +
-    '<label class="f">Bundle<select data-rsb="id"><option value="">Choose the bundle...</option>' + BUNDLES.map(x => '<option value="' + x.id + '"' + (x.id === rsB.id ? ' selected' : '') + '>' + esc(x.name) + ' (' + bundleCan(x) + ' can be made)</option>').join("") + '</select></label>' +
-    (b ? '<p class="hint" id="rsBMoney">' + rsBundleMoney(b) + '</p>' : '') +
-    (b ? '<p class="hint">Takes off per bundle: ' + b.items.map(([c, n]) => n + ' × ' + esc((stockOf(c) || {}).name || c) + ' (' + rsQty(stockOf(c) || {}) + ' left)').join(' · ') + '</p>' : '') +
+function rsBundlePanel(b){
+  return '<div class="rspanel">' +
+    '<p class="hint" id="rsBMoney">' + rsBundleMoney(b) + '</p>' +
+    '<p class="hint">Takes off per bundle: ' + b.items.map(([c, n]) => n + ' × ' + esc((stockOf(c) || {}).name || c) + ' (' + rsQty(stockOf(c) || {}) + ' left)').join(' · ') + '</p>' +
     '<label class="f">How many bundles?<input type="number" inputmode="numeric" min="1" step="1" data-rsb="qty" value="' + esc(rsB.qty) + '"></label>' +
-    (b ? '<label class="f">Sold for, per bundle (SGD)<input type="number" inputmode="decimal" min="0" step="any" data-rsb="sold" value="' + esc(rsB.sold !== "" ? rsB.sold : (b.price || "")) + '" placeholder="e.g. 24.90"></label>' : '') +
+    '<label class="f">Sold for, per bundle (SGD)<input type="number" inputmode="decimal" min="0" step="any" data-rsb="sold" value="' + esc(rsB.sold !== "" ? rsB.sold : (b.price || "")) + '" placeholder="e.g. 24.90"></label>' +
     '<div class="f"><span>Where did it go?</span><div class="chips" role="radiogroup" aria-label="Where the bundle went">' + RS.channels.filter(ch => !/^Repair/.test(ch)).map(ch => '<label class="chip"><input type="radio" name="rsbchan" data-rsb="channel" value="' + esc(ch) + '"' + (ch === rsB.channel ? ' checked' : '') + '>' + esc(ch) + '</label>').join("") + '</div></div>' +
     '<label class="f">Note / order no. (optional)<input data-rsb="note" value="' + esc(rsB.note) + '" placeholder="e.g. Shopee order 2610xxxx"></label>' +
     '<div class="hoactions"><button type="button" class="primary" id="rsBundleSell" style="grid-column:1 / -1">Take bundle off stock</button></div>' +
-    '<p class="hostatus" id="rsBStatus" role="status"></p></details>';
+    '<p class="hostatus" id="rsBStatus" role="status"></p></div>';
 }
 // Price history for one item: last buy from this merchant, cheapest buy ever.
 function rsHistory(code, merchant){
@@ -5126,13 +5123,25 @@ function renderRs(){
       const its = inCat.filter(s => rsBrandOf(s) === br);
       return '<button type="button" class="rsbrand" data-rsbrowse="' + g + '|' + esc(br) + '"><b>' + esc(br) + '</b><span>' + its.length + ' item' + (its.length === 1 ? '' : 's') + '</span>' + flags(its) + '<span class="rschev" aria-hidden="true">›</span></button>';
     }).join("") + '</div></section>';
-  }).join("");
+  }).join("") + (rsFilter === "all" && BUNDLES.length ? '<section class="rscat"><h3>Bundles<small>' + BUNDLES.length + ' bundle' + (BUNDLES.length === 1 ? '' : 's') + '</small></h3><div class="rsbrands">' +
+    [...new Set(BUNDLES.map(b => b.group))].map(gr => { const its = BUNDLES.filter(b => b.group === gr), none = its.filter(b => bundleCan(b) <= 0).length;
+      return '<button type="button" class="rsbrand" data-rsbrowse="bundles|' + esc(gr) + '"><b>' + esc(gr) + '</b><span>' + its.length + ' bundle' + (its.length === 1 ? '' : 's') + '</span>' + (none ? '<span class="rsbflags"><i class="out">' + none + ' not enough stock</i></span>' : '') + '<span class="rschev" aria-hidden="true">›</span></button>'; }).join("") + '</div></section>' : '');
+  // Bundle window: each bundle like an item row; tapping one opens its sell form.
+  const bRow = b => { const open = b.id === rsB.id, n = bundleCan(b), st = n <= 0 ? "out" : n <= 2 ? "low" : "ok", main = stockOf(b.items[0][0]) || { code: b.items[0][0] };
+    return '<li class="rsrow' + (open ? ' open' : '') + '"><button type="button" class="rsrowbtn" data-rsbopen="' + esc(b.id) + '" aria-expanded="' + open + '">' + thumb(main) +
+      '<span class="rsn">' + esc(b.name) + '<small>' + esc(b.id) + '</small><span class="rsm">' + (b.price ? 'Sells at $' + money(b.price) : 'No price set') + ' · cost $' + money(bundleCost(b).cost) + '</span></span>' +
+      '<span class="rsq ' + st + '"><b>' + n + '</b><small>' + { out: "Can't make", low: "Low", ok: "can make" }[st] + '</small></span><span class="rschev" aria-hidden="true">›</span></button>' + (open ? rsBundlePanel(b) : '') + '</li>'; };
+  const bSheet = () => { const its = BUNDLES.filter(b => b.group === rsBrowse.brand);
+    return '<div class="rssheet rs-s" data-rssheet="1"><div class="rssheetbox" role="dialog" aria-modal="true" aria-labelledby="rsSheetTitle">' +
+      '<div class="rssheethead"><div><small>Bundles · ' + its.length + ' bundle' + (its.length === 1 ? '' : 's') + ' · stock is taken off the items inside</small><h3 id="rsSheetTitle">' + esc(rsBrowse.brand) + '</h3></div>' +
+      '<button type="button" class="mini" data-rsclose="1" aria-label="Close">✕</button></div>' +
+      '<ul class="rslist rsscroll">' + its.map(bRow).join("") + '</ul></div></div>'; };
   // The window: the folder's items (only the tile's ones when a tile is picked), with its own search box.
   const folderAll = rsBrowse ? RS.stock.filter(s => rsGroupOf(s) === rsBrowse.g && rsBrandOf(s) === rsBrowse.brand) : [];
   const folderShown = folderAll.filter(RS_FILTERS[rsFilter]);
   const sWords = rsSheetFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const sheetItems = sorted(folderShown.filter(s => sWords.every(w => (s.code + " " + s.name + (s.location ? " box " + s.location : "")).toLowerCase().includes(w))));
-  const sheet = rsBrowse ? '<div class="rssheet rs-s" data-rssheet="1"><div class="rssheetbox" role="dialog" aria-modal="true" aria-labelledby="rsSheetTitle">' +
+  const sheet = rsBrowse && rsBrowse.g === "bundles" ? bSheet() : rsBrowse ? '<div class="rssheet rs-s" data-rssheet="1"><div class="rssheetbox" role="dialog" aria-modal="true" aria-labelledby="rsSheetTitle">' +
     '<div class="rssheethead"><div><small>' + esc((rsCats().find(c => c[0] === rsBrowse.g) || [, ""])[1]) + ' · ' + folderShown.length + ' ' + filterName + 'item' + (folderShown.length === 1 ? '' : 's') +
       (rsFilter !== "all" && folderAll.length > folderShown.length ? ' <button type="button" class="linkbtn" data-rsshowall="1">Show all ' + folderAll.length + '</button>' : '') + '</small><h3 id="rsSheetTitle">' + esc(rsBrowse.brand) + '</h3>' + flags(folderAll) + '</div>' +
     '<button type="button" class="mini" data-rsclose="1" aria-label="Close">✕</button></div>' +
@@ -5211,7 +5220,6 @@ function renderRs(){
         <label class="f">Sort<select data-rssort="1">${[["sheet", "As listed"], ["name", "A to Z"], ["qty", "Lowest qty first"]].map(([v, t]) => '<option value="' + v + '"' + (rsSort === v ? " selected" : "") + '>' + t + '</option>').join("")}</select></label>
       </div>
 ` : ''}
-      ${RS.stock.length ? rsBundleHtml() : ''}
       ${rsAdd ? rsAddFormHtml() : ''}
       ${stockBody}
     </div>
@@ -5498,6 +5506,7 @@ rsPane.addEventListener("click", async e => {
     finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = rs.costOnly ? "Save cost" : "Save & add to stock"; } } // redrawn with the item count on the next render
     return;
   }
+  if(b.dataset.rsbopen){ rsB = rsB.id === b.dataset.rsbopen ? { id: "", qty: 1, channel: "", note: "", sold: "" } : { id: b.dataset.rsbopen, qty: 1, channel: "", note: "", sold: "" }; renderRs(); return; }
   if(b.id === "rsBundleSell"){
     const bd = BUNDLES.find(x => x.id === rsB.id), n = Number(rsB.qty), st = (k, m) => { const el = document.getElementById("rsBStatus"); if(el){ el.className = "hostatus " + k; el.textContent = m; } };
     if(!bd){ st("err", "Choose the bundle."); return; }
@@ -5515,7 +5524,7 @@ rsPane.addEventListener("click", async e => {
         if(out.result !== "success") throw new Error(c + ": " + out.message);
         done.push(c);
       }
-      rsB = { id: "", qty: 1, channel: "", note: "", sold: "" };
+      rsB = { id: bd.id, qty: 1, channel: "", note: "", sold: "" };
       await loadStock();
       st("ok", n + " × " + bd.name + " taken off stock (" + done.join(", ") + ").");
     }catch(err){
