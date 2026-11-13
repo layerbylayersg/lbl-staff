@@ -311,6 +311,7 @@
   .prbrand[aria-pressed="true"]{background:var(--green-700);border-color:var(--green-700);color:#fff} .prbrand[aria-pressed="true"] small{color:#E4F0D2}
   .prgroup{display:flex;align-items:baseline;gap:8px;padding:16px 10px 6px;font-size:14.5px;font-weight:700;color:var(--ink);border-bottom:2px solid var(--line)}
   .prgroup small{font-size:12.5px;font-weight:500;color:var(--muted)}
+  .reqlist{list-style:none;margin:0;padding:0;display:grid;gap:8px} .reqlist li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px} .reqlist small{display:block;color:var(--ink-2)} .reqlist .reqissue{margin-top:2px} .reqlist button{flex:none;min-height:44px} .reqalert{margin-top:10px}
   .prcheckall{height:36px;border-radius:10px;margin-left:auto} .prseo{display:flex;align-items:center;gap:8px;height:auto} .prcheckall + .prsaveall{margin-left:0}
   .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
   .prhead,.prow{display:grid;grid-template-columns:minmax(0,2fr) 76px 170px 190px minmax(0,1.3fr) 92px;gap:10px;align-items:center}
@@ -3327,7 +3328,7 @@ function setMode(m){
     renderCl(); loadClaims();
   }
   if(m === "restock"){ renderRs(); loadStock(); }
-  if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); }
+  if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); loadRequests(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
   if(m === "buyback"){ renderBb(); loadBb(); }
   if(m === "plans"){ renderPl(); loadPlans(); }
@@ -3414,7 +3415,56 @@ function clFromCache(){
   if(k && k.name === ME()) CL = { jobs: k.jobs, claims: outbox.pending("petrol").map(it => it.claim).filter(Boolean).concat(k.claims), perTrip: k.perTrip, loaded: true, loading: false };
 }
 // ===== Dashboard (home page): one card per area; add more cards to DASH_CARDS =====
+// ----- New job requests: anyone can take one ("I'll take it"); alerts on this phone via Web Push -----
+let REQ = { list: [], loaded: false, loading: false, msg: "", kind: "", busy: "" };
+async function loadRequests(){
+  if(REQ.loading) return; REQ.loading = true;
+  try{ const out = await callSheet({ action: "jobRequests" }); if(out.result === "success"){ REQ.list = out.requests || []; REQ.loaded = true; } }
+  catch(e){}
+  finally{ REQ.loading = false; if(document.body.classList.contains("mode-dash")) renderDash(); }
+}
+const pushOk = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+function alertsHtml(){
+  if(!pushOk()) return '<p class="hint reqalert">' + (isIOS() && !isStandalone()
+    ? '🔔 To get job alerts on this iPhone: tap <b>Share → Add to Home Screen</b>, then open <b>LBL Staff</b> from the home-screen icon and turn alerts on here.'
+    : '🔔 Job alerts are not supported in this browser.') + '</p>';
+  if(Notification.permission === "denied") return '<p class="hint reqalert">🔕 Alerts are blocked for LBL Staff. Turn them on in the phone Settings → Notifications → LBL Staff.</p>';
+  return lsGet("lbl-push") === ME() && Notification.permission === "granted"
+    ? '<p class="hint reqalert">🔔 Job alerts are on for this phone. <button type="button" class="linkbtn" data-pushtest="1">Send me a test</button></p>'
+    : '<p class="reqalert"><button type="button" class="mini primary" data-pushon="1">🔔 Turn on job alerts</button> <small class="hint">Get a notification on this phone when a new job request comes in.</small></p>';
+}
+function reqHtml(){
+  const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return !t || isNaN(m) ? "" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
+  const list = !REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
+    : !REQ.list.length ? '<p class="hint">No new job requests. Everything has been taken.</p>'
+    : '<ul class="reqlist">' + REQ.list.map(r => '<li><div><b>' + esc(r.machine || "Job request") + '</b> · ' + esc(r.name || "") +
+        '<small>' + esc(r.quoteNo) + (r.at ? ' · ' + ago(r.at) : '') + (/^y/i.test(r.transport) ? ' · transport' : '') + '</small>' +
+        (r.issue ? '<small class="reqissue">' + esc(r.issue) + '</small>' : '') + '</div>' +
+        '<button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></li>').join("") + '</ul>';
+  return list + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
+}
+async function pushOn(){
+  REQ.msg = "";
+  try{
+    const reg = await navigator.serviceWorker.register("sw.js");
+    const perm = await Notification.requestPermission();
+    if(perm !== "granted"){ REQ.msg = "Alerts not turned on (permission not given)."; REQ.kind = "err"; return; }
+    const k = await callSheet({ action: "pushKey" }); if(k.result !== "success") throw new Error(k.message);
+    const raw = atob(k.key.replace(/-/g, "+").replace(/_/g, "/")), key = Uint8Array.from(raw, c => c.charCodeAt(0));
+    let sub = await reg.pushManager.getSubscription();
+    if(sub){ try{ await sub.unsubscribe(); }catch(e){} }
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    const out = await callSheet({ action: "pushSubscribe", endpoint: sub.endpoint }); if(out.result !== "success") throw new Error(out.message);
+    lsSet("lbl-push", ME()); REQ.msg = "Job alerts are on. Tap “Send me a test” to check."; REQ.kind = "ok";
+  }catch(e){ REQ.msg = "Could not turn on alerts: " + (e.message || e); REQ.kind = "err"; }
+  finally{ renderDash(); }
+}
+if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => { if(e.data && e.data.type === "job-request"){ setMode("dash"); loadRequests(); } });
+document.addEventListener("visibilitychange", () => { if(!document.hidden && document.body.classList.contains("mode-dash")) loadRequests(); });
 const DASH_CARDS = [
+  { title: "New job requests", html: () => reqHtml(), wide: true },
   { title: "This month", html: () => dashMonthHtml(), wide: true },
   { title: "Job mix, last 6 months", html: () => dashMixHtml() },
   { title: "Received, last 6 months", html: () => dashRecvHtml() },
@@ -3580,6 +3630,18 @@ document.getElementById("dashPane").addEventListener("click", e => {
   if(b.dataset.dashmonth){ dashMonth = b.dataset.dashmonth; renderDash(); return; }
   if(b.dataset.dashrefresh){ loadDash(true); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
+  if(b.dataset.pushon){ b.disabled = true; pushOn(); return; }
+  if(b.dataset.pushtest){ b.disabled = true; callSheet({ action: "pushTest" }).then(o => { REQ.msg = o.result === "success" ? (o.sent ? "Test sent. It should appear in a few seconds." : "No alert address for you yet. Turn alerts on again.") : o.message; REQ.kind = o.result === "success" && o.sent ? "ok" : "err"; renderDash(); }).catch(() => { REQ.msg = "No connection?"; REQ.kind = "err"; renderDash(); }); return; }
+  if(b.dataset.claim){
+    const no = b.dataset.claim; REQ.busy = no; REQ.msg = ""; renderDash();
+    callSheet({ action: "claimJob", quoteNo: no }).then(async o => {
+      REQ.busy = "";
+      if(o.result === "success"){ REQ.list = REQ.list.filter(r => r.quoteNo !== no); REQ.msg = no + " is yours. It is now Confirmed and in your jobs."; REQ.kind = "ok"; try{ await loadJobs(); }catch(e){} }
+      else { REQ.msg = o.message || "Could not take the job."; REQ.kind = "err"; loadRequests(); }
+      renderDash();
+    }).catch(() => { REQ.busy = ""; REQ.msg = "Not taken: no connection? Try again."; REQ.kind = "err"; renderDash(); });
+    return;
+  }
 });
 clPane.addEventListener("change", e => {
   const t = e.target;
