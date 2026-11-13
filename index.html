@@ -137,6 +137,7 @@
   .seg{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
   .seg button{height:36px;padding:0 18px;border:0;background:transparent;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:600;border-radius:7px;cursor:pointer}
   .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .rsbundle{margin:10px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px} .rsbundle summary{cursor:pointer} .rsbundle[open] summary{margin-bottom:8px}
   #rsPane[data-view="stock"] .rs-p,#rsPane[data-view="purchase"] .rs-s,#rsPane:not([data-view="pricing"]) .rs-pr,#rsPane[data-view="pricing"] .rs-p,#rsPane[data-view="pricing"] .rs-s,#rsPane[data-view="used"] .rs-p,#rsPane[data-view="used"] .rs-s,#rsPane:not([data-view="used"]) .rs-u{display:none} .cllist td.low{color:var(--red-ink);font-weight:700}
   /* Stock view: summary tiles that filter, a tappable list, and the item's actions opening under its row */
   .rsstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
@@ -4859,6 +4860,27 @@ function rsCalc(){
   return { value, extras, order, sgd, factor, units: items.map(it => factor ? it.unit * factor : 0) };
 }
 const stockOf = code => RS.stock.find(s => s.code === code);
+// Bundles: sold as one, but stock is kept only on the items inside. Selling a bundle takes each item off.
+// ponytail: recipes live here, not in the Sheet; move to a "Bundles" tab if they change often.
+const BUNDLES = [
+  { id: "BDL-DB2-WB", name: "Dry Box 2.0 + Wire Brush", items: [["DB-V2", 1], ["ACC-WB", 1]] },
+  { id: "BDL-DB2-PT", name: "Dry Box 2.0 + Prying Tool", items: [["DB-V2", 1], ["ACC-PT", 1]] },
+  { id: "BDL-DB2-DBT", name: "Dry Box 2.0 + Deburring Tool Set", items: [["DB-V2", 1], ["ACC-DBT", 1], ["ACC-BLD", 1]] },
+  { id: "BDL-DB2-SL", name: "Dry Box 2.0 + 10 Silica Packs", items: [["DB-V2", 1], ["ACC-SL", 10]] }
+];
+let rsB = { id: "", qty: 1, channel: "", note: "" };
+const bundleCan = b => Math.min(...b.items.map(([c, n]) => Math.floor(rsQty(stockOf(c) || {}) / n)));
+function rsBundleHtml(){
+  const b = BUNDLES.find(x => x.id === rsB.id);
+  return '<details class="rsbundle"' + (rsB.id ? ' open' : '') + '><summary><b>Sell a bundle</b> <small>takes each item inside off stock</small></summary>' +
+    '<label class="f">Bundle<select data-rsb="id"><option value="">Choose the bundle...</option>' + BUNDLES.map(x => '<option value="' + x.id + '"' + (x.id === rsB.id ? ' selected' : '') + '>' + esc(x.name) + ' (' + bundleCan(x) + ' can be made)</option>').join("") + '</select></label>' +
+    (b ? '<p class="hint">Takes off per bundle: ' + b.items.map(([c, n]) => n + ' × ' + esc((stockOf(c) || {}).name || c) + ' (' + rsQty(stockOf(c) || {}) + ' left)').join(' · ') + '</p>' : '') +
+    '<label class="f">How many bundles?<input type="number" inputmode="numeric" min="1" step="1" data-rsb="qty" value="' + esc(rsB.qty) + '"></label>' +
+    '<div class="f"><span>Where did it go?</span><div class="chips" role="radiogroup" aria-label="Where the bundle went">' + RS.channels.filter(ch => !/^Repair/.test(ch)).map(ch => '<label class="chip"><input type="radio" name="rsbchan" data-rsb="channel" value="' + esc(ch) + '"' + (ch === rsB.channel ? ' checked' : '') + '>' + esc(ch) + '</label>').join("") + '</div></div>' +
+    '<label class="f">Note / order no. (optional)<input data-rsb="note" value="' + esc(rsB.note) + '" placeholder="e.g. Shopee order 2610xxxx"></label>' +
+    '<div class="hoactions"><button type="button" class="primary" id="rsBundleSell" style="grid-column:1 / -1">Take bundle off stock</button></div>' +
+    '<p class="hostatus" id="rsBStatus" role="status"></p></details>';
+}
 // Price history for one item: last buy from this merchant, cheapest buy ever.
 function rsHistory(code, merchant){
   const h = RS.history.filter(x => x.code === code);
@@ -5180,6 +5202,7 @@ function renderRs(){
         <label class="f">Sort<select data-rssort="1">${[["sheet", "As listed"], ["name", "A to Z"], ["qty", "Lowest qty first"]].map(([v, t]) => '<option value="' + v + '"' + (rsSort === v ? " selected" : "") + '>' + t + '</option>').join("")}</select></label>
       </div>
 ` : ''}
+      ${RS.stock.length ? rsBundleHtml() : ''}
       ${rsAdd ? rsAddFormHtml() : ''}
       ${stockBody}
     </div>
@@ -5261,6 +5284,7 @@ rsPane.addEventListener("input", e => {
   if(t.id === "rsCostNew"){ rsOut.costNew = t.value; return; }
   if(t.id === "rsNewCode"){ rsOut.newCode = t.value; const s = stockOf(rsOut.code), h = document.getElementById("rsRecodeHint"); if(s && h) h.innerHTML = rsRecodeHint(s); return; }
   if(t.id === "rsCostWhy"){ rsOut.costWhy = t.value; return; }
+  if(t.dataset.rsb && t.type !== "radio" && t.tagName !== "SELECT"){ rsB[t.dataset.rsb] = t.value; return; }
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
@@ -5328,6 +5352,7 @@ rsPane.addEventListener("change", e => {
   const t = e.target;
   if(t.dataset.rsscan){ rsAddImages(t.files); t.value = ""; return; }
   if(t.dataset.rssort){ rsSort = t.value; renderRs(); return; }
+  if(t.dataset.rsb){ rsB[t.dataset.rsb] = t.value; if(t.dataset.rsb === "id") renderRs(); return; }
   if(t.dataset.rsmerch){
     rs.merchantNew = t.value === "__new"; rs.merchant = rs.merchantNew ? "" : t.value;
     rsDirty = true; renderRs();
@@ -5462,6 +5487,32 @@ rsPane.addEventListener("click", async e => {
         : "Stock updated.") + (opened.length ? " New box" + (opened.length > 1 ? "es" : "") + " opened: " + opened.join(", ") + ". Print a label for " + (opened.length > 1 ? "them" : "it") + "." : ""));
     }catch(err){ rsStatus("err", "NOT saved: no connection? Try again."); }
     finally{ const s = document.getElementById("rsSave"); if(s){ s.disabled = false; s.textContent = rs.costOnly ? "Save cost" : "Save & add to stock"; } } // redrawn with the item count on the next render
+    return;
+  }
+  if(b.id === "rsBundleSell"){
+    const bd = BUNDLES.find(x => x.id === rsB.id), n = Number(rsB.qty), st = (k, m) => { const el = document.getElementById("rsBStatus"); if(el){ el.className = "hostatus " + k; el.textContent = m; } };
+    if(!bd){ st("err", "Choose the bundle."); return; }
+    if(!(n >= 1) || n !== Math.floor(n)){ st("err", "Type how many bundles (1 or more)."); return; }
+    if(!rsB.channel){ st("err", "Pick where it went."); return; }
+    const missing = bd.items.filter(([c]) => !stockOf(c)).map(([c]) => c);
+    if(missing.length){ st("err", "Not in stock list: " + missing.join(", ") + ". Nothing taken off."); return; }
+    const short = bd.items.filter(([c, q]) => rsQty(stockOf(c)) < q * n);
+    if(short.length && !confirm("Not enough of: " + short.map(([c, q]) => stockOf(c).name + " (" + rsQty(stockOf(c)) + " left, need " + q * n + ")").join(", ") + ". Take off anyway? Stock will go below zero.")) return;
+    b.disabled = true; const done = [];
+    try{
+      for(const [c, q] of bd.items){
+        const out = await rsCall({ action: "stockMove", kind: "out", code: c, qty: q * n, channel: rsB.channel, note: "Bundle " + bd.id + " ×" + n + (rsB.note ? " · " + rsB.note : ""), by: rs.by, jobNo: "" });
+        if(out.result !== "success") throw new Error(c + ": " + out.message);
+        done.push(c);
+      }
+      rsB = { id: "", qty: 1, channel: "", note: "" };
+      await loadStock();
+      st("ok", n + " × " + bd.name + " taken off stock (" + done.join(", ") + ").");
+    }catch(err){
+      await loadStock();
+      st("err", "Stopped: " + (err.message || "no connection?") + (done.length ? ". Already taken off: " + done.join(", ") + ". Take off the rest by hand, or count them." : ". Nothing taken off."));
+    }
+    finally{ const x = document.getElementById("rsBundleSell"); if(x) x.disabled = false; }
     return;
   }
   if(b.id === "rsMove"){
