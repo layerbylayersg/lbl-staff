@@ -4863,19 +4863,28 @@ const stockOf = code => RS.stock.find(s => s.code === code);
 // Bundles: sold as one, but stock is kept only on the items inside. Selling a bundle takes each item off.
 // ponytail: recipes live here, not in the Sheet; move to a "Bundles" tab if they change often.
 const BUNDLES = [
-  { id: "BDL-DB2-WB", name: "Dry Box 2.0 + Wire Brush", items: [["DB-V2", 1], ["ACC-WB", 1]] },
-  { id: "BDL-DB2-PT", name: "Dry Box 2.0 + Prying Tool", items: [["DB-V2", 1], ["ACC-PT", 1]] },
-  { id: "BDL-DB2-DBT", name: "Dry Box 2.0 + Deburring Tool Set", items: [["DB-V2", 1], ["ACC-DBT", 1], ["ACC-BLD", 1]] },
-  { id: "BDL-DB2-SL", name: "Dry Box 2.0 + 10 Silica Packs", items: [["DB-V2", 1], ["ACC-SL", 10]] }
+  { id: "BDL-DB2-WB", price: null, name: "Dry Box 2.0 + Wire Brush", items: [["DB-V2", 1], ["ACC-WB", 1]] },
+  { id: "BDL-DB2-PT", price: null, name: "Dry Box 2.0 + Prying Tool", items: [["DB-V2", 1], ["ACC-PT", 1]] },
+  { id: "BDL-DB2-DBT", price: null, name: "Dry Box 2.0 + Deburring Tool Set", items: [["DB-V2", 1], ["ACC-DBT", 1], ["ACC-BLD", 1]] },
+  { id: "BDL-DB2-SL", price: null, name: "Dry Box 2.0 + 10 Silica Packs", items: [["DB-V2", 1], ["ACC-SL", 10]] }
 ];
-let rsB = { id: "", qty: 1, channel: "", note: "" };
+let rsB = { id: "", qty: 1, channel: "", note: "", sold: "" };
+// Cost = items inside at their average cost; unknown if any item has no cost yet.
+const bundleCost = b => { const miss = b.items.filter(([c]) => !(Number((stockOf(c) || {}).avg) > 0)).map(([c]) => (stockOf(c) || {}).name || c); return { cost: b.items.reduce((t, [c, n]) => t + (Number((stockOf(c) || {}).avg) || 0) * n, 0), miss }; };
+function rsBundleMoney(b){
+  const { cost, miss } = bundleCost(b), sold = Number(rsB.sold !== "" ? rsB.sold : b.price) || 0;
+  return 'Cost $' + money(cost) + (miss.length ? ' <span class="up">(no cost yet for ' + esc(miss.join(", ")) + ')</span>' : '') +
+    (sold ? ' · Sells at $' + money(sold) + ' · Profit <b class="' + (sold - cost >= 0 ? 'down' : 'up') + '">$' + money(sold - cost) + '</b>' + (miss.length ? ' (before the missing costs)' : '') : ' · <span class="up">No price set</span>');
+}
 const bundleCan = b => Math.min(...b.items.map(([c, n]) => Math.floor(rsQty(stockOf(c) || {}) / n)));
 function rsBundleHtml(){
   const b = BUNDLES.find(x => x.id === rsB.id);
   return '<details class="rsbundle"' + (rsB.id ? ' open' : '') + '><summary><b>Sell a bundle</b> <small>takes each item inside off stock</small></summary>' +
     '<label class="f">Bundle<select data-rsb="id"><option value="">Choose the bundle...</option>' + BUNDLES.map(x => '<option value="' + x.id + '"' + (x.id === rsB.id ? ' selected' : '') + '>' + esc(x.name) + ' (' + bundleCan(x) + ' can be made)</option>').join("") + '</select></label>' +
+    (b ? '<p class="hint" id="rsBMoney">' + rsBundleMoney(b) + '</p>' : '') +
     (b ? '<p class="hint">Takes off per bundle: ' + b.items.map(([c, n]) => n + ' × ' + esc((stockOf(c) || {}).name || c) + ' (' + rsQty(stockOf(c) || {}) + ' left)').join(' · ') + '</p>' : '') +
     '<label class="f">How many bundles?<input type="number" inputmode="numeric" min="1" step="1" data-rsb="qty" value="' + esc(rsB.qty) + '"></label>' +
+    (b ? '<label class="f">Sold for, per bundle (SGD)<input type="number" inputmode="decimal" min="0" step="any" data-rsb="sold" value="' + esc(rsB.sold !== "" ? rsB.sold : (b.price || "")) + '" placeholder="e.g. 24.90"></label>' : '') +
     '<div class="f"><span>Where did it go?</span><div class="chips" role="radiogroup" aria-label="Where the bundle went">' + RS.channels.filter(ch => !/^Repair/.test(ch)).map(ch => '<label class="chip"><input type="radio" name="rsbchan" data-rsb="channel" value="' + esc(ch) + '"' + (ch === rsB.channel ? ' checked' : '') + '>' + esc(ch) + '</label>').join("") + '</div></div>' +
     '<label class="f">Note / order no. (optional)<input data-rsb="note" value="' + esc(rsB.note) + '" placeholder="e.g. Shopee order 2610xxxx"></label>' +
     '<div class="hoactions"><button type="button" class="primary" id="rsBundleSell" style="grid-column:1 / -1">Take bundle off stock</button></div>' +
@@ -5284,7 +5293,7 @@ rsPane.addEventListener("input", e => {
   if(t.id === "rsCostNew"){ rsOut.costNew = t.value; return; }
   if(t.id === "rsNewCode"){ rsOut.newCode = t.value; const s = stockOf(rsOut.code), h = document.getElementById("rsRecodeHint"); if(s && h) h.innerHTML = rsRecodeHint(s); return; }
   if(t.id === "rsCostWhy"){ rsOut.costWhy = t.value; return; }
-  if(t.dataset.rsb && t.type !== "radio" && t.tagName !== "SELECT"){ rsB[t.dataset.rsb] = t.value; return; }
+  if(t.dataset.rsb && t.type !== "radio" && t.tagName !== "SELECT"){ rsB[t.dataset.rsb] = t.value; const bd = BUNDLES.find(x => x.id === rsB.id), el = document.getElementById("rsBMoney"); if(bd && el) el.innerHTML = rsBundleMoney(bd); return; }
   if(t.dataset.rs){ rs[t.dataset.rs] = t.value; rsDirty = true; if(t.dataset.rs === "fxRate") rs.fxManual = true; }
   else if(t.dataset.rsi !== undefined && t.dataset.k !== "pick"){ if(t.dataset.k === "sellPrice") rs.items[+t.dataset.rsi].sellAuto = false; rs.items[+t.dataset.rsi][t.dataset.k] = t.dataset.k === "code" ? t.value.toUpperCase() : t.value; rsDirty = true; }
   else if(t.dataset.rse !== undefined){ rs.extras[+t.dataset.rse][t.dataset.k] = t.value; rsDirty = true; }
@@ -5352,7 +5361,7 @@ rsPane.addEventListener("change", e => {
   const t = e.target;
   if(t.dataset.rsscan){ rsAddImages(t.files); t.value = ""; return; }
   if(t.dataset.rssort){ rsSort = t.value; renderRs(); return; }
-  if(t.dataset.rsb){ rsB[t.dataset.rsb] = t.value; if(t.dataset.rsb === "id") renderRs(); return; }
+  if(t.dataset.rsb){ rsB[t.dataset.rsb] = t.value; if(t.dataset.rsb === "id"){ rsB.sold = ""; renderRs(); } return; }
   if(t.dataset.rsmerch){
     rs.merchantNew = t.value === "__new"; rs.merchant = rs.merchantNew ? "" : t.value;
     rsDirty = true; renderRs();
@@ -5498,14 +5507,15 @@ rsPane.addEventListener("click", async e => {
     if(missing.length){ st("err", "Not in stock list: " + missing.join(", ") + ". Nothing taken off."); return; }
     const short = bd.items.filter(([c, q]) => rsQty(stockOf(c)) < q * n);
     if(short.length && !confirm("Not enough of: " + short.map(([c, q]) => stockOf(c).name + " (" + rsQty(stockOf(c)) + " left, need " + q * n + ")").join(", ") + ". Take off anyway? Stock will go below zero.")) return;
+    const soldAt = Number(rsB.sold !== "" ? rsB.sold : bd.price) || 0;
     b.disabled = true; const done = [];
     try{
       for(const [c, q] of bd.items){
-        const out = await rsCall({ action: "stockMove", kind: "out", code: c, qty: q * n, channel: rsB.channel, note: "Bundle " + bd.id + " ×" + n + (rsB.note ? " · " + rsB.note : ""), by: rs.by, jobNo: "" });
+        const out = await rsCall({ action: "stockMove", kind: "out", code: c, qty: q * n, channel: rsB.channel, note: "Bundle " + bd.id + " ×" + n + (soldAt ? " @ $" + money(soldAt) : "") + (rsB.note ? " · " + rsB.note : ""), by: rs.by, jobNo: "" });
         if(out.result !== "success") throw new Error(c + ": " + out.message);
         done.push(c);
       }
-      rsB = { id: "", qty: 1, channel: "", note: "" };
+      rsB = { id: "", qty: 1, channel: "", note: "", sold: "" };
       await loadStock();
       st("ok", n + " × " + bd.name + " taken off stock (" + done.join(", ") + ").");
     }catch(err){
