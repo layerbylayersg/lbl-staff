@@ -311,7 +311,7 @@
   .prbrand[aria-pressed="true"]{background:var(--green-700);border-color:var(--green-700);color:#fff} .prbrand[aria-pressed="true"] small{color:#E4F0D2}
   .prgroup{display:flex;align-items:baseline;gap:8px;padding:16px 10px 6px;font-size:14.5px;font-weight:700;color:var(--ink);border-bottom:2px solid var(--line)}
   .prgroup small{font-size:12.5px;font-weight:500;color:var(--muted)}
-  .reqlist{list-style:none;margin:0;padding:0;display:grid;gap:8px} .reqlist li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px} .reqlist small{display:block;color:var(--ink-2)} .reqlist .reqissue{margin-top:2px} .reqlist button{flex:none;min-height:44px} .reqalert{margin-top:10px}
+  .reqlist{list-style:none;margin:0;padding:0;display:grid;gap:8px} .reqlist li{border:1px solid var(--line);border-radius:12px;padding:4px 12px 10px} .reqlist li.open{background:var(--surface)} .reqhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;padding:8px 0;border:0;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer} .reqhead > div{min-width:0} .reqlist small{display:block;color:var(--ink-2)} .reqlist .reqissue{margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical} .reqtags{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0} .reqtag{font-style:normal;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--green-tint);color:var(--ink)} .reqtag.warn{background:var(--amber-wash)} .reqtag.bad{background:#FBE9E7;color:var(--red-ink)} .reqtag.ok{background:var(--green-tint);color:#3E6B1F} .reqdetail{display:grid;gap:6px;padding:6px 0 10px;border-top:1px dashed var(--line)} .reqrow{display:grid;grid-template-columns:110px 1fr;gap:8px;font-size:14px} .reqrow span{color:var(--ink-2)} .reqrow b{font-weight:500;overflow-wrap:anywhere} .reqact{display:flex;justify-content:flex-end} .reqact button{min-height:44px} .reqalert{margin-top:10px}
   .prcheckall{height:36px;border-radius:10px;margin-left:auto} .prseo{display:flex;align-items:center;gap:8px;height:auto} .prcheckall + .prsaveall{margin-left:0}
   .prsaveall{margin-left:auto;height:36px;border-radius:10px} .prsaveall[hidden]{display:none}
   .prhead,.prow{display:grid;grid-template-columns:minmax(0,2fr) 76px 170px 190px minmax(0,1.3fr) 92px;gap:10px;align-items:center}
@@ -3435,14 +3435,36 @@ function alertsHtml(){
     ? '<p class="hint reqalert">🔔 Job alerts are on for this phone. <button type="button" class="linkbtn" data-pushtest="1">Send me a test</button></p>'
     : '<p class="reqalert"><button type="button" class="mini primary" data-pushon="1">🔔 Turn on job alerts</button> <small class="hint">Get a notification on this phone when a new job request comes in.</small></p>';
 }
+let REQ_OPEN = lsGet("lbl-req-open") || {}; // request numbers the user has expanded on this phone
 function reqHtml(){
   const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return !t || isNaN(m) ? "" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
+  const yes = v => /^y/i.test(String(v || ""));
+  const tags = r => [yes(r.transport) ? '<i class="reqtag warn">🚚 Transport' + (r.stairs && !/^(0|no|none|-)?$/i.test(String(r.stairs)) ? ' · stairs ' + esc(r.stairs) : '') + '</i>' : '<i class="reqtag">🏠 Walk-in</i>',
+      r.quoteStatus ? '<i class="reqtag' + (/manual/i.test(r.quoteStatus) ? ' bad' : '') + '">' + esc(r.quoteStatus) + '</i>' : '',
+      r.mode && /onsite|remote/i.test(r.mode) ? '<i class="reqtag">' + esc(r.mode) + '</i>' : '',
+      r.carePlan && yes(r.carePlan) ? '<i class="reqtag ok">Care Plan</i>' : ''].filter(Boolean).join("");
+  const row = (k, v, html) => v ? '<div class="reqrow"><span>' + k + '</span><b>' + (html ? v : esc(v)) + '</b></div>' : "";
+  const details = r => '<div class="reqdetail">' +
+    row("Customer", r.name) +
+    row("Contact", r.contact ? '<a href="tel:' + esc(String(r.contact).replace(/\s+/g, "")) + '">' + esc(r.contact) + '</a> · <a href="https://wa.me/' + esc(String(r.contact).replace(/\D/g, "").replace(/^(?=[89]\d{7}$)/, "65")) + '" target="_blank" rel="noopener">WhatsApp</a>' : "", true) +
+    row("Email", r.email ? '<a href="mailto:' + esc(r.email) + '">' + esc(r.email) + '</a>' : "", true) +
+    row("Service", r.type) +
+    row("Equipment", [r.machine, r.ams && r.type !== "MFMS only" ? "+ " + r.ams : ""].filter(Boolean).join(" ")) +
+    row("Printer serial", r.serial) + row("MFMS serial", r.mfmsSerial) +
+    row("Transport", yes(r.transport) ? "Yes" + (r.address ? " · " + r.address : "") + (r.stairs ? " · stairs: " + r.stairs : "") : "Not needed") +
+    row("Quote", [r.quoteStatus, r.quotation].filter(Boolean).join(" · ")) +
+    row("Issue", r.issueFull || r.issue) +
+    row("Last action", r.lastAction) + row("Already tried", r.tried) + row("Error code", r.errorCode) +
+    row("Photos / videos", r.photos ? '<a href="' + esc(r.photos) + '" target="_blank" rel="noopener">Open folder</a>' : "", true) +
+    row("Came in", r.at ? new Date(r.at).toLocaleString("en-SG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) + (r.source ? " · " + r.source : "") : "") + '</div>';
   const list = !REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
     : !REQ.list.length ? '<p class="hint">No new job requests. Everything has been taken.</p>'
-    : '<ul class="reqlist">' + REQ.list.map(r => '<li><div><b>' + esc(r.machine || "Job request") + '</b> · ' + esc(r.name || "") +
-        '<small>' + esc(r.quoteNo) + (r.at ? ' · ' + ago(r.at) : '') + (/^y/i.test(r.transport) ? ' · transport' : '') + '</small>' +
-        (r.issue ? '<small class="reqissue">' + esc(r.issue) + '</small>' : '') + '</div>' +
-        '<button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></li>').join("") + '</ul>';
+    : '<ul class="reqlist">' + REQ.list.map(r => { const open = !!REQ_OPEN[r.quoteNo];
+        return '<li class="' + (open ? 'open' : '') + '"><button type="button" class="reqhead" data-reqtoggle="' + esc(r.quoteNo) + '" aria-expanded="' + open + '"><div><b>' + esc(r.machine || "Job request") + '</b> · ' + esc(r.name || "") +
+        '<small>' + esc(r.quoteNo) + (r.at ? ' · ' + ago(r.at) : '') + '</small><span class="reqtags">' + tags(r) + '</span>' +
+        (r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') + '</div><span class="rschev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>' +
+        (open ? details(r) : '') +
+        '<div class="reqact"><button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></div></li>'; }).join("") + '</ul>';
   return list + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
 }
 async function pushOn(){
@@ -3630,6 +3652,7 @@ document.getElementById("dashPane").addEventListener("click", e => {
   if(b.dataset.dashmonth){ dashMonth = b.dataset.dashmonth; renderDash(); return; }
   if(b.dataset.dashrefresh){ loadDash(true); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
+  if(b.dataset.reqtoggle){ const k = b.dataset.reqtoggle; if(REQ_OPEN[k]) delete REQ_OPEN[k]; else REQ_OPEN[k] = 1; lsSet("lbl-req-open", REQ_OPEN); renderDash(); return; }
   if(b.dataset.pushon){ b.disabled = true; pushOn(); return; }
   if(b.dataset.pushtest){ b.disabled = true; callSheet({ action: "pushTest" }).then(o => { REQ.msg = o.result === "success" ? (o.sent ? "Test sent. It should appear in a few seconds." : "No alert address for you yet. Turn alerts on again.") : o.message; REQ.kind = o.result === "success" && o.sent ? "ok" : "err"; renderDash(); }).catch(() => { REQ.msg = "No connection?"; REQ.kind = "err"; renderDash(); }); return; }
   if(b.dataset.claim){
