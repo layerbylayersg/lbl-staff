@@ -78,6 +78,8 @@
   .bar .modes button:hover{background:var(--surface);border-color:transparent}
   .bar .modes button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
   .bar .modes .sm{display:none}
+  .bar .modes .mgrp{display:none} /* the "Jobs" heading shows only in the wide-screen sidebar */
+  .mcount{font-style:normal;font-size:11px;font-weight:700;line-height:18px;min-width:18px;padding:0 5px;border-radius:9px;background:var(--green-700);color:#fff;text-align:center}
   /* wide screens: the form switch becomes a left sidebar (no blur on the bar, or the fixed sidebar would be trapped inside it) */
   @media (min-width:1100px){
     body:not(.locked){padding-left:210px}
@@ -88,6 +90,9 @@
     .bar .modes button{height:40px;justify-content:flex-start;padding:0 14px;font-size:14px}
     .bar .modes button:hover{background:var(--surface-2)}
     .bar .modes button[aria-pressed="true"]{background:var(--green-wash);color:var(--green-ink);box-shadow:inset 3px 0 0 var(--green-700)}
+    .bar .modes .mgrp{display:block;padding:10px 14px 2px;font-size:12px;font-weight:700;color:var(--muted)}
+    .bar .modes button.mjob{padding-left:28px} .bar .modes .mcount{margin-left:auto}
+    .bar .modes button.after{margin-top:8px}
     /* the bar runs under the sidebar, so its banner starts after it; pop-ups centre on the page, not the window */
     body:not(.locked) .savestatus{margin-left:210px}
     body:not(.locked) .toast{left:calc(50% + 105px)}
@@ -917,10 +922,12 @@
   <img id="barLogo" alt="Layer By Layer">
   <div class="modes" role="group" aria-label="Form">
     <button type="button" id="modeDash" aria-pressed="false"><span class="lg">Dashboard</span><span class="sm">Home</span></button>
-    <button type="button" id="modeHo" aria-pressed="false">Handover</button>
-    <button type="button" id="modeReport" aria-pressed="true"><span class="lg">Service report</span><span class="sm">Report</span></button>
-    <button type="button" id="modeTo" aria-pressed="false">Takeover</button>
-    <button type="button" id="modeCl" aria-pressed="false">Petrol</button>
+    <span class="mgrp" aria-hidden="true">Jobs</span>
+    <button type="button" id="modeReq" class="mjob" aria-pressed="false"><span class="lg">New requests</span><span class="sm">Requests</span><i class="mcount" id="reqCount" hidden></i></button>
+    <button type="button" id="modeHo" class="mjob" aria-pressed="false">Handover</button>
+    <button type="button" id="modeReport" class="mjob" aria-pressed="true"><span class="lg">Service report</span><span class="sm">Report</span></button>
+    <button type="button" id="modeTo" class="mjob" aria-pressed="false">Takeover</button>
+    <button type="button" id="modeCl" class="after" aria-pressed="false">Petrol</button>
     <button type="button" id="modeRs" aria-pressed="false">Inventory</button>
     <button type="button" id="modePl" aria-pressed="false">Plans</button>
     <button type="button" id="modeBb" aria-pressed="false">Buyback</button>
@@ -3309,8 +3316,10 @@ function setMode(m){
   }
   document.body.classList.toggle("mode-ho", isForm);
   document.body.classList.toggle("mode-cl", m === "claim");
-  document.body.classList.toggle("mode-dash", m === "dash");
+  document.body.classList.toggle("mode-dash", m === "dash" || m === "requests");
+  document.body.classList.toggle("mode-req", m === "requests");
   document.getElementById("modeDash").setAttribute("aria-pressed", String(m === "dash"));
+  document.getElementById("modeReq").setAttribute("aria-pressed", String(m === "requests"));
   document.body.classList.toggle("mode-rs", m === "restock");
   document.body.classList.toggle("mode-st", m === "staff");
   document.body.classList.toggle("mode-pl", m === "plans");
@@ -3329,6 +3338,7 @@ function setMode(m){
   }
   if(m === "restock"){ renderRs(); loadStock(); }
   if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); loadRequests(); }
+  if(m === "requests"){ renderDash(); loadRequests(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
   if(m === "buyback"){ renderBb(); loadBb(); }
   if(m === "plans"){ renderPl(); loadPlans(); }
@@ -3336,6 +3346,7 @@ function setMode(m){
   scrollTo(0, 0);
 }
 document.getElementById("modeDash").addEventListener("click", () => setMode("dash"));
+document.getElementById("modeReq").addEventListener("click", () => setMode("requests"));
 document.getElementById("modeReport").addEventListener("click", () => setMode("report"));
 document.getElementById("modeHo").addEventListener("click", () => setMode("handover"));
 document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
@@ -3421,8 +3432,10 @@ async function loadRequests(){
   if(REQ.loading) return; REQ.loading = true;
   try{ const out = await callSheet({ action: "jobRequests" }); if(out.result === "success"){ REQ.list = out.requests || []; REQ.loaded = true; } }
   catch(e){}
-  finally{ REQ.loading = false; if(document.body.classList.contains("mode-dash")) renderDash(); }
+  finally{ REQ.loading = false; reqBadge(); if(document.body.classList.contains("mode-dash")) renderDash(); }
 }
+// Count on the sidebar's "New requests" button
+function reqBadge(){ const b = document.getElementById("reqCount"), n = REQ.list.length; b.textContent = n; b.hidden = !n; }
 const pushOk = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -3483,10 +3496,11 @@ async function pushOn(){
   }catch(e){ REQ.msg = "Could not turn on alerts: " + (e.message || e); REQ.kind = "err"; }
   finally{ renderDash(); }
 }
-if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => { if(e.data && e.data.type === "job-request"){ setMode("dash"); loadRequests(); } });
+if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => { if(e.data && e.data.type === "job-request"){ setMode("requests"); } });
 document.addEventListener("visibilitychange", () => { if(!document.hidden && document.body.classList.contains("mode-dash")) loadRequests(); });
 const DASH_CARDS = [
-  { title: "New job requests", html: () => reqHtml(), wide: true },
+  { title: "New job requests", go: "requests", goLabel: "Open", html: () => !REQ.loaded ? '<p class="hint">' + (REQ.loading ? "Loading requests…" : "") + '</p>'
+      : '<p class="hint">' + (REQ.list.length ? REQ.list.length + " waiting for someone to take " + (REQ.list.length === 1 ? "it" : "them") + "." : "None waiting. Everything has been taken.") + '</p>', wide: true },
   { title: "This month", html: () => dashMonthHtml(), wide: true },
   { title: "Job mix, last 6 months", html: () => dashMixHtml() },
   { title: "Received, last 6 months", html: () => dashRecvHtml() },
@@ -3586,6 +3600,12 @@ function dashTip(el){
 }
 function renderDash(){
   const p = document.getElementById("dashPane"); if(!p) return;
+  reqBadge();
+  // "New requests" (under Jobs) shares this view: same buttons and handlers, just the one list
+  if(document.body.classList.contains("mode-req")){
+    p.innerHTML = '<div class="dashhead"><h1>New requests</h1><span>Take a job to move it into your jobs</span></div><div class="stage dashcard">' + reqHtml() + '</div>';
+    return;
+  }
   const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   p.innerHTML = '<div class="dashhead"><h1>Dashboard</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
       new Date().toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) + '</span></div>' +
