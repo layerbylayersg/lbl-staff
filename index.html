@@ -527,6 +527,10 @@
   .sigdone{display:flex;gap:12px;align-items:center} .sigdone img{max-width:260px;width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
   .bbfacts{display:grid;gap:6px;font-size:13.5px} .bbfacts div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px} .bbfacts span{color:var(--muted)} .bbfacts b{font-weight:600}
   .bbdone h2{color:var(--green-ink)} .bbphotos{font-size:13.5px} .bbphotos img{width:72px;height:72px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:4px}
+  #asView{display:none}
+  body.mode-as #asView{display:block}
+  body.mode-as .layout,body.mode-as .mobiletabs,body.mode-as #saveStatus,body.mode-as #hoView,body.mode-as #clView,body.mode-as #rsView,body.mode-as #stView,body.mode-as #dashView,body.mode-as #plView,body.mode-as #bbView,body.locked #asView{display:none!important}
+  .aslist{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px} .aslist li{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)} .ashead{display:flex;gap:12px;align-items:flex-start;justify-content:space-between} .ashead small{display:block;color:var(--ink-2)} .ashead .amt{white-space:nowrap} .aslist details{margin-top:6px;font-size:13.5px;color:var(--ink-2)} .aslist summary{cursor:pointer;color:var(--green-ink)}
   #plView{display:none}
   body.mode-pl #plView{display:block}
   body.mode-pl .layout,body.mode-pl .mobiletabs,body.mode-pl #saveStatus,body.mode-pl #hoView,body.mode-pl #clView,body.mode-pl #rsView,body.mode-pl #stView,body.mode-pl #dashView,body.locked #plView{display:none!important}
@@ -929,6 +933,7 @@
     <button type="button" id="modeTo" class="mjob" aria-pressed="false">Takeover</button>
     <button type="button" id="modeCl" class="after" aria-pressed="false">Petrol</button>
     <button type="button" id="modeRs" aria-pressed="false">Inventory</button>
+    <button type="button" id="modeAs" aria-pressed="false">Assets</button>
     <button type="button" id="modePl" aria-pressed="false">Plans</button>
     <button type="button" id="modeBb" aria-pressed="false">Buyback</button>
   </div>
@@ -966,6 +971,7 @@
 <main id="clView"><div class="howrap" id="clPane"></div></main>
 <main id="rsView"><div class="howrap" id="rsPane"></div></main>
 <main id="stView"><div class="howrap" id="stPane"></div></main>
+<main id="asView"><div class="howrap" id="asPane"></div></main>
 <main id="plView"><div class="howrap" id="plPane"></div></main>
 <main id="bbView"><div class="howrap" id="bbPane"></div></main>
 
@@ -3323,6 +3329,8 @@ function setMode(m){
   document.getElementById("modeReq").setAttribute("aria-pressed", String(m === "requests"));
   document.body.classList.toggle("mode-rs", m === "restock");
   document.body.classList.toggle("mode-st", m === "staff");
+  document.body.classList.toggle("mode-as", m === "assets");
+  document.getElementById("modeAs").setAttribute("aria-pressed", String(m === "assets"));
   document.body.classList.toggle("mode-pl", m === "plans");
   document.getElementById("modePl").setAttribute("aria-pressed", String(m === "plans"));
   document.body.classList.toggle("mode-bb", m === "buyback");
@@ -3342,6 +3350,7 @@ function setMode(m){
   if(m === "requests"){ renderDash(); loadRequests(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
   if(m === "buyback"){ renderBb(); loadBb(); }
+  if(m === "assets"){ renderAs(); loadAssets(); }
   if(m === "plans"){ renderPl(); loadPlans(); }
   else if(typeof rsDemo !== "undefined" && rsDemo){ rsDemo = null; rs = rsBlank(); rsDirty = false; RS.loaded = false; }
   scrollTo(0, 0);
@@ -3353,6 +3362,7 @@ document.getElementById("modeHo").addEventListener("click", () => setMode("hando
 document.getElementById("modeTo").addEventListener("click", () => setMode("takeover"));
 document.getElementById("modeCl").addEventListener("click", () => setMode("claim"));
 document.getElementById("modeRs").addEventListener("click", () => setMode("restock"));
+document.getElementById("modeAs").addEventListener("click", () => setMode("assets"));
 document.getElementById("modePl").addEventListener("click", () => setMode("plans"));
 document.getElementById("modeBb").addEventListener("click", () => setMode("buyback"));
 
@@ -4205,6 +4215,31 @@ function planNote(j){
   return '<p class="plnote"><b>Care Plan job.</b> ' + esc(c.plan) + ' (' + esc(c.id) + '): ' + c.left + ' of ' + c.jobs + ' Service Jobs left' +
     (c.expiresOn ? ', valid until ' + plDate(c.expiresOn) : '') + '. This Service Job is on the plan and is counted when the job is Completed.' +
     (c.status === "Active" ? '' : ' Plan status is <b>' + esc(c.status) + '</b>: check with an admin before going ahead.') + '</p>';
+}
+// ----- Assets: company equipment, not for sale. Read-only: edit the Assets tab in the sheet (Apps Script action "assets"). -----
+let AS = { list: [], loaded: false, loading: false, msg: "" };
+async function loadAssets(){
+  if(AS.loading) return; AS.loading = true;
+  try{
+    const out = await callSheet({ action: "assets" });
+    if(out.result === "success"){ AS.list = out.assets || []; AS.loaded = true; AS.msg = ""; }
+    else if(isAuthMsg(out.message)) lock(authText(out.message));
+    else AS.msg = "Assets need the updated Apps Script (the assets action). Deploy it, then reload this page.";
+  }catch(e){ AS.msg = "Could not load the assets. Check the connection and try again."; }
+  finally{ AS.loading = false; renderAs(); }
+}
+function renderAs(){
+  const p = document.getElementById("asPane"); if(!p) return;
+  const total = AS.list.reduce((t, a) => t + a.total, 0), items = AS.list.reduce((t, a) => t + a.qty, 0);
+  const card = a => '<li><div class="ashead"><div><b>' + esc(a.name) + '</b><small>' + esc(a.code) + (a.bought ? ' · bought ' + esc(a.bought) : '') + (a.location ? ' · ' + esc(a.location) : '') + '</small>' +
+    '<small>' + a.qty + ' unit' + (a.qty === 1 ? '' : 's') + (a.each ? ' · $' + money(a.each) + ' each' : '') + '</small></div><b class="amt">$' + money(a.total) + '</b></div>' +
+    (a.notes || a.from ? '<details><summary>Notes</summary>' + (a.from ? '<p>Bought from: ' + esc(a.from) + '</p>' : '') + (a.notes ? '<p>' + esc(a.notes) + '</p>' : '') + '</details>' : '') + '</li>';
+  const body = AS.msg ? '<p class="hint">' + esc(AS.msg) + '</p>'
+    : !AS.loaded ? '<p class="hint">' + (AS.loading ? "Loading assets…" : "") + '</p>'
+    : !AS.list.length ? '<p class="hint">No assets yet. Add them in the Assets tab of the sheet.</p>'
+    : '<div class="dtiles"><div class="dtile money"><b>$' + money(total) + '</b><span>Total asset cost</span></div><div class="dtile"><b>' + items + '</b><span>Items</span></div></div>' +
+      '<ul class="aslist">' + AS.list.map(card).join("") + '</ul>';
+  p.innerHTML = '<div class="dashhead"><h1>Assets</h1><span>Company equipment, not for sale. Edit in the Assets tab of the sheet.</span></div><div class="stage">' + body + '</div>';
 }
 async function loadPlans(){
   if(PL.loading || !plApiOk()) return; PL.loading = true;
