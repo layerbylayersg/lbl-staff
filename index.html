@@ -5258,7 +5258,7 @@ function renderRs(){
     (prBrands.length > 1 ? '<div class="prbrands" role="group" aria-label="Brand"><span>Brand</span>' + prBrandChip("all", "All brands", prInCat.length) +
       prBrands.map(br => prBrandChip(br, br, prInCat.filter(x => rsBrandOf(x) === br).length)).join("") + '</div>' : '') +
     '<div class="prchips">' + prChip("all", "All") + prChip("noprice", "No price yet") + prChip("low", "Below " + Math.round(RS.target * 100) + "% margin") + prChip("nocost", "No cost yet") +
-      '<span class="prcheckall prseo"><small class="muted">Seo checks prices every morning at 8am.</small> ' + askSeoLink(prList.slice(0, 20), '🔎 Ask Seo for these ' + Math.min(prList.length, 20)) + '</span>' +
+      '<span class="prcheckall prseo">' + askSeoLink(prList.slice(0, 20), '🔎 Ask Seo for these ' + Math.min(prList.length, 20)) + '</span>' +
       '<button type="button" class="primary mini prsaveall" data-prsaveall="1"' + (prChanges ? '' : ' hidden') + '>Save ' + prChanges + ' change' + (prChanges === 1 ? '' : 's') + '</button></div>' +
     '<div class="prhead" aria-hidden="true"><span>Item</span><span>Cost</span><span>Price (SGD)</span><span>Margin · you keep per sale</span><span>Market / suggested</span><span></span></div>' +
     (prList.length ? '<div class="prlist">' + prRows + '</div>' : '<p class="rsempty">Nothing here. <button type="button" class="mini" data-prfilter="all">Show all</button></p>')) +
