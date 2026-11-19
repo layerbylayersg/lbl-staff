@@ -3489,7 +3489,19 @@ function reqHtml(){
         (r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') + '</div><span class="rschev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>' +
         (open ? details(r) : '') +
         '<div class="reqact"><button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></div></li>'; }).join("") + '</ul>';
-  return list + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
+  return list + takenHtml() + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
+}
+// Undo "I'll take it": Confirmed jobs with no handover / report yet. The taker sees their own, admins see all.
+// Needs Apps Script API 8 (releaseJob); an older script would treat the unknown action as a customer form.
+function takenHtml(){
+  if(!(SESSION && SESSION.api >= 8)) return "";
+  const taken = JOBS.filter(j => j.status === "Confirmed" && j.technician && !j.handover && !j.report && !j.savedReport && (isMine(j) || SESSION.admin));
+  if(!taken.length) return "";
+  return '<h3 class="sub">Taken, not handed over yet</h3><ul class="reqlist">' + taken.map(j =>
+    '<li><div class="reqhead" style="cursor:default"><div><b>' + esc((j.brand ? j.brand + " " + j.model : j.mfms) || "Job") + '</b> · ' + esc(j.name || "") +
+    '<small>' + esc(j.quoteNo) + ' · with ' + esc(j.technician) + '</small></div></div>' +
+    '<div class="reqact"><button type="button" class="mini" data-release="' + esc(j.quoteNo) + '" data-who="' + esc(j.technician) + '"' + (REQ.busy ? ' disabled' : '') + '>' +
+    (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div></li>').join("") + '</ul>';
 }
 async function pushOn(){
   REQ.msg = "";
@@ -3694,6 +3706,18 @@ document.getElementById("dashPane").addEventListener("click", e => {
       else { REQ.msg = o.message || "Could not take the job."; REQ.kind = "err"; loadRequests(); }
       renderDash();
     }).catch(() => { REQ.busy = ""; REQ.msg = "Not taken: no connection? Try again."; REQ.kind = "err"; renderDash(); });
+    return;
+  }
+  if(b.dataset.release){
+    const no = b.dataset.release, who = b.dataset.who || "";
+    if(!confirm("Release " + no + (who.toLowerCase() === ME().toLowerCase() ? "" : " (taken by " + who + ")") + "?\n\nIt goes back to New requests with no one assigned, and anyone can take it again.")) return;
+    REQ.busy = no; REQ.msg = ""; renderDash();
+    callSheet({ action: "releaseJob", quoteNo: no }).then(async o => {
+      REQ.busy = "";
+      if(o.result === "success"){ REQ.msg = no + " is back in New requests with no one assigned."; REQ.kind = "ok"; try{ await loadJobs(); }catch(e){} loadRequests(); }
+      else { REQ.msg = o.message || "Could not release the job."; REQ.kind = "err"; }
+      renderDash();
+    }).catch(() => { REQ.busy = ""; REQ.msg = "Not released: no connection? Try again."; REQ.kind = "err"; renderDash(); });
     return;
   }
 });
