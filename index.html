@@ -3459,6 +3459,8 @@ function alertsHtml(){
     ? '<p class="hint reqalert">🔔 Job alerts are on for this phone. <button type="button" class="linkbtn" data-pushtest="1">Send me a test</button></p>'
     : '<p class="reqalert"><button type="button" class="mini primary" data-pushon="1">🔔 Turn on job alerts</button> <small class="hint">Get a notification on this phone when a new job request comes in.</small></p>';
 }
+let REQ_TAB = lsGet("lbl-req-tab") || "alc"; // New requests tab: "alc" (à la carte) or "care" (Care Plan customers)
+const isCareReq = r => { const v = String(r.carePlan || "").trim(); return !!v && !/^(no?|-)$/i.test(v); };
 let REQ_OPEN = lsGet("lbl-req-open") || {}; // request numbers the user has expanded on this phone
 function reqHtml(){
   const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return !t || isNaN(m) ? "" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
@@ -3466,7 +3468,7 @@ function reqHtml(){
   const tags = r => [yes(r.transport) ? '<i class="reqtag warn">🚚 Transport' + (r.stairs && !/^(0|no|none|-)?$/i.test(String(r.stairs)) ? ' · stairs ' + esc(r.stairs) : '') + '</i>' : '<i class="reqtag">🏠 Walk-in</i>',
       r.quoteStatus ? '<i class="reqtag' + (/manual/i.test(r.quoteStatus) ? ' bad' : '') + '">' + esc(r.quoteStatus) + '</i>' : '',
       r.mode && /onsite|remote/i.test(r.mode) ? '<i class="reqtag">' + esc(r.mode) + '</i>' : '',
-      r.carePlan && yes(r.carePlan) ? '<i class="reqtag ok">Care Plan</i>' : ''].filter(Boolean).join("");
+      isCareReq(r) ? '<i class="reqtag ok">Care Plan</i>' : ''].filter(Boolean).join("");
   const row = (k, v, html) => v ? '<div class="reqrow"><span>' + k + '</span><b>' + (html ? v : esc(v)) + '</b></div>' : "";
   const details = r => '<div class="reqdetail">' +
     row("Customer", r.name) +
@@ -3481,14 +3483,18 @@ function reqHtml(){
     row("Last action", r.lastAction) + row("Already tried", r.tried) + row("Error code", r.errorCode) +
     row("Photos / videos", r.photos ? '<a href="' + esc(r.photos) + '" target="_blank" rel="noopener">Open folder</a>' : "", true) +
     row("Came in", r.at ? new Date(r.at).toLocaleString("en-SG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) + (r.source ? " · " + r.source : "") : "") + '</div>';
-  const list = !REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
-    : !REQ.list.length ? '<p class="hint">No new job requests. Everything has been taken.</p>'
-    : '<ul class="reqlist">' + REQ.list.map(r => { const open = !!REQ_OPEN[r.quoteNo];
+  const care = REQ.list.filter(isCareReq), alc = REQ.list.filter(r => !isCareReq(r)), shown = REQ_TAB === "care" ? care : alc;
+  const seg = !REQ.loaded ? '' : '<div class="seg" role="tablist" aria-label="Request type" style="margin-bottom:12px">' +
+    '<button type="button" role="tab" data-reqtab="alc" aria-selected="' + (REQ_TAB !== "care") + '">À la carte (' + alc.length + ')</button>' +
+    '<button type="button" role="tab" data-reqtab="care" aria-selected="' + (REQ_TAB === "care") + '">Care Plans (' + care.length + ')</button></div>';
+  const list = seg + (!REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
+    : !shown.length ? '<p class="hint">' + (REQ_TAB === "care" ? "No new Care Plan requests." : "No new à la carte requests.") + (REQ.list.length ? "" : " Everything has been taken.") + '</p>'
+    : '<ul class="reqlist">' + shown.map(r => { const open = !!REQ_OPEN[r.quoteNo];
         return '<li class="' + (open ? 'open' : '') + '"><button type="button" class="reqhead" data-reqtoggle="' + esc(r.quoteNo) + '" aria-expanded="' + open + '"><div><b>' + esc(r.machine || "Job request") + '</b> · ' + esc(r.name || "") +
         '<small>' + esc(r.quoteNo) + (r.at ? ' · ' + ago(r.at) : '') + '</small><span class="reqtags">' + tags(r) + '</span>' +
         (r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') + '</div><span class="rschev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>' +
         (open ? details(r) : '') +
-        '<div class="reqact"><button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></div></li>'; }).join("") + '</ul>';
+        '<div class="reqact"><button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></div></li>'; }).join("") + '</ul>');
   return list + takenHtml() + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
 }
 // Undo "I'll take it": Confirmed jobs with no handover / report yet. The taker sees their own, admins see all.
@@ -3695,6 +3701,7 @@ document.getElementById("dashPane").addEventListener("click", e => {
   if(b.dataset.dashmonth){ dashMonth = b.dataset.dashmonth; renderDash(); return; }
   if(b.dataset.dashrefresh){ loadDash(true); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
+  if(b.dataset.reqtab){ REQ_TAB = b.dataset.reqtab; lsSet("lbl-req-tab", REQ_TAB); renderDash(); return; }
   if(b.dataset.reqtoggle){ const k = b.dataset.reqtoggle; if(REQ_OPEN[k]) delete REQ_OPEN[k]; else REQ_OPEN[k] = 1; lsSet("lbl-req-open", REQ_OPEN); renderDash(); return; }
   if(b.dataset.pushon){ b.disabled = true; pushOn(); return; }
   if(b.dataset.pushtest){ b.disabled = true; callSheet({ action: "pushTest" }).then(o => { REQ.msg = o.result === "success" ? (o.sent ? "Test sent. It should appear in a few seconds." : "No alert address for you yet. Turn alerts on again.") : o.message; REQ.kind = o.result === "success" && o.sent ? "ok" : "err"; renderDash(); }).catch(() => { REQ.msg = "No connection?"; REQ.kind = "err"; renderDash(); }); return; }
