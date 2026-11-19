@@ -3459,7 +3459,7 @@ function alertsHtml(){
     ? '<p class="hint reqalert">🔔 Job alerts are on for this phone. <button type="button" class="linkbtn" data-pushtest="1">Send me a test</button></p>'
     : '<p class="reqalert"><button type="button" class="mini primary" data-pushon="1">🔔 Turn on job alerts</button> <small class="hint">Get a notification on this phone when a new job request comes in.</small></p>';
 }
-let REQ_TAB = lsGet("lbl-req-tab") || "alc"; // New requests tab: "alc" (à la carte) or "care" (Care Plan customers)
+let REQ_TAB = lsGet("lbl-req-tab") || "alc"; // New requests tab: "alc" (à la carte), "care" (Care Plan customers) or "taken"
 const isCareReq = r => { const v = String(r.carePlan || "").trim(); return !!v && !/^(no?|-)$/i.test(v); };
 let REQ_OPEN = lsGet("lbl-req-open") || {}; // request numbers the user has expanded on this phone
 function reqHtml(){
@@ -3483,11 +3483,13 @@ function reqHtml(){
     row("Last action", r.lastAction) + row("Already tried", r.tried) + row("Error code", r.errorCode) +
     row("Photos / videos", r.photos ? '<a href="' + esc(r.photos) + '" target="_blank" rel="noopener">Open folder</a>' : "", true) +
     row("Came in", r.at ? new Date(r.at).toLocaleString("en-SG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) + (r.source ? " · " + r.source : "") : "") + '</div>';
-  const care = REQ.list.filter(isCareReq), alc = REQ.list.filter(r => !isCareReq(r)), shown = REQ_TAB === "care" ? care : alc;
+  const care = REQ.list.filter(isCareReq), alc = REQ.list.filter(r => !isCareReq(r)), taken = takenJobs();
+  if(REQ_TAB === "taken" && !taken) REQ_TAB = "alc"; // older Apps Script: no Taken tab
+  const shown = REQ_TAB === "care" ? care : alc;
+  const tab = (k, label, n) => '<button type="button" role="tab" data-reqtab="' + k + '" aria-selected="' + (REQ_TAB === k) + '">' + label + ' (' + n + ')</button>';
   const seg = !REQ.loaded ? '' : '<div class="seg" role="tablist" aria-label="Request type" style="margin-bottom:12px">' +
-    '<button type="button" role="tab" data-reqtab="alc" aria-selected="' + (REQ_TAB !== "care") + '">À la carte (' + alc.length + ')</button>' +
-    '<button type="button" role="tab" data-reqtab="care" aria-selected="' + (REQ_TAB === "care") + '">Care Plans (' + care.length + ')</button></div>';
-  const list = seg + (!REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
+    tab("alc", "À la carte", alc.length) + tab("care", "Care Plans", care.length) + (taken ? tab("taken", "Taken", taken.length) : '') + '</div>';
+  const list = seg + (REQ_TAB === "taken" ? takenHtml(taken) : !REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
     : !shown.length ? '<p class="hint">' + (REQ_TAB === "care" ? "No new Care Plan requests." : "No new à la carte requests.") + (REQ.list.length ? "" : " Everything has been taken.") + '</p>'
     : '<ul class="reqlist">' + shown.map(r => { const open = !!REQ_OPEN[r.quoteNo];
         return '<li class="' + (open ? 'open' : '') + '"><button type="button" class="reqhead" data-reqtoggle="' + esc(r.quoteNo) + '" aria-expanded="' + open + '"><div><b>' + esc(r.machine || "Job request") + '</b> · ' + esc(r.name || "") +
@@ -3495,19 +3497,22 @@ function reqHtml(){
         (r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') + '</div><span class="rschev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>' +
         (open ? details(r) : '') +
         '<div class="reqact"><button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></div></li>'; }).join("") + '</ul>');
-  return list + takenHtml() + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
+  return list + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
 }
 // Undo "I'll take it": Confirmed jobs with no handover / report yet. The taker sees their own, admins see all.
 // Needs Apps Script API 8 (releaseJob); an older script would treat the unknown action as a customer form.
-function takenHtml(){
-  if(!(SESSION && SESSION.api >= 8)) return "";
-  const taken = JOBS.filter(j => j.status === "Confirmed" && j.technician && !j.handover && !j.report && !j.savedReport && (isMine(j) || SESSION.admin));
-  if(!taken.length) return "";
-  return '<h3 class="sub">Taken, not handed over yet</h3><ul class="reqlist">' + taken.map(j =>
+function takenJobs(){
+  if(!(SESSION && SESSION.api >= 8)) return null;
+  return JOBS.filter(j => j.status === "Confirmed" && j.technician && !j.handover && !j.report && !j.savedReport && (isMine(j) || SESSION.admin));
+}
+function takenHtml(taken){
+  const group = (label, list) => '<h3 class="sub">' + label + ' (' + list.length + ')</h3>' + (!list.length ? '<p class="hint">None.</p>' : '<ul class="reqlist">' + list.map(j =>
     '<li><div class="reqhead" style="cursor:default"><div><b>' + esc((j.brand ? j.brand + " " + j.model : j.mfms) || "Job") + '</b> · ' + esc(j.name || "") +
     '<small>' + esc(j.quoteNo) + ' · with ' + esc(j.technician) + '</small></div></div>' +
     '<div class="reqact"><button type="button" class="mini" data-release="' + esc(j.quoteNo) + '" data-who="' + esc(j.technician) + '"' + (REQ.busy ? ' disabled' : '') + '>' +
-    (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div></li>').join("") + '</ul>';
+    (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div></li>').join("") + '</ul>');
+  return '<p class="hint" style="margin-top:0">Taken but not handed over yet. Release one to put it back in New requests.</p>' +
+    group("À la carte", taken.filter(j => !isCareReq(j))) + group("Care Plans", taken.filter(isCareReq));
 }
 async function pushOn(){
   REQ.msg = "";
