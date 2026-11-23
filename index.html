@@ -2633,7 +2633,17 @@ const WA_TEXT = "Hi {name}, thank you for choosing Layer By Layer. Attached is t
 const HO_WA_TEXT = "Hi {name}, thank you for entrusting your {machine} to Layer By Layer. Attached is the signed handover form (reference: {quote}). We will update you once the service is complete.";
 const TO_WA_TEXT = "Hi {name}, thank you for choosing Layer By Layer. Attached is the signed takeover form (reference: {quote}) confirming the return of your {machine}. We hope it prints well for you!";
 function sendText(){ return fillTemplate(WA_TEXT); }
+// iPhone/iPad: a download link opens the PDF full screen (in the home-screen app with no way back),
+// so the PDF goes to the share menu instead: Save to Files, WhatsApp, AirDrop...
+const appleTouch = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 function saveFileLocally(file){
+  if(appleTouch() && navigator.canShare && navigator.canShare({ files:[file] })){
+    navigator.share({ files:[file] }).catch(err => {
+      if(err.name === "NotAllowedError") toast("PDF is ready. Tap the button again to save or send it.");
+      else if(err.name !== "AbortError") toast("Could not open the share menu (" + err.name + ").");
+    });
+    return;
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(file); a.download = file.name;
   document.body.appendChild(a); a.click(); a.remove();
@@ -2650,11 +2660,13 @@ function shareOrChat(file, text, phone, skipShare){
   if(!skipShare && navigator.canShare && navigator.canShare({ files:[file] })){
     // Phone share menu, or the Windows share panel on a computer (WhatsApp shows there when its
     // app is installed). The message goes with the PDF; it is also copied in case an app drops it.
-    const data = navigator.canShare({ files:[file], text }) ? { files:[file], text } : { files:[file] };
+    // iPhone: WhatsApp drops the PDF when text comes with it, so only the PDF goes; the message is copied to paste.
+    const data = !appleTouch() && navigator.canShare({ files:[file], text }) ? { files:[file], text } : { files:[file] };
     navigator.share(data)
-      .then(() => toast("Check the message, then send. If it is missing, paste it: it is copied."))
+      .then(() => toast(appleTouch() ? "In WhatsApp, tap the message box, Paste the message (it is copied), then send." : "Check the message, then send. If it is missing, paste it: it is copied."))
       .catch(err => {
-        if(err.name !== "AbortError") toast("Share failed (" + err.name + "). Use Download PDF and attach it in WhatsApp.");
+        if(err.name === "NotAllowedError") toast("The phone blocked the share. Tap Send on WhatsApp again.");
+        else if(err.name !== "AbortError") toast("Share failed (" + err.name + "). Use Download PDF and attach it in WhatsApp.");
         else if(!touch) toast("WhatsApp not in the list? Hold Shift and click Send on WhatsApp to open the chat instead.");
       });
     return;
@@ -3864,6 +3876,8 @@ hoPane.addEventListener("click", e => {
   }
   if(t.id === "hoSave"){ saveHo(t); return; }
   if(t.id === "hoPdfBtn"){
+    // iPhone needs the share menu to open straight from the tap, so a saved form's PDF is used as is.
+    if(hoFile && !hoDirty){ saveFileLocally(hoFile); return; }
     t.disabled = true;
     hoPdf().then(saveFileLocally).catch(err => { console.error(err); toast("PDF could not be built."); }).finally(() => { t.disabled = false; });
     return;
