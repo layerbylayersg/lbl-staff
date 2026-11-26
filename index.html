@@ -3517,6 +3517,7 @@ function alertsHtml(){
     ? '<p class="hint reqalert">🔔 Job alerts are on for this phone. <button type="button" class="linkbtn" data-pushtest="1">Send me a test</button></p>'
     : '<p class="reqalert"><button type="button" class="mini primary" data-pushon="1">🔔 Turn on job alerts</button> <small class="hint">Get a notification on this phone when a new job request comes in.</small></p>';
 }
+let TAKEN_WHO = lsGet("lbl-taken-who") || ""; // Taken tab: which technician's jobs are shown
 let REQ_TAB = lsGet("lbl-req-tab") || "alc"; // New requests tab: "alc" (à la carte), "care" (Care Plan customers) or "taken"
 const isCareReq = r => { const v = String(r.carePlan || "").trim(); return !!v && !/^(no?|-)$/i.test(v); };
 let REQ_OPEN = lsGet("lbl-req-open") || {}; // request numbers the user has expanded on this phone
@@ -3568,6 +3569,15 @@ function takenByPerson(taken){
   const by = {}; taken.forEach(j => { const k = j.technician || "Unassigned"; (by[k] = by[k] || []).push(j); });
   return Object.keys(by).sort((a, b) => (b === ME()) - (a === ME()) || a.localeCompare(b)).map(k => [k, by[k]]);
 }
+function takenTabs(taken, group){
+  const people = takenByPerson(taken);
+  if(!people.length) return '<p class="hint">No taken jobs.</p>';
+  const sel = people.some(p => p[0] === TAKEN_WHO) ? TAKEN_WHO : (people.some(p => p[0] === ME()) ? ME() : people[0][0]);
+  const label = who => esc(who) + (who === ME() ? " (you)" : "");
+  const bar = people.length < 2 ? '' : '<div class="seg" role="tablist" aria-label="Technician" style="margin:4px 0 10px;flex-wrap:wrap">' +
+    people.map(([who, list]) => '<button type="button" role="tab" data-takenwho="' + esc(who) + '" aria-selected="' + (who === sel) + '">' + label(who) + ' (' + list.length + ')</button>').join("") + '</div>';
+  return bar + group(label(sel), people.find(p => p[0] === sel)[1]);
+}
 function takenHtml(taken, details, tags){
   const info = no => (REQ.taken || []).find(r => r.quoteNo === no); // same request details as New requests (Apps Script v136+)
   const group = (label, list) => '<h3 class="sub">' + label + ' (' + list.length + ')</h3>' + (!list.length ? '<p class="hint">None.</p>' : '<ul class="reqlist">' + list.map(j => {
@@ -3584,7 +3594,7 @@ function takenHtml(taken, details, tags){
         (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div>') + '</li>';
   }).join("") + '</ul>');
   return '<p class="hint" style="margin-top:0">Jobs taken and not finished yet. Tap a job to see its full request. A job not handed over yet can be released back to New requests.</p>' +
-    takenByPerson(taken).map(([who, list]) => group(esc(who) + (who === ME() ? " (you)" : ""), list)).join("");
+    takenTabs(taken, group);
 }
 async function pushOn(){
   REQ.msg = "";
@@ -3826,6 +3836,7 @@ document.getElementById("dashPane").addEventListener("click", e => {
   if(b.dataset.dashmonth){ dashMonth = b.dataset.dashmonth; renderDash(); return; }
   if(b.dataset.dashrefresh){ loadDash(true); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
+  if(b.dataset.takenwho){ TAKEN_WHO = b.dataset.takenwho; lsSet("lbl-taken-who", TAKEN_WHO); renderDash(); return; }
   if(b.dataset.reqtab){ REQ_TAB = b.dataset.reqtab; lsSet("lbl-req-tab", REQ_TAB); renderDash(); return; }
   if(b.dataset.reqtoggle){ const k = b.dataset.reqtoggle; if(REQ_OPEN[k]) delete REQ_OPEN[k]; else REQ_OPEN[k] = 1; lsSet("lbl-req-open", REQ_OPEN); renderDash(); return; }
   if(b.dataset.pushon){ b.disabled = true; pushOn(); return; }
