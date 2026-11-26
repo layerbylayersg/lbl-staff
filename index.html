@@ -3557,27 +3557,29 @@ function reqHtml(){
         '<div class="reqact"><button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></div></li>'; }).join("") + '</ul>');
   return list + (REQ.msg ? '<p class="hostatus ' + REQ.kind + '">' + esc(REQ.msg) + '</p>' : '') + alertsHtml();
 }
-// Undo "I'll take it": Confirmed jobs with no handover / report yet. The taker sees their own, admins see all.
+// Taken tab: jobs taken and not finished (Confirmed, not handed over, can be released; or In Progress). The taker sees their own, admins see all.
 // Needs Apps Script API 8 (releaseJob); an older script would treat the unknown action as a customer form.
 function takenJobs(){
   if(!(SESSION && SESSION.api >= 8)) return null;
-  return JOBS.filter(j => j.status === "Confirmed" && j.technician && !j.handover && !j.report && !j.savedReport && (isMine(j) || SESSION.admin));
+  const notHandedOver = j => j.status === "Confirmed" && !j.handover && !j.report && !j.savedReport;
+  return JOBS.filter(j => j.technician && (isMine(j) || SESSION.admin) && (notHandedOver(j) || j.status === "In Progress"));
 }
 function takenHtml(taken, details, tags){
-  const info = no => (REQ.taken || []).find(r => r.quoteNo === no); // same request details as New requests (Apps Script v135+)
+  const info = no => (REQ.taken || []).find(r => r.quoteNo === no); // same request details as New requests (Apps Script v136+)
   const group = (label, list) => '<h3 class="sub">' + label + ' (' + list.length + ')</h3>' + (!list.length ? '<p class="hint">None.</p>' : '<ul class="reqlist">' + list.map(j => {
-    const r = info(j.quoteNo), open = !!(r && REQ_OPEN[j.quoteNo]);
+    const r = info(j.quoteNo), open = !!(r && REQ_OPEN[j.quoteNo]), handed = j.status === "In Progress" || !!j.handover;
     const head = '<div><b>' + esc((r && r.machine) || (j.brand ? j.brand + " " + j.model : j.mfms) || "Job") + '</b> · ' + esc(j.name || "") +
       '<small>' + esc(j.quoteNo) + ' · with ' + esc(j.technician) + '</small>' +
-      (r ? '<span class="reqtags">' + tags(r) + '</span>' + (r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') : '') + '</div>';
+      '<span class="reqtags">' + (handed ? '<i class="reqtag ok">Handed over</i>' : '<i class="reqtag">Not handed over yet</i>') + (r ? tags(r) : '') + '</span>' +
+      (r && r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') + '</div>';
     return '<li class="' + (open ? 'open' : '') + '">' +
       (r ? '<button type="button" class="reqhead" data-reqtoggle="' + esc(j.quoteNo) + '" aria-expanded="' + open + '">' + head + '<span class="rschev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>'
          : '<div class="reqhead" style="cursor:default">' + head + '</div>') +
       (open ? details(r) : '') +
-      '<div class="reqact"><button type="button" class="mini" data-release="' + esc(j.quoteNo) + '" data-who="' + esc(j.technician) + '"' + (REQ.busy ? ' disabled' : '') + '>' +
-      (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div></li>';
+      (handed ? '' : '<div class="reqact"><button type="button" class="mini" data-release="' + esc(j.quoteNo) + '" data-who="' + esc(j.technician) + '"' + (REQ.busy ? ' disabled' : '') + '>' +
+        (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div>') + '</li>';
   }).join("") + '</ul>');
-  return '<p class="hint" style="margin-top:0">Taken but not handed over yet. Tap a job to see its full request. Release one to put it back in New requests.</p>' +
+  return '<p class="hint" style="margin-top:0">Jobs taken and not finished yet. Tap a job to see its full request. A job not handed over yet can be released back to New requests.</p>' +
     group("À la carte", taken.filter(j => !isCareReq(j))) + group("Care Plans", taken.filter(isCareReq));
 }
 async function pushOn(){
