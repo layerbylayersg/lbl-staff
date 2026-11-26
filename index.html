@@ -6104,7 +6104,7 @@ async function qtCartConfirm(){
   const total = lines.reduce((t, l) => t + l.qty * l.price, 0);
   let xeroOk = false, invoiceNo = "", xeroMsg = "";
   try{
-    const x = await rsCall({ action: "xeroDraftInvoice", contact: "Carousell Sales", reference: "Carousell" + (buyer ? " · " + buyer : ""), accountCode: "205",
+    const x = await rsCall({ action: "xeroDraftInvoice", saveId: "xi-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8), contact: "Carousell Sales", reference: "Carousell" + (buyer ? " · " + buyer : ""), accountCode: "205",
       lines: lines.map(l => ({ code: l.code, description: l.name + " (" + l.code + ")", qty: l.qty, price: l.price })), by: rs.by || ME() });
     if(x.result === "success"){ xeroOk = true; invoiceNo = x.invoiceNumber || ""; } else xeroMsg = x.message || "unknown error";
   }catch(err){ xeroMsg = "no connection"; }
