@@ -3496,10 +3496,10 @@ function clFromCache(){
 }
 // ===== Dashboard (home page): one card per area; add more cards to DASH_CARDS =====
 // ----- New job requests: anyone can take one ("I'll take it"); alerts on this phone via Web Push -----
-let REQ = { list: [], loaded: false, loading: false, msg: "", kind: "", busy: "" };
+let REQ = { list: [], taken: [], loaded: false, loading: false, msg: "", kind: "", busy: "" }; // taken = request details of taken jobs
 async function loadRequests(){
   if(REQ.loading) return; REQ.loading = true;
-  try{ const out = await callSheet({ action: "jobRequests" }); if(out.result === "success"){ REQ.list = out.requests || []; REQ.loaded = true; } }
+  try{ const out = await callSheet({ action: "jobRequests" }); if(out.result === "success"){ REQ.list = out.requests || []; REQ.taken = out.taken || []; REQ.loaded = true; } }
   catch(e){}
   finally{ REQ.loading = false; reqBadge(); if(document.body.classList.contains("mode-dash")) renderDash(); }
 }
@@ -3547,7 +3547,7 @@ function reqHtml(){
   const tab = (k, label, n) => '<button type="button" role="tab" data-reqtab="' + k + '" aria-selected="' + (REQ_TAB === k) + '">' + label + ' (' + n + ')</button>';
   const seg = !REQ.loaded ? '' : '<div class="seg" role="tablist" aria-label="Request type" style="margin-bottom:12px">' +
     tab("alc", "À la carte", alc.length) + tab("care", "Care Plans", care.length) + (taken ? tab("taken", "Taken", taken.length) : '') + '</div>';
-  const list = seg + (REQ_TAB === "taken" ? takenHtml(taken) : !REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
+  const list = seg + (REQ_TAB === "taken" ? takenHtml(taken, details, tags) : !REQ.loaded ? (REQ.loading ? '<p class="hint">Loading requests…</p>' : '')
     : !shown.length ? '<p class="hint">' + (REQ_TAB === "care" ? "No new Care Plan requests." : "No new à la carte requests.") + (REQ.list.length ? "" : " Everything has been taken.") + '</p>'
     : '<ul class="reqlist">' + shown.map(r => { const open = !!REQ_OPEN[r.quoteNo];
         return '<li class="' + (open ? 'open' : '') + '"><button type="button" class="reqhead" data-reqtoggle="' + esc(r.quoteNo) + '" aria-expanded="' + open + '"><div><b>' + esc(r.machine || "Job request") + '</b> · ' + esc(r.name || "") +
@@ -3563,13 +3563,21 @@ function takenJobs(){
   if(!(SESSION && SESSION.api >= 8)) return null;
   return JOBS.filter(j => j.status === "Confirmed" && j.technician && !j.handover && !j.report && !j.savedReport && (isMine(j) || SESSION.admin));
 }
-function takenHtml(taken){
-  const group = (label, list) => '<h3 class="sub">' + label + ' (' + list.length + ')</h3>' + (!list.length ? '<p class="hint">None.</p>' : '<ul class="reqlist">' + list.map(j =>
-    '<li><div class="reqhead" style="cursor:default"><div><b>' + esc((j.brand ? j.brand + " " + j.model : j.mfms) || "Job") + '</b> · ' + esc(j.name || "") +
-    '<small>' + esc(j.quoteNo) + ' · with ' + esc(j.technician) + '</small></div></div>' +
-    '<div class="reqact"><button type="button" class="mini" data-release="' + esc(j.quoteNo) + '" data-who="' + esc(j.technician) + '"' + (REQ.busy ? ' disabled' : '') + '>' +
-    (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div></li>').join("") + '</ul>');
-  return '<p class="hint" style="margin-top:0">Taken but not handed over yet. Release one to put it back in New requests.</p>' +
+function takenHtml(taken, details, tags){
+  const info = no => (REQ.taken || []).find(r => r.quoteNo === no); // same request details as New requests (Apps Script v135+)
+  const group = (label, list) => '<h3 class="sub">' + label + ' (' + list.length + ')</h3>' + (!list.length ? '<p class="hint">None.</p>' : '<ul class="reqlist">' + list.map(j => {
+    const r = info(j.quoteNo), open = !!(r && REQ_OPEN[j.quoteNo]);
+    const head = '<div><b>' + esc((r && r.machine) || (j.brand ? j.brand + " " + j.model : j.mfms) || "Job") + '</b> · ' + esc(j.name || "") +
+      '<small>' + esc(j.quoteNo) + ' · with ' + esc(j.technician) + '</small>' +
+      (r ? '<span class="reqtags">' + tags(r) + '</span>' + (r.issue ? '<small class="reqissue">' + esc(r.issue) + (r.issueFull && r.issueFull.length > r.issue.length ? '…' : '') + '</small>' : '') : '') + '</div>';
+    return '<li class="' + (open ? 'open' : '') + '">' +
+      (r ? '<button type="button" class="reqhead" data-reqtoggle="' + esc(j.quoteNo) + '" aria-expanded="' + open + '">' + head + '<span class="rschev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>'
+         : '<div class="reqhead" style="cursor:default">' + head + '</div>') +
+      (open ? details(r) : '') +
+      '<div class="reqact"><button type="button" class="mini" data-release="' + esc(j.quoteNo) + '" data-who="' + esc(j.technician) + '"' + (REQ.busy ? ' disabled' : '') + '>' +
+      (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div></li>';
+  }).join("") + '</ul>');
+  return '<p class="hint" style="margin-top:0">Taken but not handed over yet. Tap a job to see its full request. Release one to put it back in New requests.</p>' +
     group("À la carte", taken.filter(j => !isCareReq(j))) + group("Care Plans", taken.filter(isCareReq));
 }
 async function pushOn(){
