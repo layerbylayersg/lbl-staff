@@ -3564,6 +3564,10 @@ function takenJobs(){
   const notHandedOver = j => j.status === "Confirmed" && !j.handover && !j.report && !j.savedReport;
   return JOBS.filter(j => j.technician && (isMine(j) || SESSION.admin) && (notHandedOver(j) || j.status === "In Progress"));
 }
+function takenByPerson(taken){
+  const by = {}; taken.forEach(j => { const k = j.technician || "Unassigned"; (by[k] = by[k] || []).push(j); });
+  return Object.keys(by).sort((a, b) => (b === ME()) - (a === ME()) || a.localeCompare(b)).map(k => [k, by[k]]);
+}
 function takenHtml(taken, details, tags){
   const info = no => (REQ.taken || []).find(r => r.quoteNo === no); // same request details as New requests (Apps Script v136+)
   const group = (label, list) => '<h3 class="sub">' + label + ' (' + list.length + ')</h3>' + (!list.length ? '<p class="hint">None.</p>' : '<ul class="reqlist">' + list.map(j => {
@@ -3580,7 +3584,7 @@ function takenHtml(taken, details, tags){
         (REQ.busy === j.quoteNo ? 'Releasing…' : 'Undo / Release job') + '</button></div>') + '</li>';
   }).join("") + '</ul>');
   return '<p class="hint" style="margin-top:0">Jobs taken and not finished yet. Tap a job to see its full request. A job not handed over yet can be released back to New requests.</p>' +
-    group("À la carte", taken.filter(j => !isCareReq(j))) + group("Care Plans", taken.filter(isCareReq));
+    takenByPerson(taken).map(([who, list]) => group(esc(who) + (who === ME() ? " (you)" : ""), list)).join("");
 }
 async function pushOn(){
   REQ.msg = "";
