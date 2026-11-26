@@ -899,6 +899,12 @@ body.qt-on{overflow:hidden}
 #qtView{position:fixed;inset:0;z-index:900;background:#0f1110;color:#f2f4f0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:env(safe-area-inset-top,0px) max(14px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 body.locked #qtView{display:none}
 #qtView .qtwrap{max-width:520px;margin:0 auto}
+#qtView .qtfind{display:block;margin:4px 0 12px}
+#qtView .qtfind input{width:100%;font:inherit;font-size:16px;color:#f2f4f0;background:#1a1d1b;border:2px solid #2e332f;border-radius:14px;padding:14px 16px;outline:none}
+#qtView .qtfind input:focus{border-color:#a5cd67}
+#qtView .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#qtView #qtRes .qtlist{margin-bottom:12px}
+#qtView [hidden]{display:none!important}
 #qtView .qthead{display:flex;align-items:center;gap:10px;padding:16px 0 6px}
 #qtView h1{font-size:1.25rem;margin:0;flex:1}
 #qtView h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:#9aa39a;margin:18px 0 8px}
@@ -5964,9 +5970,9 @@ const QT_BINS = { "1A": "Bambu hotends", "1B": "Panda Juicer", "1C": "Heating as
   "2A": "Extruders", "2B": "Gears", "2C": "Covers", "2D": "Cutters", "2E": "Fans", "3A": "TH boards", "3B": "Filament sensors", "3C": "Heatbed boards",
   "4A": "Cables", "4B": "Cable chains", "5A": "Motors", "5B": "Belts", "6A": "AMS hubs", "6B": "AMS boards", "6C": "AMS feeders", "6D": "Buffers" };
 const QT_SALE = /^(shopee|carousell|website|walk-?in|direct)/i;
-let qt = null; // { screen: "rack" | "bin" | "why" | "done", bin, code, qty, why, last, busy, msg }
+let qt = null; // { screen: "rack" | "bin" | "why" | "done", bin, code, qty, why, last, busy, msg, find, from }
 const qtOn = () => /^#rack$/i.test(location.hash);
-function qtOpen(){ if(!qt) qt = { screen: "rack", bin: "", code: "", qty: 1, why: "", last: "", busy: false, msg: "" }; document.body.classList.add("qt-on"); qtRender(); if(!RS.loaded) loadStock(); }
+function qtOpen(){ if(!qt) qt = { screen: "rack", bin: "", code: "", qty: 1, why: "", last: "", busy: false, msg: "", find: "", from: "rack" }; document.body.classList.add("qt-on"); qtRender(); if(!RS.loaded) loadStock(); }
 function qtClose(){ qt = null; document.body.classList.remove("qt-on"); const v = document.getElementById("qtView"); if(v) v.remove();
   if(qtOn()) history.replaceState(null, "", location.pathname + location.search); if(!/\bmode-/.test(document.body.className)) setMode("dash"); }
 const qtLoc = s => String(s.location || "").trim().toUpperCase();
@@ -5979,7 +5985,7 @@ function qtWhyLabel(w){ if(w.startsWith("job:")){ const j = JOBS.find(x => "job:
 function qtRender(){
   if(!qt) return;
   let v = document.getElementById("qtView");
-  if(!v){ v = document.createElement("div"); v.id = "qtView"; v.setAttribute("role", "dialog"); v.setAttribute("aria-label", "Quick take-out"); document.body.appendChild(v); v.addEventListener("click", qtClick); }
+  if(!v){ v = document.createElement("div"); v.id = "qtView"; v.setAttribute("role", "dialog"); v.setAttribute("aria-label", "Quick take-out"); document.body.appendChild(v); v.addEventListener("click", qtClick); v.addEventListener("input", qtTyped); }
   const item = qt.code && stockOf(qt.code), back = qt.screen === "bin" || qt.screen === "why";
   let h = '<div class="qtwrap"><div class="qthead">' + (back ? '<button class="qtback" data-qt="back">‹ Back</button>' : '') +
     '<h1>' + (qt.screen === "rack" ? "Parts rack" : qt.screen === "bin" ? "Bin " + esc(qt.bin) : qt.screen === "why" ? "What's it for?" : "Done") + '</h1>' +
@@ -5987,13 +5993,15 @@ function qtRender(){
   if(!RS.loaded){ v.innerHTML = h + '<p class="qthint">' + esc(RS.error || "Loading stock…") + '</p></div>'; return; }
   if(qt.screen === "rack"){
     const used = new Set(RS.stock.map(qtLoc).filter(l => /^\d+[A-Z]$/.test(l)));
-    h += '<p class="qthint">Tap a bin.</p><div class="qtrack">';
+    h += '<label class="qtfind"><span class="sr">Search all stock</span><input id="qtFind" type="search" placeholder="Search all stock, e.g. p2s hotend" value="' + esc(qt.find) + '" autocomplete="off" autocapitalize="none" enterkeyhint="search"></label>' +
+      '<div id="qtRes">' + qtResults() + '</div>' +
+      '<div id="qtRackWrap"' + (qt.find.trim() ? ' hidden' : '') + '><p class="qthint">Or tap a bin.</p><div class="qtrack">';
     for(let r = 6; r >= 1; r--){
       h += '<div class="qtrow">Row ' + r + ' · ' + esc(QT_ROWS[r]) + '</div>';
       for(const L of "ABCDE"){ const c = r + L, has = used.has(c);
         h += has ? '<button class="qtbin" data-qtbin="' + c + '"><b>' + c + '</b><small>' + esc(QT_BINS[c] || "") + '</small></button>' : '<span class="qtbin qtempty"><b>' + c + '</b></span>'; }
     }
-    h += '</div>';
+    h += '</div></div>';
   }
   if(qt.screen === "bin"){
     const parts = RS.stock.filter(s => qtLoc(s) === qt.bin);
@@ -6003,7 +6011,7 @@ function qtRender(){
   if(qt.screen === "why" && item){
     const held = rsQty(item), ch = qtChannels(), jobs = qtOpenJobs();
     const chip = (w, label, sub) => '<button class="qtchip' + (qt.why === w ? " on" : "") + '" data-qtwhy="' + esc(w) + '">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</button>';
-    h += '<p class="qthint"><b>' + esc(item.name) + '</b> · ' + held + ' in bin ' + esc(qt.bin) + '</p>' +
+    h += '<p class="qthint"><b>' + esc(item.name) + '</b> · ' + held + (qt.bin ? ' in bin ' + esc(qt.bin) : ' in stock (no bin)') + '</p>' +
       '<h2>How many</h2><div class="qtstep"><button data-qt="minus" aria-label="One less">−</button><output>' + qt.qty + '</output><button data-qt="plus" aria-label="One more">+</button></div>' +
       '<h2>Repair job</h2><div class="qtlist">' + (jobs.length ? jobs.map(j => chip("job:" + j.quoteNo, (j.name || j.quoteNo) + (j.model ? " · " + j.model : ""), j.quoteNo)).join("") : '<p class="qthint">No open jobs.</p>') + '</div>' +
       (ch.sale.length ? '<h2>Sale</h2><div class="qtgrid">' + ch.sale.map(c => chip("ch:" + c, c)).join("") + '</div>' : '') +
@@ -6013,29 +6021,46 @@ function qtRender(){
       '<button class="qtgo" data-qt="go"' + (qt.why && !qt.busy ? '' : ' disabled') + '>' + (qt.busy ? "Saving…" : "Take " + qt.qty + " out") + '</button>';
   }
   if(qt.screen === "done" && item){
-    h += '<div class="qtdone"><div class="qttick">✓</div><h2>Taken out</h2><p>' + qt.qty + ' × ' + esc(item.name) + '<br>Bin ' + esc(qt.bin) + ' now has <b>' + rsQty(item) + '</b> left<br>For: ' + esc(qtWhyLabel(qt.why)) + '</p>' +
-      '<button class="qtgo qtalt" data-qt="again">Take another from bin ' + esc(qt.bin) + '</button><button class="qtgo qtalt" data-qt="rack">Back to rack</button></div>';
+    h += '<div class="qtdone"><div class="qttick">✓</div><h2>Taken out</h2><p>' + qt.qty + ' × ' + esc(item.name) + '<br>' + (qt.bin ? 'Bin ' + esc(qt.bin) : 'Stock') + ' now has <b>' + rsQty(item) + '</b> left<br>For: ' + esc(qtWhyLabel(qt.why)) + '</p>' +
+      (qt.from === "bin" ? '<button class="qtgo qtalt" data-qt="again">Take another from bin ' + esc(qt.bin) + '</button><button class="qtgo qtalt" data-qt="rack">Back to rack</button>' : '<button class="qtgo qtalt" data-qt="rack">Search again</button>') + '</div>';
   }
   v.innerHTML = h + '</div>';
+}
+// Search across all stock (parts, filament, accessories): every typed word must match the name, code, aliases or bin.
+function qtResults(){
+  const words = qt.find.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length) return "";
+  const hits = RS.stock.filter(s => { const hay = (s.code + " " + s.name + " " + (s.aliases || []).join(" ") + " " + qtLoc(s)).toLowerCase(); return words.every(w => hay.includes(w)); });
+  if(!hits.length) return '<p class="qthint">Nothing matches “' + esc(qt.find.trim()) + '”.</p>';
+  return '<div class="qtlist">' + hits.slice(0, 30).map(s => { const q = rsQty(s), loc = qtLoc(s);
+    return '<button class="qtitem" data-qtcode="' + esc(s.code) + '"' + (q <= 0 ? ' disabled' : '') + '><span><b>' + esc(s.name) + '</b><small>' + (loc ? 'Bin ' + esc(loc) + ' · ' : '') + esc(s.code) + '</small></span><i class="' + (q <= 0 ? "z" : q <= 1 ? "l" : "") + '">' + q + '</i></button>'; }).join("") +
+    '</div>' + (hits.length > 30 ? '<p class="qthint">' + (hits.length - 30) + ' more: type more words to narrow it down.</p>' : '');
+}
+function qtTyped(e){
+  if(!qt || e.target.id !== "qtFind") return;
+  qt.find = e.target.value;
+  const res = document.getElementById("qtRes"), rack = document.getElementById("qtRackWrap");
+  if(res) res.innerHTML = qtResults();
+  if(rack) rack.hidden = !!qt.find.trim();
 }
 async function qtClick(e){
   const b = e.target.closest("button"); if(!b || !qt) return;
   const a = b.dataset.qt, item = qt.code && stockOf(qt.code);
   if(a === "close"){ qtClose(); return; }
-  if(a === "back"){ qt.screen = qt.screen === "why" ? "bin" : "rack"; qt.msg = ""; qtRender(); return; }
+  if(a === "back"){ qt.screen = qt.screen === "why" ? qt.from : "rack"; qt.msg = ""; qtRender(); return; }
   if(b.dataset.qtbin){ qt.bin = b.dataset.qtbin; qt.screen = "bin"; qtRender(); window.scrollTo(0, 0); return; }
-  if(b.dataset.qtcode){ qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.screen = "why"; qtRender(); window.scrollTo(0, 0); return; }
+  if(b.dataset.qtcode){ qt.from = qt.screen === "bin" ? "bin" : "rack"; if(qt.from === "rack") qt.bin = qtLoc(stockOf(b.dataset.qtcode) || {}); qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.screen = "why"; qtRender(); window.scrollTo(0, 0); return; }
   if(b.dataset.qtwhy){ qt.why = b.dataset.qtwhy; qtRender(); return; }
   if(a === "minus"){ qt.qty = Math.max(1, qt.qty - 1); qtRender(); return; }
   if(a === "plus"){ qt.qty = Math.min(Math.max(1, rsQty(item)), qt.qty + 1); qtRender(); return; }
   if(a === "again"){ qt.screen = "bin"; qtRender(); return; }
-  if(a === "rack"){ qt.screen = "rack"; qtRender(); return; }
+  if(a === "rack"){ qt.screen = "rack"; qtRender(); const f = document.getElementById("qtFind"); if(f && qt.find) f.select(); return; }
   if(a === "go" && item && qt.why && !qt.busy){
     const isJob = qt.why.startsWith("job:"), jobNo = isJob ? qt.why.slice(4) : "";
     const channel = isJob ? ((RS.channels || []).find(c => /^Repair/i.test(c)) || "Repair job") : qt.why.slice(3);
     qt.busy = true; qt.msg = ""; qtRender();
     try{
-      const out = await rsCall({ action: "stockMove", kind: "out", code: item.code, qty: qt.qty, channel, note: "Rack scan · bin " + qt.bin, by: rs.by || ME(), jobNo });
+      const out = await rsCall({ action: "stockMove", kind: "out", code: item.code, qty: qt.qty, channel, note: "Rack scan" + (qt.bin ? " · bin " + qt.bin : " · search"), by: rs.by || ME(), jobNo });
       if(out.result !== "success"){ qt.msg = "NOT saved: " + (out.message || "unknown error"); return; }
       if(jobNo){ const j = JOBS.find(x => x.quoteNo === jobNo); if(j){ j.taken = j.taken || []; const t = j.taken.find(x => x.code === item.code); t ? t.qty += qt.qty : j.taken.push({ code: item.code, name: item.name, qty: qt.qty }); } }
       qt.last = qt.why; await loadStock(); qt.screen = "done";
