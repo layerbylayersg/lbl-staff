@@ -6022,6 +6022,8 @@ function qtRender(){
   }
   if(qt.screen === "done" && item){
     h += '<div class="qtdone"><div class="qttick">✓</div><h2>Taken out</h2><p>' + qt.qty + ' × ' + esc(item.name) + '<br>' + (qt.bin ? 'Bin ' + esc(qt.bin) : 'Stock') + ' now has <b>' + rsQty(item) + '</b> left<br>For: ' + esc(qtWhyLabel(qt.why)) + '</p>' +
+      (qt.xero ? (qt.xero.startsWith("ok:") ? '<p class="qthint">🧾 Xero draft invoice <b>' + esc(qt.xero.slice(3)) + '</b> made for Carousell Sales. Check the price and approve it in Xero.</p>'
+        : '<p class="qterr">Stock is saved, but the Xero draft invoice was NOT made (' + esc(qt.xero.slice(4)) + '). Make it in Xero by hand.</p>') : '') +
       (qt.from === "bin" ? '<button class="qtgo qtalt" data-qt="again">Take another from bin ' + esc(qt.bin) + '</button><button class="qtgo qtalt" data-qt="rack">Back to rack</button>' : '<button class="qtgo qtalt" data-qt="rack">Search again</button>') + '</div>';
   }
   v.innerHTML = h + '</div>';
@@ -6049,7 +6051,7 @@ async function qtClick(e){
   if(a === "close"){ qtClose(); return; }
   if(a === "back"){ qt.screen = qt.screen === "why" ? qt.from : "rack"; qt.msg = ""; qtRender(); return; }
   if(b.dataset.qtbin){ qt.bin = b.dataset.qtbin; qt.screen = "bin"; qtRender(); window.scrollTo(0, 0); return; }
-  if(b.dataset.qtcode){ qt.from = qt.screen === "bin" ? "bin" : "rack"; if(qt.from === "rack") qt.bin = qtLoc(stockOf(b.dataset.qtcode) || {}); qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.screen = "why"; qtRender(); window.scrollTo(0, 0); return; }
+  if(b.dataset.qtcode){ qt.from = qt.screen === "bin" ? "bin" : "rack"; if(qt.from === "rack") qt.bin = qtLoc(stockOf(b.dataset.qtcode) || {}); qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.xero = ""; qt.screen = "why"; qtRender(); window.scrollTo(0, 0); return; }
   if(b.dataset.qtwhy){ qt.why = b.dataset.qtwhy; qtRender(); return; }
   if(a === "minus"){ qt.qty = Math.max(1, qt.qty - 1); qtRender(); return; }
   if(a === "plus"){ qt.qty = Math.min(Math.max(1, rsQty(item)), qt.qty + 1); qtRender(); return; }
@@ -6063,6 +6065,15 @@ async function qtClick(e){
       const out = await rsCall({ action: "stockMove", kind: "out", code: item.code, qty: qt.qty, channel, note: "Rack scan" + (qt.bin ? " · bin " + qt.bin : " · search"), by: rs.by || ME(), jobNo });
       if(out.result !== "success"){ qt.msg = "NOT saved: " + (out.message || "unknown error"); return; }
       if(jobNo){ const j = JOBS.find(x => x.quoteNo === jobNo); if(j){ j.taken = j.taken || []; const t = j.taken.find(x => x.code === item.code); t ? t.qty += qt.qty : j.taken.push({ code: item.code, name: item.name, qty: qt.qty }); } }
+      qt.xero = "";
+      if(!rsDemo && /^carousell/i.test(channel)){ // Carousell sale: DRAFT Xero invoice via XeroLink.gs (never approved or sent)
+        const price = Number(item.direct) || Number(item.sell) || 0;
+        try{
+          const x = await rsCall({ action: "xeroDraftInvoice", saveId: "xr-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8), contact: "Carousell Sales",
+            reference: "Carousell · " + item.code, lines: [{ code: item.code, description: item.name, qty: qt.qty, price }], by: rs.by || ME() });
+          qt.xero = x && x.result === "success" ? "ok:" + x.invoiceNumber : "err:" + ((x && x.message) || "unknown error");
+        }catch(err){ qt.xero = "err:no connection"; }
+      }
       qt.last = qt.why; await loadStock(); qt.screen = "done";
     }catch(err){ qt.msg = "NOT saved: no connection? Try again."; }
     finally{ if(qt){ qt.busy = false; qtRender(); } }
