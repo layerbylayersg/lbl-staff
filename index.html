@@ -403,7 +403,8 @@
   .dtops{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px} .dtop h3{margin:0 0 8px;font-size:14px}
   .dtop ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
   .dtop li{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 24px;align-items:center;gap:8px;font-size:13.5px}
-  .dtop li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .dtop li i{height:8px;border-radius:0 4px 4px 0;background:var(--green-600)} .dtop li b{text-align:right}
+  .dtop li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .dtop li i{height:8px;border-radius:0 4px 4px 0;background:var(--green-600)} .dtop li b{text-align:right;white-space:nowrap}
+  .dtop.dmoney li{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 72px} /* amounts like $111.40 need more room than counts */
   #dashTip{position:fixed;z-index:50;max-width:280px;padding:7px 10px;border-radius:8px;background:#1F2421;color:#fff;font-size:12.5px;line-height:1.4;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
   .dtile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
   .dtile b{font-size:28px;line-height:1.15} .dtile span{font-size:13.5px;font-weight:600;color:var(--ink)} .dtile small{font-size:12px;color:var(--muted)}
@@ -3724,7 +3725,7 @@ function dashPrintHtml(){
       tile(dMoney(pr.design), "Design fees") +
       tile(dMoney(pr.handling), "Handling fees") +
     '</div>' +
-    '<div class="dtops"><div class="dtop"><h3>Biggest jobs</h3>' + (top.length ? '<ol>' + top.map(x => '<li><span>' + esc(x.name) + '</span><i style="width:' + Math.round(x.amount / max * 100) + '%"></i><b>' + dMoney(x.amount) + '</b></li>').join("") + '</ol>' : '<p class="hint">No printing jobs invoiced yet.</p>') + '</div></div>' +
+    '<div class="dtops"><div class="dtop dmoney"><h3>Biggest jobs</h3>' + (top.length ? '<ol>' + top.map(x => '<li><span>' + esc(x.name) + '</span><i style="width:' + Math.round(x.amount / max * 100) + '%"></i><b>' + dMoney(x.amount) + '</b></li>').join("") + '</ol>' : '<p class="hint">No printing jobs invoiced yet.</p>') + '</div></div>' +
     '<p class="hint">From approved Xero invoices on account 203 (Design and Printing Services), by invoice date. Drafts aren\'t counted.</p>';
 }
 // One tooltip for the dashboard charts (hover and keyboard focus).
