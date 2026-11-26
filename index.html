@@ -3681,30 +3681,31 @@ function dashTopHtml(){
   return '<p class="hint" style="margin-top:0">' + esc(dMonthName(m.month || "2000-01")) + ' (switch month at the top)</p><div class="dtops">' +
     list(m.topModels, "Models serviced", "No jobs yet.") + list(m.topParts, "Parts replaced", "No parts fitted yet.") + '</div>';
 }
-// Product sales card: "Sold" rows in Stock moves on a sale channel (Apps Script DashSales.gs, months[i].productSales).
-// Sales value = inventory prices. Received = Shopee value less the Pricing screen's Shopee fee % (an estimate of the
-// payout in the Seller app) + the full value of every other channel. Gross profit = received - cost.
+// Product sales card: approved Xero invoices on account 205, Product Sales (Apps Script DashSales.gs, months[i].productSales).
+// Sales value = invoiced amount. Received = Shopee value less the Pricing screen's Shopee fee % (an estimate of the payout)
+// + every other channel in full. Gross profit = received on items with a known cost - their cost.
 function dashSalesHtml(){
   const w = dWait(); if(w !== null) return w;
   const m = DASH.data.months[dashMonth === "last" ? 1 : 0] || {}, ps = m.productSales;
   if(ps === undefined) return '<p class="hint">These numbers need the latest Apps Script.</p>';
-  if(!ps) return '<p class="hint">Could not read product sales from the Sheet.</p>';
+  if(!ps) return '<p class="hint">Could not read product sales from Xero.</p>';
   const tile = (n, label, sub, cls) => '<div class="dtile' + (cls ? ' ' + cls : '') + '"><b>' + n + '</b><span>' + label + '</span>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>';
   const fee = rsShopeeFee() / 100, by = ps.byChannel || {}, ch = Object.keys(by).sort((a, b) => by[b].units - by[a].units), top = ps.top || [];
-  const isShopee = c => /^shopee/i.test(c), got = c => isShopee(c) ? by[c].value * (1 - fee) : by[c].value;
-  const received = ch.reduce((t, c) => t + got(c), 0), cost = ch.reduce((t, c) => t + (by[c].cost || 0), 0), profit = received - cost;
+  const isShopee = c => /^shopee/i.test(c), net = (c, v) => isShopee(c) ? v * (1 - fee) : v;
+  const received = ch.reduce((t, c) => t + net(c, by[c].value), 0);
+  const costed = ch.reduce((t, c) => t + net(c, by[c].costedValue || 0), 0), cost = ch.reduce((t, c) => t + (by[c].cost || 0), 0), profit = costed - cost;
   const hasShopee = ch.some(c => isShopee(c) && by[c].value);
   const max = Math.max.apply(null, top.map(x => x.n).concat([1]));
   return '<p class="hint" style="margin-top:0">' + esc(dMonthName(m.month || "2000-01")) + ' (switch month at the top)</p>' +
     '<div class="dtiles">' +
-      tile(ps.units || 0, "Units sold", ps.unpriced ? ps.unpriced + " without a price" : "") +
-      tile(dMoney(ps.value), "Sales value", "at inventory prices", "money") +
+      tile(ps.units || 0, "Units sold", ps.nocost ? ps.nocost + " without a cost (left out of profit)" : "") +
+      tile(dMoney(ps.value), "Sales value", "from Xero invoices", "money") +
       tile(dMoney(received), "Received", hasShopee ? "Shopee payout estimated (" + rsShopeeFee() + "% fees)" : "no Shopee fees") +
-      tile(dMoney(profit), "Gross profit", received ? dPct(profit, received) + "% of received, after cost" : "") +
-      ch.map(c => tile(by[c].units, esc(c), dMoney(by[c].value) + (isShopee(c) && by[c].value ? " · payout ≈ " + dMoney(got(c)) : ""))).join("") +
+      tile(costed ? dMoney(profit) : "–", "Gross profit", costed ? dPct(profit, costed) + "% margin, after cost" : "no costs on the Stock tab") +
+      ch.map(c => tile(by[c].units, esc(c), dMoney(by[c].value) + (isShopee(c) && by[c].value ? " · payout ≈ " + dMoney(net(c, by[c].value)) : ""))).join("") +
     '</div>' +
     '<div class="dtops"><div class="dtop"><h3>Top products</h3>' + (top.length ? '<ol>' + top.map(x => '<li><span>' + esc(x.name) + '</span><i style="width:' + Math.round(x.n / max * 100) + '%"></i><b>' + x.n + '</b></li>').join("") + '</ol>' : '<p class="hint">No product sales yet.</p>') + '</div></div>' +
-    '<p class="hint">From "Sold" stock moves (Shopee, Carousell, website, walk-in), at inventory prices. Carousell, website and walk-in: profit = price − cost. Shopee: profit = estimated payout (price less the ' + rsShopeeFee() + '% fee set in Inventory › Pricing) − cost; the real payout is in the Shopee Seller app. Shopee sales only count if they were taken out on the staff site.</p>';
+    '<p class="hint">From approved Xero invoices on account 205 (Product Sales), by invoice date; drafts aren\'t counted. Profit = sold price − average cost from the Stock tab; for Shopee, the payout is estimated at the ' + rsShopeeFee() + '% fee set in Inventory › Pricing (the real payout is in the Shopee Seller app). Items with no cost on the Stock tab are left out of profit.</p>';
 }
 // 3D Printing & Design card: approved Xero invoices on account 203, Design and Printing Services (Apps Script DashSales.gs, months[i].printing).
 function dashPrintHtml(){
