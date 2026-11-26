@@ -893,6 +893,44 @@
     .sheet{box-shadow:none;border:0;border-radius:0;max-width:none;font-size:10.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .sheet .band,.summary > div,.sheet .body{padding-left:0;padding-right:0}
   }
+
+/* Quick take-out (rack NFC tag) */
+body.qt-on{overflow:hidden}
+#qtView{position:fixed;inset:0;z-index:900;background:#0f1110;color:#f2f4f0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:env(safe-area-inset-top,0px) max(14px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body.locked #qtView{display:none}
+#qtView .qtwrap{max-width:520px;margin:0 auto}
+#qtView .qthead{display:flex;align-items:center;gap:10px;padding:16px 0 6px}
+#qtView h1{font-size:1.25rem;margin:0;flex:1}
+#qtView h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:#9aa39a;margin:18px 0 8px}
+#qtView button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
+#qtView .qtback,#qtView .qtx{background:#232724;border:0;border-radius:999px;padding:8px 14px;font-weight:600}
+#qtView .qthint{color:#9aa39a;font-size:.92rem;margin:0 0 12px}#qtView .qthint b{color:#a5cd67}
+#qtView .qtrack{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+#qtView .qtrow{grid-column:1/-1;font-size:.78rem;color:#9aa39a;margin:8px 0 -2px;font-weight:600}
+#qtView .qtbin{aspect-ratio:1;border:0;border-radius:12px;background:#1a1d1b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px}
+#qtView .qtbin b{font-size:1.15rem}#qtView .qtbin small{font-size:.62rem;color:#9aa39a;text-align:center;line-height:1.1}
+#qtView .qtempty{background:transparent;border:1px dashed #2e332f;color:#4a504b}#qtView .qtempty b{font-weight:500}
+#qtView .qtlist{display:flex;flex-direction:column;gap:8px}
+#qtView .qtgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#qtView .qtitem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#1a1d1b;border:0;border-radius:14px;padding:14px}
+#qtView .qtitem span{flex:1;min-width:0}#qtView .qtitem b{display:block;font-weight:600}#qtView .qtitem small{color:#9aa39a;font-size:.78rem}
+#qtView .qtitem i{font-style:normal;min-width:44px;text-align:center;border-radius:10px;padding:6px 8px;font-weight:700;background:#232724}
+#qtView .qtitem i.l{color:#f0b44c}#qtView .qtitem i.z{color:#e06a5a}#qtView .qtitem[disabled]{opacity:.45}
+#qtView .qtchip{background:#1a1d1b;border:2px solid transparent;border-radius:14px;padding:14px 12px;font-weight:600;text-align:left}
+#qtView .qtgrid .qtchip{text-align:center}
+#qtView .qtchip small{display:block;font-weight:400;color:#9aa39a;font-size:.75rem;margin-top:2px}
+#qtView .qtchip.on{border-color:#a5cd67;background:#22301a}
+#qtView .qtstep{display:flex;align-items:center;justify-content:center;gap:18px;background:#1a1d1b;border-radius:14px;padding:10px}
+#qtView .qtstep button{width:52px;height:52px;border-radius:50%;border:0;background:#232724;font-size:1.6rem}
+#qtView .qtstep output{font-size:1.8rem;font-weight:700;min-width:40px;text-align:center}
+#qtView .qtsum{background:#1a1d1b;border-radius:14px;padding:14px;margin-top:14px;font-size:.92rem;color:#9aa39a}#qtView .qtsum b{color:#f2f4f0}
+#qtView .qterr{color:#e06a5a;font-weight:600}
+#qtView .qtgo{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));margin-top:16px;width:100%;border:0;border-radius:16px;padding:18px;font-weight:700;font-size:1.05rem;background:#a5cd67;color:#132006}
+#qtView .qtgo[disabled]{background:#3b4238;color:#7c857a}
+#qtView .qtalt{position:static;background:#232724;color:#f2f4f0;margin-top:10px}
+#qtView .qtdone{text-align:center;padding:30px 6px}#qtView .qtdone p{color:#9aa39a}
+#qtView .qttick{width:84px;height:84px;border-radius:50%;background:#a5cd67;color:#132006;display:grid;place-items:center;font-size:2.6rem;margin:0 auto 16px}
+#qtView button:focus-visible{outline:3px solid #a5cd67;outline-offset:2px}
 </style>
 </head>
 <body class="show-form locked">
@@ -1245,6 +1283,7 @@ let dashOpened = false; // the Dashboard is the first page after signing in
 function unlock(){
   document.body.classList.remove("locked");
   if(!dashOpened && !/\bmode-/.test(document.body.className)){ dashOpened = true; setTimeout(() => setMode("dash"), 0); }
+  if(qtOn()) setTimeout(qtOpen, 0); // the rack NFC tag opens the quick take-out screen
   if(document.body.classList.contains("mode-st") && !(SESSION && SESSION.admin)) setMode("report"); // Staff screen is for admins only
   showWho();
   defaultNames();
@@ -4830,7 +4869,8 @@ async function loadStock(){
     if(!rs.fxRate) rsAutoFx(); // rate for the default currency, before any scan
     fillStockNames();
     if(document.body.classList.contains("mode-rs")) renderRs();
-  }catch(err){ RS.error = "Could not load stock. Check the connection and press Refresh."; if(document.body.classList.contains("mode-rs")) renderRs(); }
+    if(typeof qt === "object" && qt) qtRender();
+  }catch(err){ RS.error = "Could not load stock. Check the connection and press Refresh."; if(document.body.classList.contains("mode-rs")) renderRs(); if(typeof qt === "object" && qt) qtRender(); }
   finally{ RS.loading = false; }
 }
 // Service report "Parts replaced": suggest stock item names so used parts come off stock.
@@ -5915,6 +5955,95 @@ rsPane.addEventListener("click", async e => {
     finally{ const s = document.getElementById("rsPrice"); if(s) s.disabled = false; }
   }
 });
+
+/* ---------- Quick take-out (rack NFC tag: staff.layerbylayersg.com/#rack) ----------
+   Tap a bin, tap the part, tap what it's for, tap Take out. Uses the same stockMove as the Inventory screen,
+   so stock, history and job parts update exactly as they do there. */
+const QT_ROWS = { 1: "Hotend", 2: "Extruder & toolhead", 3: "Boards & sensors", 4: "Cables", 5: "Motion", 6: "AMS & filament path" };
+const QT_BINS = { "1A": "Bambu hotends", "1B": "Panda Juicer", "1C": "Heating assy", "1D": "Silicone socks", "1E": "Other nozzles",
+  "2A": "Extruders", "2B": "Gears", "2C": "Covers", "2D": "Cutters", "2E": "Fans", "3A": "TH boards", "3B": "Filament sensors", "3C": "Heatbed boards",
+  "4A": "Cables", "4B": "Cable chains", "5A": "Motors", "5B": "Belts", "6A": "AMS hubs", "6B": "AMS boards", "6C": "AMS feeders", "6D": "Buffers" };
+const QT_SALE = /^(shopee|carousell|website|walk-?in|direct)/i;
+let qt = null; // { screen: "rack" | "bin" | "why" | "done", bin, code, qty, why, last, busy, msg }
+const qtOn = () => /^#rack$/i.test(location.hash);
+function qtOpen(){ if(!qt) qt = { screen: "rack", bin: "", code: "", qty: 1, why: "", last: "", busy: false, msg: "" }; document.body.classList.add("qt-on"); qtRender(); if(!RS.loaded) loadStock(); }
+function qtClose(){ qt = null; document.body.classList.remove("qt-on"); const v = document.getElementById("qtView"); if(v) v.remove();
+  if(qtOn()) history.replaceState(null, "", location.pathname + location.search); if(!/\bmode-/.test(document.body.className)) setMode("dash"); }
+const qtLoc = s => String(s.location || "").trim().toUpperCase();
+const qtOpenJobs = () => JOBS.filter(j => j.status !== "Completed" && !/cancel/i.test(j.status || ""));
+function qtChannels(){
+  const ch = (RS.channels && RS.channels.length ? RS.channels : ["Shopee", "Carousell", "Website", "Walk-in", "Printing job", "Own use", "Damaged / lost"]).filter(c => !/^Repair/i.test(c));
+  return { sale: ch.filter(c => QT_SALE.test(c)), other: ch.filter(c => !QT_SALE.test(c)) };
+}
+function qtWhyLabel(w){ if(w.startsWith("job:")){ const j = JOBS.find(x => "job:" + x.quoteNo === w); return "Repair " + w.slice(4) + (j && j.name ? " (" + j.name + ")" : ""); } return w.slice(3); }
+function qtRender(){
+  if(!qt) return;
+  let v = document.getElementById("qtView");
+  if(!v){ v = document.createElement("div"); v.id = "qtView"; v.setAttribute("role", "dialog"); v.setAttribute("aria-label", "Quick take-out"); document.body.appendChild(v); v.addEventListener("click", qtClick); }
+  const item = qt.code && stockOf(qt.code), back = qt.screen === "bin" || qt.screen === "why";
+  let h = '<div class="qtwrap"><div class="qthead">' + (back ? '<button class="qtback" data-qt="back">‹ Back</button>' : '') +
+    '<h1>' + (qt.screen === "rack" ? "Parts rack" : qt.screen === "bin" ? "Bin " + esc(qt.bin) : qt.screen === "why" ? "What's it for?" : "Done") + '</h1>' +
+    '<button class="qtx" data-qt="close" aria-label="Close">✕</button></div>';
+  if(!RS.loaded){ v.innerHTML = h + '<p class="qthint">' + esc(RS.error || "Loading stock…") + '</p></div>'; return; }
+  if(qt.screen === "rack"){
+    const used = new Set(RS.stock.map(qtLoc).filter(l => /^\d+[A-Z]$/.test(l)));
+    h += '<p class="qthint">Tap a bin.</p><div class="qtrack">';
+    for(let r = 6; r >= 1; r--){
+      h += '<div class="qtrow">Row ' + r + ' · ' + esc(QT_ROWS[r]) + '</div>';
+      for(const L of "ABCDE"){ const c = r + L, has = used.has(c);
+        h += has ? '<button class="qtbin" data-qtbin="' + c + '"><b>' + c + '</b><small>' + esc(QT_BINS[c] || "") + '</small></button>' : '<span class="qtbin qtempty"><b>' + c + '</b></span>'; }
+    }
+    h += '</div>';
+  }
+  if(qt.screen === "bin"){
+    const parts = RS.stock.filter(s => qtLoc(s) === qt.bin);
+    h += '<p class="qthint">' + esc(QT_ROWS[qt.bin[0]] || "") + ' › <b>' + esc(QT_BINS[qt.bin] || qt.bin) + '</b>. Tap the part you\'re taking.</p><div class="qtlist">' +
+      parts.map(s => { const q = rsQty(s); return '<button class="qtitem" data-qtcode="' + esc(s.code) + '"' + (q <= 0 ? ' disabled' : '') + '><span><b>' + esc(s.name) + '</b><small>' + esc(s.code) + '</small></span><i class="' + (q <= 0 ? "z" : q <= 1 ? "l" : "") + '">' + q + '</i></button>'; }).join("") + '</div>';
+  }
+  if(qt.screen === "why" && item){
+    const held = rsQty(item), ch = qtChannels(), jobs = qtOpenJobs();
+    const chip = (w, label, sub) => '<button class="qtchip' + (qt.why === w ? " on" : "") + '" data-qtwhy="' + esc(w) + '">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</button>';
+    h += '<p class="qthint"><b>' + esc(item.name) + '</b> · ' + held + ' in bin ' + esc(qt.bin) + '</p>' +
+      '<h2>How many</h2><div class="qtstep"><button data-qt="minus" aria-label="One less">−</button><output>' + qt.qty + '</output><button data-qt="plus" aria-label="One more">+</button></div>' +
+      '<h2>Repair job</h2><div class="qtlist">' + (jobs.length ? jobs.map(j => chip("job:" + j.quoteNo, (j.name || j.quoteNo) + (j.model ? " · " + j.model : ""), j.quoteNo)).join("") : '<p class="qthint">No open jobs.</p>') + '</div>' +
+      (ch.sale.length ? '<h2>Sale</h2><div class="qtgrid">' + ch.sale.map(c => chip("ch:" + c, c)).join("") + '</div>' : '') +
+      (ch.other.length ? '<h2>Other</h2><div class="qtgrid">' + ch.other.map(c => chip("ch:" + c, c)).join("") + '</div>' : '') +
+      '<p class="qtsum">' + (qt.why ? 'Takes <b>' + qt.qty + '</b> off (' + held + ' → <b>' + (held - qt.qty) + '</b>) for <b>' + esc(qtWhyLabel(qt.why)) + '</b>.' : "Pick what it's for.") + '</p>' +
+      (qt.msg ? '<p class="qterr">' + esc(qt.msg) + '</p>' : '') +
+      '<button class="qtgo" data-qt="go"' + (qt.why && !qt.busy ? '' : ' disabled') + '>' + (qt.busy ? "Saving…" : "Take " + qt.qty + " out") + '</button>';
+  }
+  if(qt.screen === "done" && item){
+    h += '<div class="qtdone"><div class="qttick">✓</div><h2>Taken out</h2><p>' + qt.qty + ' × ' + esc(item.name) + '<br>Bin ' + esc(qt.bin) + ' now has <b>' + rsQty(item) + '</b> left<br>For: ' + esc(qtWhyLabel(qt.why)) + '</p>' +
+      '<button class="qtgo qtalt" data-qt="again">Take another from bin ' + esc(qt.bin) + '</button><button class="qtgo qtalt" data-qt="rack">Back to rack</button></div>';
+  }
+  v.innerHTML = h + '</div>';
+}
+async function qtClick(e){
+  const b = e.target.closest("button"); if(!b || !qt) return;
+  const a = b.dataset.qt, item = qt.code && stockOf(qt.code);
+  if(a === "close"){ qtClose(); return; }
+  if(a === "back"){ qt.screen = qt.screen === "why" ? "bin" : "rack"; qt.msg = ""; qtRender(); return; }
+  if(b.dataset.qtbin){ qt.bin = b.dataset.qtbin; qt.screen = "bin"; qtRender(); window.scrollTo(0, 0); return; }
+  if(b.dataset.qtcode){ qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.screen = "why"; qtRender(); window.scrollTo(0, 0); return; }
+  if(b.dataset.qtwhy){ qt.why = b.dataset.qtwhy; qtRender(); return; }
+  if(a === "minus"){ qt.qty = Math.max(1, qt.qty - 1); qtRender(); return; }
+  if(a === "plus"){ qt.qty = Math.min(Math.max(1, rsQty(item)), qt.qty + 1); qtRender(); return; }
+  if(a === "again"){ qt.screen = "bin"; qtRender(); return; }
+  if(a === "rack"){ qt.screen = "rack"; qtRender(); return; }
+  if(a === "go" && item && qt.why && !qt.busy){
+    const isJob = qt.why.startsWith("job:"), jobNo = isJob ? qt.why.slice(4) : "";
+    const channel = isJob ? ((RS.channels || []).find(c => /^Repair/i.test(c)) || "Repair job") : qt.why.slice(3);
+    qt.busy = true; qt.msg = ""; qtRender();
+    try{
+      const out = await rsCall({ action: "stockMove", kind: "out", code: item.code, qty: qt.qty, channel, note: "Rack scan · bin " + qt.bin, by: rs.by || ME(), jobNo });
+      if(out.result !== "success"){ qt.msg = "NOT saved: " + (out.message || "unknown error"); return; }
+      if(jobNo){ const j = JOBS.find(x => x.quoteNo === jobNo); if(j){ j.taken = j.taken || []; const t = j.taken.find(x => x.code === item.code); t ? t.qty += qt.qty : j.taken.push({ code: item.code, name: item.name, qty: qt.qty }); } }
+      qt.last = qt.why; await loadStock(); qt.screen = "done";
+    }catch(err){ qt.msg = "NOT saved: no connection? Try again."; }
+    finally{ if(qt){ qt.busy = false; qtRender(); } }
+  }
+}
+window.addEventListener("hashchange", () => { if(qtOn() && !document.body.classList.contains("locked")) qtOpen(); });
 
 /* ---------- boot ---------- */
 (async function(){
