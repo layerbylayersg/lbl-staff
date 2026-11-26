@@ -898,7 +898,22 @@
 body.qt-on{overflow:hidden}
 #qtView{position:fixed;inset:0;z-index:900;background:#0f1110;color:#f2f4f0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:env(safe-area-inset-top,0px) max(14px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 body.locked #qtView{display:none}
-#qtView .qtwrap{max-width:520px;margin:0 auto}
+#qtView .qtwrap{max-width:520px;margin:0 auto;padding-bottom:84px}
+#qtView .qtstart{width:100%;margin:2px 0 12px;border:2px dashed #3b4a2c;background:transparent;border-radius:14px;padding:13px;font-weight:600;color:#a5cd67}
+#qtView .qtsale{display:flex;align-items:center;gap:10px;background:#22301a;border:1px solid #3b4a2c;border-radius:14px;padding:10px 12px;margin:2px 0 12px;font-size:.9rem}
+#qtView .qtsale span{flex:1}#qtView .qtsale b{color:#a5cd67}
+#qtView .qtsale button{background:#232724;border:0;border-radius:999px;padding:7px 12px;font-weight:600;font-size:.85rem}
+#qtView .qtbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));width:min(520px,calc(100% - 28px));display:flex;align-items:center;justify-content:space-between;gap:10px;border:0;border-radius:16px;padding:16px 18px;background:#a5cd67;color:#132006;font-weight:600;box-shadow:0 10px 30px #000a}
+#qtView .qtline{background:#1a1d1b;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+#qtView .qtlt b{display:block;font-weight:600}#qtView .qtlt small{color:#9aa39a;font-size:.78rem}
+#qtView .qtlr{display:flex;align-items:center;gap:10px}
+#qtView .qtmini{display:flex;align-items:center;gap:8px}
+#qtView .qtmini button{width:38px;height:38px;border-radius:50%;border:0;background:#232724;font-size:1.2rem}
+#qtView .qtmini output{min-width:22px;text-align:center;font-weight:700}
+#qtView .qtlr label{flex:1;display:flex;align-items:center;gap:4px;color:#9aa39a}
+#qtView .qtlr input{width:100%;font:inherit;font-size:16px;color:#f2f4f0;background:#232724;border:1px solid #2e332f;border-radius:10px;padding:8px 10px}
+#qtView .qtwarn{background:#f0b44c;color:#2a1d05}
+#qtView .qtrm{width:38px;height:38px;border-radius:50%;border:0;background:#2a1d1b;color:#e06a5a}
 #qtView .qtfind{display:block;margin:4px 0 12px}
 #qtView .qtfind input{width:100%;font:inherit;font-size:16px;color:#f2f4f0;background:#1a1d1b;border:2px solid #2e332f;border-radius:14px;padding:14px 16px;outline:none}
 #qtView .qtfind input:focus{border-color:#a5cd67}
@@ -5970,9 +5985,16 @@ const QT_BINS = { "1A": "Bambu hotends", "1B": "Panda Juicer", "1C": "Heating as
   "2A": "Extruders", "2B": "Gears", "2C": "Covers", "2D": "Cutters", "2E": "Fans", "3A": "TH boards", "3B": "Filament sensors", "3C": "Heatbed boards",
   "4A": "Cables", "4B": "Cable chains", "5A": "Motors", "5B": "Belts", "6A": "AMS hubs", "6B": "AMS boards", "6C": "AMS feeders", "6D": "Buffers" };
 const QT_SALE = /^(shopee|carousell|website|walk-?in|direct)/i;
-let qt = null; // { screen: "rack" | "bin" | "why" | "done", bin, code, qty, why, last, busy, msg, find, from }
+let qt = null; // { screen: "rack" | "bin" | "why" | "done" | "add" | "cart" | "cartdone", bin, code, qty, why, last, busy, msg, find, from, price, sale }
+// Carousell sale basket: several items for one buyer become one Xero draft invoice. Kept on this phone until confirmed or cancelled.
+const QT_CART_KEY = "lbl-qt-cart";
+let qtCart = (function(){ try{ return JSON.parse(localStorage.getItem(QT_CART_KEY)) || null; }catch(e){ return null; } })(); // { lines: [{ code, name, qty, price }], buyer }
+function qtCartSave(){ try{ qtCart ? localStorage.setItem(QT_CART_KEY, JSON.stringify(qtCart)) : localStorage.removeItem(QT_CART_KEY); }catch(e){} }
+const qtCartTotal = () => qtCart ? qtCart.lines.reduce((t, l) => t + (Number(l.qty) || 0) * (Number(l.price) || 0), 0) : 0;
+const qtCartCount = () => qtCart ? qtCart.lines.reduce((t, l) => t + (Number(l.qty) || 0), 0) : 0;
+const qtCarousell = () => (RS.channels || []).find(c => /^carousell/i.test(c)) || "Carousell";
 const qtOn = () => /^#rack$/i.test(location.hash);
-function qtOpen(){ if(!qt) qt = { screen: "rack", bin: "", code: "", qty: 1, why: "", last: "", busy: false, msg: "", find: "", from: "rack" }; document.body.classList.add("qt-on"); qtRender(); if(!RS.loaded) loadStock(); }
+function qtOpen(){ if(!qt) qt = { screen: "rack", bin: "", code: "", qty: 1, why: "", last: "", busy: false, msg: "", find: "", from: "rack", price: "", sale: null }; document.body.classList.add("qt-on"); qtRender(); if(!RS.loaded) loadStock(); }
 function qtClose(){ qt = null; document.body.classList.remove("qt-on"); const v = document.getElementById("qtView"); if(v) v.remove();
   if(qtOn()) history.replaceState(null, "", location.pathname + location.search); if(!/\bmode-/.test(document.body.className)) setMode("dash"); }
 const qtLoc = s => String(s.location || "").trim().toUpperCase();
@@ -5986,13 +6008,15 @@ function qtRender(){
   if(!qt) return;
   let v = document.getElementById("qtView");
   if(!v){ v = document.createElement("div"); v.id = "qtView"; v.setAttribute("role", "dialog"); v.setAttribute("aria-label", "Quick take-out"); document.body.appendChild(v); v.addEventListener("click", qtClick); v.addEventListener("input", qtTyped); }
-  const item = qt.code && stockOf(qt.code), back = qt.screen === "bin" || qt.screen === "why";
+  const item = qt.code && stockOf(qt.code), back = qt.screen === "bin" || qt.screen === "why" || qt.screen === "add" || qt.screen === "cart";
   let h = '<div class="qtwrap"><div class="qthead">' + (back ? '<button class="qtback" data-qt="back">‹ Back</button>' : '') +
-    '<h1>' + (qt.screen === "rack" ? "Parts rack" : qt.screen === "bin" ? "Bin " + esc(qt.bin) : qt.screen === "why" ? "What's it for?" : "Done") + '</h1>' +
+    '<h1>' + (qt.screen === "rack" ? (qtCart ? "Carousell sale" : "Parts rack") : qt.screen === "bin" ? "Bin " + esc(qt.bin) : qt.screen === "why" ? "What's it for?" : qt.screen === "add" ? "Add to sale" : qt.screen === "cart" ? "Carousell sale" : "Done") + '</h1>' +
     '<button class="qtx" data-qt="close" aria-label="Close">✕</button></div>';
   if(!RS.loaded){ v.innerHTML = h + '<p class="qthint">' + esc(RS.error || "Loading stock…") + '</p></div>'; return; }
   if(qt.screen === "rack"){
     const used = new Set(RS.stock.map(qtLoc).filter(l => /^\d+[A-Z]$/.test(l)));
+    h += qtCart ? '<div class="qtsale"><span>Adding items to a <b>Carousell sale</b>. Tap a bin or search.</span><button data-qt="cartcancel">Cancel sale</button></div>'
+               : '<button class="qtstart" data-qt="cartstart">Carousell sale: several items, one invoice</button>';
     h += '<label class="qtfind"><span class="sr">Search all stock</span><input id="qtFind" type="search" placeholder="Search all stock, e.g. p2s hotend" value="' + esc(qt.find) + '" autocomplete="off" autocapitalize="none" enterkeyhint="search"></label>' +
       '<div id="qtRes">' + qtResults() + '</div>' +
       '<div id="qtRackWrap"' + (qt.find.trim() ? ' hidden' : '') + '><p class="qthint">Or tap a bin.</p><div class="qtrack">';
@@ -6024,7 +6048,69 @@ function qtRender(){
     h += '<div class="qtdone"><div class="qttick">✓</div><h2>Taken out</h2><p>' + qt.qty + ' × ' + esc(item.name) + '<br>' + (qt.bin ? 'Bin ' + esc(qt.bin) : 'Stock') + ' now has <b>' + rsQty(item) + '</b> left<br>For: ' + esc(qtWhyLabel(qt.why)) + '</p>' +
       (qt.from === "bin" ? '<button class="qtgo qtalt" data-qt="again">Take another from bin ' + esc(qt.bin) + '</button><button class="qtgo qtalt" data-qt="rack">Back to rack</button>' : '<button class="qtgo qtalt" data-qt="rack">Search again</button>') + '</div>';
   }
+  if(qt.screen === "add" && item){
+    const held = rsQty(item), inCart = (qtCart.lines.find(l => l.code === item.code) || {}).qty || 0;
+    h += '<p class="qthint"><b>' + esc(item.name) + '</b> · ' + held + (qt.bin ? ' in bin ' + esc(qt.bin) : ' in stock') + (inCart ? ' · ' + inCart + ' already in this sale' : '') + '</p>' +
+      '<h2>How many</h2><div class="qtstep"><button data-qt="minus" aria-label="One less">−</button><output>' + qt.qty + '</output><button data-qt="plus" aria-label="One more">+</button></div>' +
+      '<h2>Price each (SGD)</h2><label class="qtfind"><span class="sr">Price each</span><input id="qtPrice" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(qt.price) + '" placeholder="e.g. 26.90"></label>' +
+      (item.sell ? '' : '<p class="qthint">No sell price saved for this item. Type the price.</p>') +
+      (qt.msg ? '<p class="qterr">' + esc(qt.msg) + '</p>' : '') +
+      '<button class="qtgo" data-qt="cartadd">Add to sale</button>';
+  }
+  if(qt.screen === "cart" && qtCart){
+    h += '<p class="qthint">Check the items, then confirm. Stock comes off and one <b>draft invoice</b> is made in Xero for <b>Carousell Sales</b>.</p>';
+    h += qtCart.lines.length ? '<div class="qtlist">' + qtCart.lines.map((l, i) => '<div class="qtline"><div class="qtlt"><b>' + esc(l.name) + '</b><small>' + esc(l.code) + '</small></div>' +
+      '<div class="qtlr"><div class="qtmini"><button data-qtcm="' + i + '" aria-label="One less">−</button><output>' + l.qty + '</output><button data-qtcp="' + i + '" aria-label="One more">+</button></div>' +
+      '<label>$<input data-qtclp="' + i + '" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(l.price) + '" aria-label="Price each"></label>' +
+      '<button class="qtrm" data-qtcr="' + i + '" aria-label="Remove">✕</button></div></div>').join("") + '</div>' : '<p class="qthint">No items yet.</p>';
+    h += '<h2>Buyer (optional)</h2><label class="qtfind"><span class="sr">Buyer</span><input id="qtBuyer" type="text" value="' + esc(qtCart.buyer || "") + '" placeholder="Carousell username" autocomplete="off" autocapitalize="none"></label>' +
+      '<p class="qtsum">Total <b id="qtCartTotal">$' + money(qtCartTotal()) + '</b> · ' + qtCartCount() + ' item' + (qtCartCount() === 1 ? '' : 's') + ' · no GST</p>' +
+      (qt.msg ? '<p class="qterr">' + esc(qt.msg) + '</p>' : '') +
+      '<button class="qtgo qtalt" data-qt="rack">+ Add more items</button>' +
+      '<button class="qtgo" data-qt="cartgo"' + (qtCart.lines.length && !qt.busy ? '' : ' disabled') + '>' + (qt.busy ? "Saving…" : "Confirm sale") + '</button>';
+  }
+  if(qt.screen === "cartdone" && qt.sale){
+    const sl = qt.sale;
+    h += '<div class="qtdone"><div class="qttick' + (sl.xeroOk ? '' : ' qtwarn') + '">' + (sl.xeroOk ? '✓' : '!') + '</div><h2>' + (sl.xeroOk ? 'Sale saved' : 'Stock taken off') + '</h2>' +
+      '<p>' + sl.lines.map(l => l.qty + ' × ' + esc(l.name)).join('<br>') + '<br>Total $' + money(sl.total) + '</p>' +
+      (sl.xeroOk ? '<p>Xero draft invoice <b>' + esc(sl.invoiceNo || "") + '</b> for Carousell Sales is ready for you to check and approve.</p>'
+                 : '<p class="qterr">Xero draft NOT made: ' + esc(sl.xeroMsg || "unknown error") + '. Make the invoice in Xero by hand, or ask Feo.</p>') +
+      '<button class="qtgo qtalt" data-qt="rack">Back to rack</button></div>';
+  }
+  if(qtCart && qtCart.lines.length && !/^(cart|cartdone|add)$/.test(qt.screen))
+    h += '<button class="qtbar" data-qt="cartview"><span>' + qtCartCount() + ' item' + (qtCartCount() === 1 ? '' : 's') + ' · $' + money(qtCartTotal()) + '</span><b>View sale ›</b></button>';
   v.innerHTML = h + '</div>';
+}
+// Confirm a Carousell sale: take each line off stock, then ask the Sheet to make one Xero draft invoice.
+async function qtCartConfirm(){
+  const lines = qtCart.lines.map(l => ({ code: l.code, name: l.name, qty: Number(l.qty) || 0, price: Number(l.price) || 0 }));
+  if(lines.some(l => !(l.qty >= 1))){ qt.msg = "Every item needs a quantity of 1 or more."; qtRender(); return; }
+  const short = lines.filter(l => l.qty > rsQty(stockOf(l.code) || {}));
+  if(short.length && !confirm("Not enough of: " + short.map(l => l.name + " (" + rsQty(stockOf(l.code) || {}) + " left)").join(", ") + ". Take off anyway? Stock will go below zero.")) return;
+  const buyer = String(qtCart.buyer || "").trim(), channel = qtCarousell(), note = "Carousell sale" + (buyer ? " · " + buyer : "") + " · rack";
+  qt.busy = true; qt.msg = ""; qtRender();
+  const done = [];
+  try{
+    for(const l of lines){
+      const out = await rsCall({ action: "stockMove", kind: "out", code: l.code, qty: l.qty, channel, note: note + " @ $" + money(l.price), by: rs.by || ME(), jobNo: "" });
+      if(out.result !== "success") throw new Error(l.name + ": " + (out.message || "not saved"));
+      done.push(l.code);
+    }
+  }catch(err){
+    qtCart.lines = qtCart.lines.filter(l => !done.includes(l.code)); qtCartSave(); await loadStock();
+    qt.busy = false; qt.msg = "Stopped: " + (err.message || "no connection?") + (done.length ? ". Already taken off: " + done.join(", ") + " (removed from this sale). No Xero invoice yet: confirm the rest, then make one invoice by hand for all of it." : ". Nothing taken off.");
+    qtRender(); return;
+  }
+  const total = lines.reduce((t, l) => t + l.qty * l.price, 0);
+  let xeroOk = false, invoiceNo = "", xeroMsg = "";
+  try{
+    const x = await rsCall({ action: "xeroDraftInvoice", contact: "Carousell Sales", reference: "Carousell" + (buyer ? " · " + buyer : ""), accountCode: "205",
+      lines: lines.map(l => ({ code: l.code, description: l.name + " (" + l.code + ")", qty: l.qty, price: l.price })), by: rs.by || ME() });
+    if(x.result === "success"){ xeroOk = true; invoiceNo = x.invoiceNumber || ""; } else xeroMsg = x.message || "unknown error";
+  }catch(err){ xeroMsg = "no connection"; }
+  qt.sale = { lines, total, xeroOk, invoiceNo, xeroMsg };
+  qtCart = null; qtCartSave(); await loadStock();
+  qt.busy = false; qt.screen = "cartdone"; qtRender();
 }
 // Search across all stock (parts, filament, accessories): every typed word must match the name, code, aliases or bin.
 function qtResults(){
@@ -6037,7 +6123,11 @@ function qtResults(){
     '</div>' + (hits.length > 30 ? '<p class="qthint">' + (hits.length - 30) + ' more: type more words to narrow it down.</p>' : '');
 }
 function qtTyped(e){
-  if(!qt || e.target.id !== "qtFind") return;
+  if(!qt) return;
+  if(e.target.id === "qtPrice"){ qt.price = e.target.value; return; }
+  if(e.target.id === "qtBuyer" && qtCart){ qtCart.buyer = e.target.value; qtCartSave(); return; }
+  if(e.target.dataset.qtclp !== undefined && qtCart){ const l = qtCart.lines[+e.target.dataset.qtclp]; if(l){ l.price = e.target.value; qtCartSave(); const t = document.getElementById("qtCartTotal"); if(t) t.textContent = "$" + money(qtCartTotal()); } return; }
+  if(e.target.id !== "qtFind") return;
   qt.find = e.target.value;
   const res = document.getElementById("qtRes"), rack = document.getElementById("qtRackWrap");
   if(res) res.innerHTML = qtResults();
@@ -6047,9 +6137,23 @@ async function qtClick(e){
   const b = e.target.closest("button"); if(!b || !qt) return;
   const a = b.dataset.qt, item = qt.code && stockOf(qt.code);
   if(a === "close"){ qtClose(); return; }
-  if(a === "back"){ qt.screen = qt.screen === "why" ? qt.from : "rack"; qt.msg = ""; qtRender(); return; }
+  if(a === "cartstart"){ qtCart = { lines: [], buyer: "" }; qtCartSave(); qtRender(); return; }
+  if(a === "cartcancel"){ if(qtCart && qtCart.lines.length && !confirm("Cancel this Carousell sale? The items in it are not taken off stock.")) return; qtCart = null; qtCartSave(); qt.screen = "rack"; qtRender(); return; }
+  if(a === "cartview"){ qt.msg = ""; qt.screen = "cart"; qtRender(); window.scrollTo(0, 0); return; }
+  if(a === "cartadd" && item && qtCart){
+    const price = Number(qt.price);
+    if(String(qt.price).trim() === "" || !isFinite(price) || price < 0){ qt.msg = "Type the price each (0 or more)."; qtRender(); return; }
+    const l = qtCart.lines.find(x => x.code === item.code);
+    l ? (l.qty += qt.qty, l.price = price) : qtCart.lines.push({ code: item.code, name: item.name, qty: qt.qty, price });
+    qtCartSave(); qt.msg = ""; qt.screen = qt.from; qtRender(); return;
+  }
+  if(b.dataset.qtcm !== undefined && qtCart){ const l = qtCart.lines[+b.dataset.qtcm]; if(l){ l.qty = Math.max(1, l.qty - 1); qtCartSave(); qtRender(); } return; }
+  if(b.dataset.qtcp !== undefined && qtCart){ const l = qtCart.lines[+b.dataset.qtcp]; if(l){ l.qty += 1; qtCartSave(); qtRender(); } return; }
+  if(b.dataset.qtcr !== undefined && qtCart){ qtCart.lines.splice(+b.dataset.qtcr, 1); qtCartSave(); qtRender(); return; }
+  if(a === "cartgo" && qtCart && qtCart.lines.length && !qt.busy){ await qtCartConfirm(); return; }
+  if(a === "back"){ qt.screen = qt.screen === "why" || qt.screen === "add" ? qt.from : qt.screen === "cart" ? "rack" : "rack"; qt.msg = ""; qtRender(); return; }
   if(b.dataset.qtbin){ qt.bin = b.dataset.qtbin; qt.screen = "bin"; qtRender(); window.scrollTo(0, 0); return; }
-  if(b.dataset.qtcode){ qt.from = qt.screen === "bin" ? "bin" : "rack"; if(qt.from === "rack") qt.bin = qtLoc(stockOf(b.dataset.qtcode) || {}); qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.screen = "why"; qtRender(); window.scrollTo(0, 0); return; }
+  if(b.dataset.qtcode){ qt.from = qt.screen === "bin" ? "bin" : "rack"; if(qt.from === "rack") qt.bin = qtLoc(stockOf(b.dataset.qtcode) || {}); qt.code = b.dataset.qtcode; qt.qty = 1; qt.why = qt.last; qt.msg = ""; qt.screen = qtCart ? "add" : "why"; if(qtCart){ const s0 = stockOf(qt.code) || {}; qt.price = Number(s0.sell) ? money(s0.sell) : ""; } qtRender(); window.scrollTo(0, 0); return; }
   if(b.dataset.qtwhy){ qt.why = b.dataset.qtwhy; qtRender(); return; }
   if(a === "minus"){ qt.qty = Math.max(1, qt.qty - 1); qtRender(); return; }
   if(a === "plus"){ qt.qty = Math.min(Math.max(1, rsQty(item)), qt.qty + 1); qtRender(); return; }
