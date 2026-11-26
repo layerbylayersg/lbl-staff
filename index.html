@@ -3593,6 +3593,7 @@ const DASH_CARDS = [
   { title: "New job requests", go: "requests", goLabel: "Open", html: () => !REQ.loaded ? '<p class="hint">' + (REQ.loading ? "Loading requests…" : "") + '</p>'
       : '<p class="hint">' + (REQ.list.length ? REQ.list.length + " waiting for someone to take " + (REQ.list.length === 1 ? "it" : "them") + "." : "None waiting. Everything has been taken.") + '</p>', wide: true },
   { title: "This month", html: () => dashMonthHtml(), wide: true },
+  { title: "Product sales", html: () => dashSalesHtml(), wide: true },
   { title: "Job mix, last 6 months", html: () => dashMixHtml() },
   { title: "Received, last 6 months", html: () => dashRecvHtml() },
   { title: "Jobs in the pipeline now", html: () => dashPipeHtml() },
@@ -3678,6 +3679,25 @@ function dashTopHtml(){
     return '<div class="dtop"><h3>' + title + '</h3>' + ((items || []).length ? '<ol>' + items.map(x => '<li><span>' + esc(x.name) + '</span><i style="width:' + Math.round(x.n / max * 100) + '%"></i><b>' + x.n + '</b></li>').join("") + '</ol>' : '<p class="hint">' + empty + '</p>') + '</div>'; };
   return '<p class="hint" style="margin-top:0">' + esc(dMonthName(m.month || "2000-01")) + ' (switch month at the top)</p><div class="dtops">' +
     list(m.topModels, "Models serviced", "No jobs yet.") + list(m.topParts, "Parts replaced", "No parts fitted yet.") + '</div>';
+}
+// Product sales card: "Sold" rows in Stock moves on a sale channel (Apps Script DashSales.gs, months[i].productSales).
+function dashSalesHtml(){
+  const w = dWait(); if(w !== null) return w;
+  const m = DASH.data.months[dashMonth === "last" ? 1 : 0] || {}, ps = m.productSales;
+  if(ps === undefined) return '<p class="hint">These numbers need the latest Apps Script.</p>';
+  if(!ps) return '<p class="hint">Could not read product sales from the Sheet.</p>';
+  const tile = (n, label, sub, cls) => '<div class="dtile' + (cls ? ' ' + cls : '') + '"><b>' + n + '</b><span>' + label + '</span>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>';
+  const by = ps.byChannel || {}, ch = Object.keys(by).sort((a, b) => by[b].units - by[a].units), top = ps.top || [];
+  const max = Math.max.apply(null, top.map(x => x.n).concat([1]));
+  return '<p class="hint" style="margin-top:0">' + esc(dMonthName(m.month || "2000-01")) + ' (switch month at the top)</p>' +
+    '<div class="dtiles">' +
+      tile(ps.units || 0, "Units sold", ps.unpriced ? ps.unpriced + " without a price" : "") +
+      tile(dMoney(ps.value), "Sales value", "estimate", "money") +
+      tile(dMoney(ps.profit), "Gross profit", ps.value ? dPct(ps.profit, ps.value) + "% margin, before Shopee fees" : "") +
+      ch.map(c => tile(by[c].units, esc(c), dMoney(by[c].value))).join("") +
+    '</div>' +
+    '<div class="dtops"><div class="dtop"><h3>Top products</h3>' + (top.length ? '<ol>' + top.map(x => '<li><span>' + esc(x.name) + '</span><i style="width:' + Math.round(x.n / max * 100) + '%"></i><b>' + x.n + '</b></li>').join("") + '</ol>' : '<p class="hint">No product sales yet.</p>') + '</div></div>' +
+    '<p class="hint">From "Sold" stock moves (Shopee, Carousell, website, walk-in). Value uses the price in the move\'s note if there is one, otherwise the list price; the Xero invoice is the real amount. Shopee sales only count if they were taken out on the staff site.</p>';
 }
 // One tooltip for the dashboard charts (hover and keyboard focus).
 function dashTip(el){
