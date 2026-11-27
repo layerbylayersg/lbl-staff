@@ -383,8 +383,15 @@
   .homegrp{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:14px} .homegrp span{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
   .joblist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
   .joblist li{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-  .joblist .jlmain{min-width:0} .joblist small{display:block;color:var(--ink-2)} .joblist button{flex:none;min-height:44px;white-space:nowrap}
-  @media (max-width:520px){ .joblist li{flex-direction:column;align-items:stretch} .joblist button{width:100%} }
+  .joblist .jlmain{min-width:0;flex:1} .joblist small{display:block;color:var(--ink-2)} .joblist button{flex:none;min-height:44px;white-space:nowrap}
+  .joblist li{flex-wrap:wrap} .jlbtns{display:flex;gap:8px} .joblist li > .trip{flex-basis:100%;margin:0}
+  .trip{border:1px solid var(--amber-ink);border-radius:12px;background:var(--amber-wash);padding:12px;margin:0 0 8px}
+  .triphead{font-size:14px} .triphead span{color:var(--ink-2)}
+  .tripaddr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:6px 0;font-size:17px;font-weight:600;line-height:1.35} .tripaddr span{overflow-wrap:anywhere}
+  .tripbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .btnlink{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-weight:600;font-size:14px;text-decoration:none}
+  .btnlink.go{background:var(--green-600);border-color:var(--green-600);color:#fff;min-width:120px}
+  @media (max-width:520px){ .joblist li{flex-direction:column;align-items:stretch} .jlbtns{flex-direction:column} .joblist button{width:100%} .tripbtns .btnlink{flex:1 1 40%} .tripbtns .btnlink.go{flex-basis:45%} }
   .dashhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 0 14px}
   .dashhead h1{margin:0;font-size:22px} .dashhead span{font-size:13.5px;color:var(--ink-2)}
   .dashgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
@@ -3779,6 +3786,59 @@ function dashTip(el){
   tip.style.left = Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2)) + "px";
   tip.style.top = Math.max(8, r.top - t.height - 8) + "px";
 }
+/* ---------- Navigate: trips to the customer (pickup, on-site visit, delivery back) ---------- */
+// Address, stairs and remote area come from jobRequests (REQ.taken = Confirmed / In Progress jobs with a technician).
+const navInfo = no => (REQ.taken || []).find(r => r.quoteNo === no) || null;
+// The trip a job needs next, if we are the ones driving. Drop-off customers usually collect too, so no delivery for them.
+function tripOf(j){
+  if(!(j.status === "Confirmed" || j.status === "In Progress") || j.takeover) return null;
+  const collection = /collect/i.test(j.serviceMode || "") || (!j.serviceMode && /^y/i.test(j.needTransport || ""));
+  if(isOnsiteJob(j)) return { kind: "visit", label: "On-site visit", verb: "come to you for the on-site service" };
+  const stage = jobNext(j).stage;
+  if(stage === 1) return collection ? { kind: "pickup", label: "Pickup", verb: "collect your " + machineWord(j) } : null;
+  if(stage === 3){
+    const how = j.handover && j.handover.method;
+    const deliver = how ? how === "Pick-up" : collection || isOnsiteMode(j.serviceMode); // older handovers: no method saved
+    return deliver ? { kind: "delivery", label: "Delivery", verb: "return your " + machineWord(j) } : null;
+  }
+  return null;
+}
+const machineWord = j => j.serviceType === "MFMS only" ? "MFMS" : "printer";
+// Map search: a 6-digit postal code is the most exact; else the address without the unit number (#05-12 confuses the search).
+function navLinks(addr){
+  const a = String(addr || "").trim(); if(!a) return null;
+  const pc = (a.match(/(?:^|\D)(\d{6})(?!\d)/) || [])[1];
+  const q = pc ? "Singapore " + pc : a.replace(/#\s*\w+(?:\s*[-–]\s*\w+)?/g, " ").replace(/\s+/g, " ").replace(/^[\s,]+|[\s,]+$/g, "") + (/singapore/i.test(a) ? "" : ", Singapore");
+  return { waze: "https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", google: "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(q) };
+}
+const waNumber = c => String(c || "").replace(/\D/g, "").replace(/^(?=[89]\d{7}$)/, "65");
+// One panel per address: several machines from the same customer are one trip.
+function tripPanel(jobs){
+  const j = jobs[0], t = tripOf(j), info = navInfo(j.quoteNo), addr = info ? String(info.address || "").trim() : "";
+  const kinds = [...new Set(jobs.map(x => tripOf(x).label))].join(" + ");
+  const contact = (info && info.contact) || j.contact || "", who = String(j.name || "").trim() || "there"; // full name: many are surname first
+  const msg = "Hi " + who + ", this is " + (ME() || "the technician") + " from Layer By Layer. I'm on my way to " + t.verb + ".";
+  const stairs = info && Number(info.stairs) > 0 ? Number(info.stairs) : 0;
+  const links = navLinks(addr);
+  const tags = [stairs ? '<i class="reqtag warn">' + stairs + ' floor' + (stairs === 1 ? '' : 's') + ' of stairs</i>' : '',
+    info && /^y/i.test(String(info.remote || "")) ? '<i class="reqtag warn">Remote area</i>' : ''].filter(Boolean).join("");
+  const call = contact ? '<a class="btnlink" href="tel:' + esc(String(contact).replace(/\s+/g, "")) + '">Call</a>' +
+    '<a class="btnlink" href="https://wa.me/' + esc(waNumber(contact)) + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">WhatsApp</a>' : '';
+  const where = links
+    ? '<div class="tripaddr"><span>' + esc(addr) + '</span><button type="button" class="linkbtn" data-copy="' + esc(addr) + '">Copy</button></div>' + (tags ? '<div class="reqtags">' + tags + '</div>' : '') +
+      '<div class="tripbtns"><a class="btnlink go" href="' + esc(links.waze) + '" target="_blank" rel="noopener">Waze</a><a class="btnlink go" href="' + esc(links.google) + '" target="_blank" rel="noopener">Google Maps</a>' + call + '</div>'
+    : '<p class="hint">' + (!info ? (REQ.loading || !REQ.loaded ? "Loading the address…" : "Address not loaded. Reopen Home to try again.") : "No address on the job sheet. Call the customer to ask.") + '</p>' + (call ? '<div class="tripbtns">' + call + '</div>' : '');
+  return '<div class="trip"><div class="triphead"><b>' + esc(kinds) + '</b> · ' + esc(j.name || "") + ' · ' + jobs.map(x => esc(x.quoteNo)).join(", ") +
+    (jobs.length > 1 ? ' <span>(' + jobs.length + ' machines)</span>' : '') + '</div>' + where + '</div>';
+}
+// My trips, grouped by address (or by job when there is no address yet).
+function tripGroups(list){
+  const groups = {};
+  list.filter(tripOf).forEach(j => { const info = navInfo(j.quoteNo), a = info && String(info.address || "").trim().toLowerCase().replace(/\s+/g, " ");
+    const k = a || ("job:" + j.quoteNo); (groups[k] = groups[k] || []).push(j); });
+  return Object.values(groups);
+}
+let NAV_OPEN = {}; // job rows on All with the Navigate panel open
 /* ---------- Home: jobs. Current = my open jobs by next step; All = everyone's open jobs, New requests included ---------- */
 // Quoted / Pending / Pending Payment jobs join "All" once the Apps Script lists them (planned "allJobs" action).
 let HOME_TAB = lsGet("lbl-home-tab") === "all" ? "all" : "current";
@@ -3804,12 +3864,14 @@ function homeJobRow(j, showTech){
   const tags = [
     showTech ? '<i class="reqtag' + (isMine(j) ? ' ok' : '') + '">' + esc(isMine(j) ? "You" : (j.technician || "Unassigned")) + '</i>' : '',
     '<i class="reqtag">' + esc(j.status) + '</i>',
-    isOnsiteJob(j) ? '<i class="reqtag">On-site</i>' : /^y/i.test(j.needTransport || "") ? '<i class="reqtag warn">🚚 Transport</i>' : '',
+    tripOf(j) ? '<i class="reqtag warn">🚚 ' + tripOf(j).label + '</i>' : isOnsiteJob(j) ? '<i class="reqtag">On-site</i>' : '',
     j.carePlan ? '<i class="reqtag ok">Care Plan</i>' : '',
     days > lead ? '<i class="reqtag bad">⚠ ' + days + ' business days since handover</i>' : days ? '<i class="reqtag">' + days + ' business day' + (days === 1 ? '' : 's') + ' since handover</i>' : ''].filter(Boolean).join("");
   return '<li><div class="jlmain"><b>' + esc(j.quoteNo) + '</b> · ' + esc(j.name || "") + '<small>' + esc(jobMachine(j) || j.serviceType || "") + '</small>' +
-      (tags ? '<div class="reqtags">' + tags + '</div>' : '') + '</div>' +
-    '<button type="button" class="' + (!showTech || isMine(j) ? 'primary ' : '') + 'mini" data-open="' + esc(j.quoteNo) + '" data-step="' + nx.mode + '">' + nx.label + ' →</button></li>';
+      (tags ? '<div class="reqtags">' + tags + '</div>' : '') + '</div><div class="jlbtns">' +
+    (showTech && tripOf(j) ? '<button type="button" class="mini" data-navtoggle="' + esc(j.quoteNo) + '" aria-expanded="' + !!NAV_OPEN[j.quoteNo] + '">Navigate</button>' : '') +
+    '<button type="button" class="' + (!showTech || isMine(j) ? 'primary ' : '') + 'mini" data-open="' + esc(j.quoteNo) + '" data-step="' + nx.mode + '">' + nx.label + ' →</button></div>' +
+    (showTech && tripOf(j) && NAV_OPEN[j.quoteNo] ? tripPanel([j]) : '') + '</li>';
 }
 function homeReqRow(r){
   return '<li><div class="jlmain"><b>' + esc(r.quoteNo) + '</b> · ' + esc(r.name || "") + '<small>' + esc(r.machine || r.type || "Job request") + '</small>' +
@@ -3830,8 +3892,9 @@ function homeHtml(){
   const waiting = JOBS_STATE === "loading" && !JOBS.length ? skelRows() : JOBS_STATE === "failed" && !JOBS.length ? '<p class="hint">Could not load jobs (no connection?). Pull down or reopen the app to try again.</p>' : null;
   let body;
   if(HOME_TAB === "current"){
+    const trips = tripGroups(mine);
     body = waiting !== null ? waiting : mine.length
-      ? [1, 2, 3].map(st => homeGroup(HOME_STAGES[st], mine.filter(j => jobNext(j).stage === st).map(j => homeJobRow(j, false)))).join("")
+      ? (trips.length ? '<h3 class="homegrp">Trips <span>' + trips.length + '</span></h3>' + trips.map(tripPanel).join("") : '') + [1, 2, 3].map(st => homeGroup(HOME_STAGES[st], mine.filter(j => jobNext(j).stage === st).map(j => homeJobRow(j, false)))).join("")
       : '<p class="hint">You have no open jobs.' + (nNew ? ' Take one from New requests above.' : '') + '</p>';
   } else {
     const byTech = (a, b) => String(a.technician || "").localeCompare(String(b.technician || "")) || jobDays(b) - jobDays(a);
@@ -3931,6 +3994,8 @@ document.getElementById("dashPane").addEventListener("click", e => {
   if(b.dataset.dashrefresh){ loadDash(true); return; }
   if(b.dataset.hometab){ HOME_TAB = b.dataset.hometab; lsSet("lbl-home-tab", HOME_TAB); renderDash(); return; }
   if(b.dataset.open){ homeOpen(b.dataset.open, b.dataset.step); return; }
+  if(b.dataset.navtoggle){ const k = b.dataset.navtoggle; if(NAV_OPEN[k]) delete NAV_OPEN[k]; else NAV_OPEN[k] = 1; renderDash(); return; }
+  if(b.dataset.copy){ const a = b.dataset.copy; (navigator.clipboard ? navigator.clipboard.writeText(a) : Promise.reject()).then(() => toast("Address copied."), () => toast(a)); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
   if(b.dataset.takenwho){ TAKEN_WHO = b.dataset.takenwho; lsSet("lbl-taken-who", TAKEN_WHO); renderDash(); return; }
   if(b.dataset.reqtab){ REQ_TAB = b.dataset.reqtab; lsSet("lbl-req-tab", REQ_TAB); renderDash(); return; }
