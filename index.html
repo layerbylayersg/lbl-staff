@@ -376,6 +376,15 @@
   #dashView{display:none}
   body.mode-dash #dashView{display:block}
   body.mode-dash .layout,body.mode-dash .mobiletabs,body.mode-dash #saveStatus,body.mode-dash #hoView,body.mode-dash #clView,body.mode-dash #rsView,body.mode-dash #stView,body.locked #dashView{display:none!important}
+  /* Home: jobs */
+  .bar .modes button#modeOps[hidden]{display:none} /* Operations: admins only */
+  .homebanner{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin:0 0 14px;padding:12px 14px;border:1px solid var(--amber-ink);border-radius:12px;background:var(--amber-wash);color:var(--ink);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+  .homebanner .go{font-weight:700;white-space:nowrap} .homequiet{margin:0 0 12px}
+  .homegrp{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:14px} .homegrp span{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+  .joblist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .joblist li{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .joblist .jlmain{min-width:0} .joblist small{display:block;color:var(--ink-2)} .joblist button{flex:none;min-height:44px;white-space:nowrap}
+  @media (max-width:520px){ .joblist li{flex-direction:column;align-items:stretch} .joblist button{width:100%} }
   .dashhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 0 14px}
   .dashhead h1{margin:0;font-size:22px} .dashhead span{font-size:13.5px;color:var(--ink-2)}
   .dashgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
@@ -970,7 +979,7 @@ body.locked #qtView{display:none}
 <div class="bar">
   <img id="barLogo" alt="Layer By Layer">
   <div class="modes" role="group" aria-label="Form">
-    <button type="button" id="modeDash" aria-pressed="false"><span class="lg">Dashboard</span><span class="sm">Home</span></button>
+    <button type="button" id="modeDash" aria-pressed="false">Home</button>
     <span class="mgrp" aria-hidden="true">Jobs</span>
     <button type="button" id="modeReq" class="mjob" aria-pressed="false"><span class="lg">New requests</span><span class="sm">Requests</span><i class="mcount" id="reqCount" hidden></i></button>
     <button type="button" id="modeHo" class="mjob" aria-pressed="false">Handover</button>
@@ -981,6 +990,7 @@ body.locked #qtView{display:none}
     <button type="button" id="modeAs" aria-pressed="false">Assets</button>
     <button type="button" id="modePl" aria-pressed="false">Plans</button>
     <button type="button" id="modeBb" aria-pressed="false">Buyback</button>
+    <button type="button" id="modeOps" class="after" aria-pressed="false" hidden><span class="lg">Operations</span><span class="sm">Ops</span></button>
   </div>
   <button type="button" class="who" id="barWho" hidden title="My account"></button>
   <button type="button" class="syncchip" id="syncChip" hidden aria-live="polite"></button>
@@ -1239,6 +1249,7 @@ function showWho(){
   if(!el) return;
   el.textContent = ME(); el.hidden = !ME();
   const st = document.getElementById("acctStaff"); if(st) st.hidden = !(SESSION && SESSION.admin);
+  const ops = document.getElementById("modeOps"); if(ops) ops.hidden = !(SESSION && SESSION.admin); // Operations: admins only
 }
 // Keeps the last job list on this device, so the next visit opens straight away.
 function keepJobs(){ if(isNew()) lsSet(JOBS_KEY, { at: Date.now(), name: ME(), jobs: JOBS, staff: STAFF }); }
@@ -1286,12 +1297,13 @@ function defaultNames(){
   if(me && typeof cl === "object" && !cl.claimant) cl.claimant = me;
   if(me && typeof rs === "object" && rs && !rs.by) rs.by = me;
 }
-let dashOpened = false; // the Dashboard is the first page after signing in
+let dashOpened = false; // Home (the jobs list) is the first page after signing in
 function unlock(){
   document.body.classList.remove("locked");
   if(!dashOpened && !/\bmode-/.test(document.body.className)){ dashOpened = true; setTimeout(() => setMode("dash"), 0); }
   if(qtOn()) setTimeout(qtOpen, 0); // the rack NFC tag opens the quick take-out screen
   if(document.body.classList.contains("mode-st") && !(SESSION && SESSION.admin)) setMode("report"); // Staff screen is for admins only
+  if(document.body.classList.contains("mode-ops") && !(SESSION && SESSION.admin)) setMode("dash"); // so is Operations
   showWho();
   defaultNames();
   loadStock(); // part-name suggestions in the service report
@@ -1363,9 +1375,9 @@ function refreshJobsQuietly(){
       if(!await loadJobs()) return;
       if(state.job.quoteNo && !dirty && !outbox.hasFor(state.job.quoteNo)){ const j = JOBS.find(x => x.quoteNo === state.job.quoteNo); if(j) openJob(j, true); }
       if(ho.quoteNo && !hoDirty && !hoBusy()){ const j = JOBS.find(x => x.quoteNo === ho.quoteNo); if(j) openHo(j, true); }
-      if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); }
+      if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); if(document.body.classList.contains("mode-dash")) renderDash(); }
     }catch(e){
-      if(JOBS_STATE === "loading"){ JOBS_STATE = "failed"; if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); } }
+      if(JOBS_STATE === "loading"){ JOBS_STATE = "failed"; if(!document.body.classList.contains("locked")){ render(); if(document.body.classList.contains("mode-ho")) renderHo(); if(document.body.classList.contains("mode-dash")) renderDash(); } }
     } finally { refreshing = null; }
   })();
   return refreshing;
@@ -3373,6 +3385,7 @@ function hoFill(t){
 }
 
 function setMode(m){
+  if(m === "ops" && !(SESSION && SESSION.admin)) m = "dash"; // Operations (money, sales) is for admins only
   const isForm = m === "handover" || m === "takeover";
   if(isForm && m !== hoKind){
     hoStash[hoKind] = { ho, hoPhotos, hoDirty, hoFile };
@@ -3381,7 +3394,9 @@ function setMode(m){
   }
   document.body.classList.toggle("mode-ho", isForm);
   document.body.classList.toggle("mode-cl", m === "claim");
-  document.body.classList.toggle("mode-dash", m === "dash" || m === "requests");
+  document.body.classList.toggle("mode-dash", m === "dash" || m === "requests" || m === "ops");
+  document.body.classList.toggle("mode-ops", m === "ops");
+  document.getElementById("modeOps").setAttribute("aria-pressed", String(m === "ops"));
   document.body.classList.toggle("mode-req", m === "requests");
   document.getElementById("modeDash").setAttribute("aria-pressed", String(m === "dash"));
   document.getElementById("modeReq").setAttribute("aria-pressed", String(m === "requests"));
@@ -3404,7 +3419,8 @@ function setMode(m){
     renderCl(); loadClaims();
   }
   if(m === "restock"){ renderRs(); loadStock(); }
-  if(m === "dash"){ clFromCache(); renderDash(); loadClaims(); loadDash(); loadRequests(); }
+  if(m === "dash"){ renderDash(); loadRequests(); refreshJobsQuietly(); }
+  if(m === "ops"){ clFromCache(); renderDash(); loadClaims(); loadDash(); loadRequests(); }
   if(m === "requests"){ renderDash(); loadRequests(); }
   if(m === "staff"){ renderSt(); loadStaffList(); }
   if(m === "buyback"){ renderBb(); loadBb(); }
@@ -3423,6 +3439,7 @@ document.getElementById("modeRs").addEventListener("click", () => setMode("resto
 document.getElementById("modeAs").addEventListener("click", () => setMode("assets"));
 document.getElementById("modePl").addEventListener("click", () => setMode("plans"));
 document.getElementById("modeBb").addEventListener("click", () => setMode("buyback"));
+document.getElementById("modeOps").addEventListener("click", () => setMode("ops"));
 
 /* ---------- petrol claims ---------- */
 // Flat $15 per delivery / collection trip. Each claim goes to the "Petrol claims" tab and onto the
@@ -3762,6 +3779,82 @@ function dashTip(el){
   tip.style.left = Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2)) + "px";
   tip.style.top = Math.max(8, r.top - t.height - 8) + "px";
 }
+/* ---------- Home: jobs. Current = my open jobs by next step; All = everyone's open jobs, New requests included ---------- */
+// Quoted / Pending / Pending Payment jobs join "All" once the Apps Script lists them (planned "allJobs" action).
+let HOME_TAB = lsGet("lbl-home-tab") === "all" ? "all" : "current";
+// Business days (Mon to Fri) from an ISO date (yyyy-mm-dd) to today.
+function bizDaysSince(iso){
+  if(!/^\d{4}-\d{2}-\d{2}/.test(iso || "")) return 0;
+  const d = new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)), end = new Date(); end.setHours(0, 0, 0, 0);
+  let n = 0; while(d < end){ d.setDate(d.getDate() + 1); const w = d.getDay(); if(w > 0 && w < 6) n++; }
+  return n;
+}
+// The next step on a job and the screen that does it: Handover -> Service report -> Takeover (on-site: just the report).
+function jobNext(j){
+  if(isOnsiteJob(j)) return { mode: "report", label: "Service report", stage: 2 };
+  if(j.status === "Confirmed" && !j.handover) return { mode: "handover", label: "Handover", stage: 1 };
+  if(j.handover && (j.report || j.savedReport)) return { mode: "takeover", label: "Takeover", stage: 3 };
+  return { mode: "report", label: "Service report", stage: 2 };
+}
+const HOME_STAGES = { 1: "To hand over", 2: "To service", 3: "Ready to return" };
+const jobDays = j => j.handover && !j.takeover ? bizDaysSince(j.handover.date) : 0;
+const jobMachine = j => j.serviceType === "MFMS only" ? (j.mfms || "MFMS") : [j.brand, j.model].filter(Boolean).join(" ") + (j.mfms && j.mfms !== "No" ? " + " + j.mfms : "");
+function homeJobRow(j, showTech){
+  const nx = jobNext(j), days = jobDays(j), lead = (DASH.data && DASH.data.leadDays) || 7;
+  const tags = [
+    showTech ? '<i class="reqtag' + (isMine(j) ? ' ok' : '') + '">' + esc(isMine(j) ? "You" : (j.technician || "Unassigned")) + '</i>' : '',
+    '<i class="reqtag">' + esc(j.status) + '</i>',
+    isOnsiteJob(j) ? '<i class="reqtag">On-site</i>' : /^y/i.test(j.needTransport || "") ? '<i class="reqtag warn">🚚 Transport</i>' : '',
+    j.carePlan ? '<i class="reqtag ok">Care Plan</i>' : '',
+    days > lead ? '<i class="reqtag bad">⚠ ' + days + ' business days since handover</i>' : days ? '<i class="reqtag">' + days + ' business day' + (days === 1 ? '' : 's') + ' since handover</i>' : ''].filter(Boolean).join("");
+  return '<li><div class="jlmain"><b>' + esc(j.quoteNo) + '</b> · ' + esc(j.name || "") + '<small>' + esc(jobMachine(j) || j.serviceType || "") + '</small>' +
+      (tags ? '<div class="reqtags">' + tags + '</div>' : '') + '</div>' +
+    '<button type="button" class="' + (!showTech || isMine(j) ? 'primary ' : '') + 'mini" data-open="' + esc(j.quoteNo) + '" data-step="' + nx.mode + '">' + nx.label + ' →</button></li>';
+}
+function homeReqRow(r){
+  return '<li><div class="jlmain"><b>' + esc(r.quoteNo) + '</b> · ' + esc(r.name || "") + '<small>' + esc(r.machine || r.type || "Job request") + '</small>' +
+      '<div class="reqtags"><i class="reqtag">Unassigned</i><i class="reqtag warn">New</i>' + (isCareReq(r) ? '<i class="reqtag ok">Care Plan</i>' : '') + '</div></div>' +
+    '<button type="button" class="primary mini" data-claim="' + esc(r.quoteNo) + '"' + (REQ.busy ? ' disabled' : '') + '>' + (REQ.busy === r.quoteNo ? 'Taking…' : "I'll take it") + '</button></li>';
+}
+const homeGroup = (title, rows) => rows.length ? '<h3 class="homegrp">' + esc(title) + ' <span>' + rows.length + '</span></h3><ul class="joblist">' + rows.join("") + '</ul>' : '';
+function homeHtml(){
+  const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  const open = JOBS.filter(j => j.status === "Confirmed" || j.status === "In Progress");
+  const mine = (canFilter() ? open.filter(isMine) : open) // older script without a Technician column: everyone's jobs
+    .sort((a, b) => jobNext(a).stage - jobNext(b).stage || jobDays(b) - jobDays(a));
+  const nNew = REQ.loaded ? REQ.list.length : 0;
+  const banner = nNew
+    ? '<button type="button" class="homebanner" data-dashgo="requests"><span><b>' + nNew + ' new request' + (nNew === 1 ? '' : 's') + '</b></span><span class="go">View →</span></button>'
+    : REQ.loaded ? '<p class="hint homequiet">No new requests waiting.</p>' : '';
+  const tab = (k, label, n) => '<button type="button" role="tab" data-hometab="' + k + '" aria-selected="' + (HOME_TAB === k) + '">' + label + ' (' + n + ')</button>';
+  const waiting = JOBS_STATE === "loading" && !JOBS.length ? skelRows() : JOBS_STATE === "failed" && !JOBS.length ? '<p class="hint">Could not load jobs (no connection?). Pull down or reopen the app to try again.</p>' : null;
+  let body;
+  if(HOME_TAB === "current"){
+    body = waiting !== null ? waiting : mine.length
+      ? [1, 2, 3].map(st => homeGroup(HOME_STAGES[st], mine.filter(j => jobNext(j).stage === st).map(j => homeJobRow(j, false)))).join("")
+      : '<p class="hint">You have no open jobs.' + (nNew ? ' Take one from New requests above.' : '') + '</p>';
+  } else {
+    const byTech = (a, b) => String(a.technician || "").localeCompare(String(b.technician || "")) || jobDays(b) - jobDays(a);
+    body = homeGroup("New", (REQ.list || []).map(homeReqRow)) +
+      (waiting !== null ? waiting : homeGroup("Confirmed", open.filter(j => j.status === "Confirmed").sort(byTech).map(j => homeJobRow(j, true))) +
+        homeGroup("In Progress", open.filter(j => j.status === "In Progress").sort(byTech).map(j => homeJobRow(j, true)))) +
+      (!open.length && !nNew && waiting === null ? '<p class="hint">No open jobs.</p>' : '') +
+      '<p class="hint">Quoted and Pending jobs will show here after the next Apps Script update.</p>';
+  }
+  const nAll = open.length + nNew;
+  return '<div class="dashhead"><h1>Jobs</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
+      new Date().toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) + '</span></div>' + banner +
+    '<div class="stage dashcard home">' + (REQ.msg ? '<p class="reqalert hostatus ' + (REQ.kind === "ok" ? "ok" : "err") + '" role="status">' + esc(REQ.msg) + '</p>' : '') +
+      '<div class="seg" role="tablist" aria-label="Which jobs" style="margin-bottom:6px">' + tab("current", "Current", mine.length) + tab("all", "All", nAll) + '</div>' + body + '</div>';
+}
+// Opens a job on the screen for its next step.
+function homeOpen(no, step){
+  const j = JOBS.find(x => x.quoteNo === no); if(!j){ toast(no + " is no longer on the list."); return; }
+  if(step === "report"){ setMode("report"); pickJob(no); return; }
+  setMode(step);
+  if(hoDirty && ho.quoteNo !== no && !confirm("Open " + no + "? Unsaved " + step + " changes will be lost.")) return;
+  openHo(j);
+}
 function renderDash(){
   const p = document.getElementById("dashPane"); if(!p) return;
   reqBadge();
@@ -3770,8 +3863,9 @@ function renderDash(){
     p.innerHTML = '<div class="dashhead"><h1>New requests</h1><span>Take a job to move it into your jobs</span></div><div class="stage dashcard">' + reqHtml() + '</div>';
     return;
   }
+  if(!document.body.classList.contains("mode-ops")){ p.innerHTML = homeHtml(); return; } // Home: jobs
   const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
-  p.innerHTML = '<div class="dashhead"><h1>Dashboard</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
+  p.innerHTML = '<div class="dashhead"><h1>Operations</h1><span>' + hi + (ME() ? ', ' + esc(ME()) : '') + ' · ' +
       new Date().toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) + '</span></div>' +
     '<div class="dashgrid">' + DASH_CARDS.map(c => '<div class="stage dashcard' + (c.wide ? ' wide' : '') + '"><h2>' + esc(c.title) +
       (c.go ? '<button type="button" class="linkbtn" data-dashgo="' + esc(c.go) + '">' + esc(c.goLabel) + ' →</button>' : '') + '</h2>' + c.html() + '</div>').join("") + '</div>';
@@ -3835,6 +3929,8 @@ document.getElementById("dashPane").addEventListener("click", e => {
   if(b.dataset.clmonth){ clMonth = b.dataset.clmonth; renderDash(); return; }
   if(b.dataset.dashmonth){ dashMonth = b.dataset.dashmonth; renderDash(); return; }
   if(b.dataset.dashrefresh){ loadDash(true); return; }
+  if(b.dataset.hometab){ HOME_TAB = b.dataset.hometab; lsSet("lbl-home-tab", HOME_TAB); renderDash(); return; }
+  if(b.dataset.open){ homeOpen(b.dataset.open, b.dataset.step); return; }
   if(b.dataset.dashgo) setMode(b.dataset.dashgo);
   if(b.dataset.takenwho){ TAKEN_WHO = b.dataset.takenwho; lsSet("lbl-taken-who", TAKEN_WHO); renderDash(); return; }
   if(b.dataset.reqtab){ REQ_TAB = b.dataset.reqtab; lsSet("lbl-req-tab", REQ_TAB); renderDash(); return; }
