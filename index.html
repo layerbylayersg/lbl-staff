@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -383,7 +383,7 @@
   @media (max-width:700px){
     body:not(.locked) .bar .modes{display:none}
     body:not(.locked) .tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--surface);border-top:1px solid var(--line);
-      padding:4px max(4px,env(safe-area-inset-left)) calc(4px + env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-right));box-shadow:0 -2px 10px rgba(20,24,20,.05)}
+      padding:6px max(6px,env(safe-area-inset-left)) var(--tb-bottom) max(6px,env(safe-area-inset-right));box-shadow:0 -2px 10px rgba(20,24,20,.05)}
     .tabbar button{flex:1 1 0;min-width:0;height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
       border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:11px;font-weight:600;padding:0 2px;position:relative}
     .tabbar button svg{width:22px;height:22px;flex:none}
@@ -391,12 +391,15 @@
     .tabbar button[aria-current="page"]{color:var(--green-ink)}
     .tabbar button[aria-current="page"] svg{background:var(--green-wash);border-radius:12px;box-sizing:content-box;padding:2px 14px;margin:-2px 0}
     .tabbar .mcount{position:absolute;top:3px;left:calc(50% + 6px);min-width:17px;line-height:17px;font-size:10.5px;padding:0 4px}
-    body:not(.locked){padding-bottom:calc(66px + env(safe-area-inset-bottom))}
-    body:not(.locked) .toast{bottom:calc(80px + env(safe-area-inset-bottom))}
-    .rsbar{bottom:calc(72px + env(safe-area-inset-bottom))!important}
+    /* room under the tabs: the iPhone home bar (safe area) when there is one, else 14px so thumbs don't hit the screen edge */
+    :root{--tb-bottom:max(14px,calc(env(safe-area-inset-bottom) + 6px))}
+    body:not(.locked){padding-bottom:calc(76px + var(--tb-bottom))}
+    body:not(.locked) .toast{bottom:calc(84px + var(--tb-bottom))}
+    .rsbar{bottom:calc(76px + var(--tb-bottom))!important}
+    .bar{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
     .moresheet.open{display:flex;position:fixed;inset:0;z-index:55;align-items:flex-end;background:rgba(20,24,20,.45)}
     .moresheet .msbox{width:100%;max-height:80vh;overflow:auto;background:var(--surface);border-radius:16px 16px 0 0;
-      padding:8px 12px calc(76px + env(safe-area-inset-bottom))}
+      padding:8px 12px calc(84px + var(--tb-bottom))}
     .moresheet .msgrab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 10px}
     .moresheet h3{margin:10px 6px 6px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
     .moresheet .msgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
