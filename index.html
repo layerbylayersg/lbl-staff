@@ -378,6 +378,35 @@
   body.mode-dash .layout,body.mode-dash .mobiletabs,body.mode-dash #saveStatus,body.mode-dash #hoView,body.mode-dash #clView,body.mode-dash #rsView,body.mode-dash #stView,body.locked #dashView{display:none!important}
   /* Home: jobs */
   .bar .modes button#modeOps[hidden]{display:none} /* Operations: admins only */
+  /* ---------- phone bottom tab bar (replaces the top row of tabs below 700px) ---------- */
+  .tabbar,.moresheet{display:none}
+  @media (max-width:700px){
+    body:not(.locked) .bar .modes{display:none}
+    body:not(.locked) .tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--surface);border-top:1px solid var(--line);
+      padding:4px max(4px,env(safe-area-inset-left)) calc(4px + env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-right));box-shadow:0 -2px 10px rgba(20,24,20,.05)}
+    .tabbar button{flex:1 1 0;min-width:0;height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+      border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:11px;font-weight:600;padding:0 2px;position:relative}
+    .tabbar button svg{width:22px;height:22px;flex:none}
+    .tabbar button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tabbar button[aria-current="page"]{color:var(--green-ink)}
+    .tabbar button[aria-current="page"] svg{background:var(--green-wash);border-radius:12px;box-sizing:content-box;padding:2px 14px;margin:-2px 0}
+    .tabbar .mcount{position:absolute;top:3px;left:calc(50% + 6px);min-width:17px;line-height:17px;font-size:10.5px;padding:0 4px}
+    body:not(.locked){padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+    body:not(.locked) .toast{bottom:calc(80px + env(safe-area-inset-bottom))}
+    .rsbar{bottom:calc(72px + env(safe-area-inset-bottom))!important}
+    .moresheet.open{display:flex;position:fixed;inset:0;z-index:55;align-items:flex-end;background:rgba(20,24,20,.45)}
+    .moresheet .msbox{width:100%;max-height:80vh;overflow:auto;background:var(--surface);border-radius:16px 16px 0 0;
+      padding:8px 12px calc(76px + env(safe-area-inset-bottom))}
+    .moresheet .msgrab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 10px}
+    .moresheet h3{margin:10px 6px 6px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+    .moresheet .msgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .moresheet .msgrid button{height:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);
+      border-radius:12px;background:var(--surface);color:var(--ink);font-size:12.5px;font-weight:600;padding:0 4px}
+    .moresheet .msgrid button svg{width:22px;height:22px;color:var(--ink-2)}
+    .moresheet .msgrid button[aria-current="page"]{border-color:var(--green-700);background:var(--green-wash);color:var(--green-ink)}
+  }
+  @media print{ .tabbar,.moresheet{display:none!important} }
+
   .homebanner{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin:0 0 14px;padding:12px 14px;border:1px solid var(--amber-ink);border-radius:12px;background:var(--amber-wash);color:var(--ink);font:inherit;font-size:15px;text-align:left;cursor:pointer}
   .homebanner .go{font-weight:700;white-space:nowrap} .homequiet{margin:0 0 12px}
   .homegrp{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:14px} .homegrp span{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
@@ -882,7 +911,6 @@
     /* no blur here: backdrop-filter would trap the fixed bottom bar inside the top bar */
     .bar{padding:8px 12px;gap:10px;backdrop-filter:none;background:var(--surface)}
     .bar h1{font-size:15px}
-    .steps{top:102px} /* below the two-row phone bar */
     .pane{padding:14px 12px 0}
     .finish{padding:0 12px calc(24px + env(safe-area-inset-bottom))}
     .finish .actions button{height:44px}
@@ -1004,6 +1032,8 @@ body.locked #qtView{display:none}
   <button id="btnLogout">Log out</button>
   <div class="savestatus" id="saveStatus" role="status" aria-live="polite" hidden></div>
 </div>
+<nav class="tabbar" id="tabbar" aria-label="Main"></nav>
+<div class="moresheet" id="moreSheet" role="dialog" aria-modal="true" aria-label="More"><div class="msbox"><div class="msgrab"></div><div id="moreBody"></div></div></div>
 
 <div class="mobiletabs">
   <button id="tabForm" aria-pressed="true">Job entry</button>
@@ -1257,6 +1287,7 @@ function showWho(){
   el.textContent = ME(); el.hidden = !ME();
   const st = document.getElementById("acctStaff"); if(st) st.hidden = !(SESSION && SESSION.admin);
   const ops = document.getElementById("modeOps"); if(ops) ops.hidden = !(SESSION && SESSION.admin); // Operations: admins only
+  if(typeof renderTabbar === "function") renderTabbar();
 }
 // Keeps the last job list on this device, so the next visit opens straight away.
 function keepJobs(){ if(isNew()) lsSet(JOBS_KEY, { at: Date.now(), name: ME(), jobs: JOBS, staff: STAFF }); }
@@ -3420,6 +3451,7 @@ function setMode(m){
   document.getElementById("modeTo").setAttribute("aria-pressed", String(m === "takeover"));
   document.getElementById("modeCl").setAttribute("aria-pressed", String(m === "claim"));
   document.getElementById("modeRs").setAttribute("aria-pressed", String(m === "restock"));
+  TB_MODE = m; renderTabbar();
   if(isForm) renderHo();
   if(m === "claim"){
     clFromCache();
@@ -3447,6 +3479,59 @@ document.getElementById("modeAs").addEventListener("click", () => setMode("asset
 document.getElementById("modePl").addEventListener("click", () => setMode("plans"));
 document.getElementById("modeBb").addEventListener("click", () => setMode("buyback"));
 document.getElementById("modeOps").addEventListener("click", () => setMode("ops"));
+// ---------- phone bottom tab bar: 4 tabs + More. Admins: Home, Requests, Inventory, Ops. Others: Home, Requests, Petrol, Plans.
+var TB_ICON = {
+  dash: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  requests: '<path d="M4 4h16v12H15l-3 3-3-3H4z"/><path d="M8 9h8M8 12h5"/>',
+  restock: '<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+  ops: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  claim: '<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10"/><path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3"/>',
+  plans: '<path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  assets: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  buyback: '<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/>',
+  handover: '<path d="M9 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/>',
+  report: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  takeover: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m8 12 3 3 5-5"/>',
+  staff: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  more: '<path d="M4 6h16M4 12h16M4 18h16"/>'
+};
+var TB_NAME = { dash: "Home", requests: "Requests", restock: "Inventory", ops: "Ops", claim: "Petrol", plans: "Plans", assets: "Assets",
+  buyback: "Buyback", handover: "Handover", report: "Report", takeover: "Takeover", staff: "Staff" };
+var TB_MODE = TB_MODE || "report";
+function tbIcon(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (TB_ICON[k] || "") + '</svg>'; }
+function tbSlots(){ return (SESSION && SESSION.admin) ? ["dash", "requests", "restock", "ops"] : ["dash", "requests", "claim", "plans"]; }
+function tbMore(){
+  const shown = tbSlots();
+  return { tools: ["restock", "claim", "plans", "assets", "buyback"].filter(k => !shown.includes(k)), forms: ["handover", "report", "takeover"] };
+}
+function renderTabbar(){
+  const bar = document.getElementById("tabbar"); if(!bar || !TB_NAME) return;
+  const slots = tbSlots(), inMore = !slots.includes(TB_MODE);
+  const n = (typeof REQ !== "undefined" && REQ.list) ? REQ.list.length : 0;
+  bar.innerHTML = slots.map(k => '<button type="button" data-tb="' + k + '"' + (k === TB_MODE ? ' aria-current="page"' : '') + '>' + tbIcon(k) +
+      '<span>' + TB_NAME[k] + '</span>' + (k === "requests" && n ? '<i class="mcount">' + n + '</i>' : '') + '</button>').join("") +
+    '<button type="button" data-tb="more"' + (inMore ? ' aria-current="page"' : '') + ' aria-haspopup="dialog">' + tbIcon(inMore ? TB_MODE : "more") +
+      '<span>' + (inMore ? (TB_NAME[TB_MODE] || "More") : "More") + '</span></button>';
+}
+function openMore(){
+  const m = tbMore(), cell = k => '<button type="button" data-tb="' + k + '"' + (k === TB_MODE ? ' aria-current="page"' : '') + '>' + tbIcon(k) + '<span>' + TB_NAME[k] + '</span></button>';
+  document.getElementById("moreBody").innerHTML = '<h3>More</h3><div class="msgrid">' + m.tools.map(cell).join("") + '</div>' +
+    '<h3>Start a form without a job</h3><div class="msgrid">' + m.forms.map(cell).join("") + '</div>';
+  document.getElementById("moreSheet").classList.add("open");
+}
+function closeMore(){ document.getElementById("moreSheet").classList.remove("open"); }
+document.getElementById("tabbar").addEventListener("click", e => {
+  const b = e.target.closest("[data-tb]"); if(!b) return;
+  if(b.dataset.tb === "more"){ document.getElementById("moreSheet").classList.contains("open") ? closeMore() : openMore(); return; }
+  closeMore(); setMode(b.dataset.tb);
+});
+document.getElementById("moreSheet").addEventListener("click", e => {
+  const b = e.target.closest("[data-tb]");
+  if(b){ closeMore(); setMode(b.dataset.tb); return; }
+  if(e.target.id === "moreSheet") closeMore();
+});
+document.addEventListener("keydown", e => { if(e.key === "Escape") closeMore(); });
+
 
 /* ---------- petrol claims ---------- */
 // Flat $15 per delivery / collection trip. Each claim goes to the "Petrol claims" tab and onto the
@@ -3528,7 +3613,7 @@ async function loadRequests(){
   finally{ REQ.loading = false; reqBadge(); if(document.body.classList.contains("mode-dash")) renderDash(); }
 }
 // Count on the sidebar's "New requests" button
-function reqBadge(){ const b = document.getElementById("reqCount"), n = REQ.list.length; b.textContent = n; b.hidden = !n; }
+function reqBadge(){ const b = document.getElementById("reqCount"), n = REQ.list.length; b.textContent = n; b.hidden = !n; if(typeof renderTabbar === "function") renderTabbar(); }
 const pushOk = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
