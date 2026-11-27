@@ -384,14 +384,18 @@
   .joblist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
   .joblist li{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
   .joblist .jlmain{min-width:0;flex:1} .joblist small{display:block;color:var(--ink-2)} .joblist button{flex:none;min-height:44px;white-space:nowrap}
-  .joblist li{flex-wrap:wrap} .jlbtns{display:flex;gap:8px} .joblist li > .trip{flex-basis:100%;margin:0}
-  .trip{border:1px solid var(--amber-ink);border-radius:12px;background:var(--amber-wash);padding:12px;margin:0 0 8px}
-  .triphead{font-size:14px} .triphead span{color:var(--ink-2)}
-  .tripaddr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:6px 0;font-size:17px;font-weight:600;line-height:1.35} .tripaddr span{overflow-wrap:anywhere}
-  .tripbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-  .btnlink{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-weight:600;font-size:14px;text-decoration:none}
-  .btnlink.go{background:var(--green-600);border-color:var(--green-600);color:#fff;min-width:120px}
-  @media (max-width:520px){ .joblist li{flex-direction:column;align-items:stretch} .jlbtns{flex-direction:column} .joblist button{width:100%} .tripbtns .btnlink{flex:1 1 40%} .tripbtns .btnlink.go{flex-basis:45%} }
+  .joblist li{flex-wrap:wrap} .jlbtns{display:flex;gap:8px}
+  .navblk{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+  .navaddr{display:flex;align-items:flex-start;gap:6px;font-size:13.5px;line-height:1.4;color:var(--ink)}
+  .navaddr > svg{width:15px;height:15px;flex:none;margin-top:2px;color:var(--muted)} .navaddr span{flex:1;min-width:0;overflow-wrap:anywhere}
+  .navaddr.none{color:var(--ink-2)}
+  .joblist .iconbtn{flex:none;width:30px;min-height:30px;height:30px;margin:-5px -4px -5px 0;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--ink-2)}
+  .joblist .iconbtn:hover{background:var(--surface-2);color:var(--ink)} .iconbtn svg{width:16px;height:16px}
+  .navbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .navchip{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font-size:12.5px;font-weight:600;text-decoration:none;white-space:nowrap}
+  .navchip svg{width:14px;height:14px;flex:none} .navchip.go{background:var(--green-wash);border-color:transparent;color:var(--green-ink)}
+  .joblist button.navchip{min-height:32px;width:auto;cursor:pointer}
+  @media (max-width:520px){ .joblist li{flex-direction:column;align-items:stretch} .jlbtns{flex-direction:column} .joblist .jlbtns button{width:100%} }
   .dashhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 0 14px}
   .dashhead h1{margin:0;font-size:22px} .dashhead span{font-size:13.5px;color:var(--ink-2)}
   .dashgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
@@ -3812,33 +3816,38 @@ function navLinks(addr){
   return { waze: "https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", google: "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(q) };
 }
 const waNumber = c => String(c || "").replace(/\D/g, "").replace(/^(?=[89]\d{7}$)/, "65");
-// One panel per address: several machines from the same customer are one trip.
-function tripPanel(jobs){
-  const j = jobs[0], t = tripOf(j), info = navInfo(j.quoteNo), addr = info ? String(info.address || "").trim() : "";
-  const kinds = [...new Set(jobs.map(x => tripOf(x).label))].join(" + ");
+const NAV_SVG = {
+  pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  go: '<path d="m3 11 18-8-8 18-2-8z"/>',
+  call: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>'
+};
+const navSvg = k => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + NAV_SVG[k] + '</svg>';
+// Address + Waze / Maps / Call / WhatsApp, inside the job's own card.
+function navBlock(j, hide){
+  const t = tripOf(j), info = navInfo(j.quoteNo), addr = info ? String(info.address || "").trim() : "";
   const contact = (info && info.contact) || j.contact || "", who = String(j.name || "").trim() || "there"; // full name: many are surname first
   const msg = "Hi " + who + ", this is " + (ME() || "the technician") + " from Layer By Layer. I'm on my way to " + t.verb + ".";
-  const stairs = info && Number(info.stairs) > 0 ? Number(info.stairs) : 0;
   const links = navLinks(addr);
-  const tags = [stairs ? '<i class="reqtag warn">' + stairs + ' floor' + (stairs === 1 ? '' : 's') + ' of stairs</i>' : '',
-    info && /^y/i.test(String(info.remote || "")) ? '<i class="reqtag warn">Remote area</i>' : ''].filter(Boolean).join("");
-  const call = contact ? '<a class="btnlink" href="tel:' + esc(String(contact).replace(/\s+/g, "")) + '">Call</a>' +
-    '<a class="btnlink" href="https://wa.me/' + esc(waNumber(contact)) + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">WhatsApp</a>' : '';
+  const x = hide ? '<button type="button" class="iconbtn" data-navtoggle="' + esc(j.quoteNo) + '" aria-expanded="true" title="Hide address" aria-label="Hide address">' + navSvg("x") + '</button>' : '';
+  const chip = (cls, href, label, ext) => '<a class="navchip' + cls + '" href="' + esc(href) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '>' + label + '</a>';
+  const btns = (links ? chip(" go", links.waze, "Waze", 1) + chip(" go", links.google, "Maps", 1) : '') +
+    (contact ? chip("", "tel:" + String(contact).replace(/\s+/g, ""), "Call") + chip("", "https://wa.me/" + waNumber(contact) + "?text=" + encodeURIComponent(msg), "WhatsApp", 1) : '');
   const where = links
-    ? '<div class="tripaddr"><span>' + esc(addr) + '</span><button type="button" class="linkbtn" data-copy="' + esc(addr) + '">Copy</button></div>' + (tags ? '<div class="reqtags">' + tags + '</div>' : '') +
-      '<div class="tripbtns"><a class="btnlink go" href="' + esc(links.waze) + '" target="_blank" rel="noopener">Waze</a><a class="btnlink go" href="' + esc(links.google) + '" target="_blank" rel="noopener">Google Maps</a>' + call + '</div>'
-    : '<p class="hint">' + (!info ? (REQ.loading || !REQ.loaded ? "Loading the address…" : "Address not loaded. Reopen Home to try again.") : "No address on the job sheet. Call the customer to ask.") + '</p>' + (call ? '<div class="tripbtns">' + call + '</div>' : '');
-  return '<div class="trip"><div class="triphead"><b>' + esc(kinds) + '</b> · ' + esc(j.name || "") + ' · ' + jobs.map(x => esc(x.quoteNo)).join(", ") +
-    (jobs.length > 1 ? ' <span>(' + jobs.length + ' machines)</span>' : '') + '</div>' + where + '</div>';
+    ? '<div class="navaddr">' + navSvg("pin") + '<span>' + esc(addr) + '</span><button type="button" class="iconbtn" data-copy="' + esc(addr) + '" title="Copy address" aria-label="Copy address">' + navSvg("copy") + '</button>' + x + '</div>'
+    : '<div class="navaddr none">' + navSvg("pin") + '<span>' + (!info ? (REQ.loading || !REQ.loaded ? "Loading the address…" : "Address not loaded. Reopen Home to try again.") : "No address on the job sheet. Call the customer to ask.") + '</span>' + x + '</div>';
+  return '<div class="navblk">' + where + (btns ? '<div class="navbtns">' + btns + '</div>' : '') + '</div>';
 }
-// My trips, grouped by address (or by job when there is no address yet).
-function tripGroups(list){
-  const groups = {};
-  list.filter(tripOf).forEach(j => { const info = navInfo(j.quoteNo), a = info && String(info.address || "").trim().toLowerCase().replace(/\s+/g, " ");
-    const k = a || ("job:" + j.quoteNo); (groups[k] = groups[k] || []).push(j); });
-  return Object.values(groups);
+// Stairs / remote area, shown as tags on the job card.
+function navTags(j){
+  const info = navInfo(j.quoteNo); if(!info) return "";
+  const stairs = Number(info.stairs) > 0 ? Number(info.stairs) : 0;
+  return (stairs ? '<i class="reqtag warn">' + stairs + ' floor' + (stairs === 1 ? '' : 's') + ' of stairs</i>' : '') +
+    (/^y/i.test(String(info.remote || "")) ? '<i class="reqtag warn">Remote area</i>' : '');
 }
-let NAV_OPEN = {}; // job rows on All with the Navigate panel open
+let NAV_OPEN = {}; // job rows on All with the address shown
 /* ---------- Home: jobs. Current = my open jobs by next step; All = everyone's open jobs, New requests included ---------- */
 // Quoted / Pending / Pending Payment jobs join "All" once the Apps Script lists them (planned "allJobs" action).
 let HOME_TAB = lsGet("lbl-home-tab") === "all" ? "all" : "current";
@@ -3864,14 +3873,15 @@ function homeJobRow(j, showTech){
   const tags = [
     showTech ? '<i class="reqtag' + (isMine(j) ? ' ok' : '') + '">' + esc(isMine(j) ? "You" : (j.technician || "Unassigned")) + '</i>' : '',
     '<i class="reqtag">' + esc(j.status) + '</i>',
-    tripOf(j) ? '<i class="reqtag warn">🚚 ' + tripOf(j).label + '</i>' : isOnsiteJob(j) ? '<i class="reqtag">On-site</i>' : '',
+    tripOf(j) ? '<i class="reqtag warn">' + tripOf(j).label + '</i>' + navTags(j) : isOnsiteJob(j) ? '<i class="reqtag">On-site</i>' : '',
     j.carePlan ? '<i class="reqtag ok">Care Plan</i>' : '',
     days > lead ? '<i class="reqtag bad">⚠ ' + days + ' business days since handover</i>' : days ? '<i class="reqtag">' + days + ' business day' + (days === 1 ? '' : 's') + ' since handover</i>' : ''].filter(Boolean).join("");
   return '<li><div class="jlmain"><b>' + esc(j.quoteNo) + '</b> · ' + esc(j.name || "") + '<small>' + esc(jobMachine(j) || j.serviceType || "") + '</small>' +
-      (tags ? '<div class="reqtags">' + tags + '</div>' : '') + '</div><div class="jlbtns">' +
-    (showTech && tripOf(j) ? '<button type="button" class="mini" data-navtoggle="' + esc(j.quoteNo) + '" aria-expanded="' + !!NAV_OPEN[j.quoteNo] + '">Navigate</button>' : '') +
-    '<button type="button" class="' + (!showTech || isMine(j) ? 'primary ' : '') + 'mini" data-open="' + esc(j.quoteNo) + '" data-step="' + nx.mode + '">' + nx.label + ' →</button></div>' +
-    (showTech && tripOf(j) && NAV_OPEN[j.quoteNo] ? tripPanel([j]) : '') + '</li>';
+      (tags ? '<div class="reqtags">' + tags + '</div>' : '') +
+      (tripOf(j) && (!showTech || NAV_OPEN[j.quoteNo]) ? navBlock(j, showTech) : '') +
+      (showTech && tripOf(j) && !NAV_OPEN[j.quoteNo] ? '<div class="navbtns"><button type="button" class="navchip" data-navtoggle="' + esc(j.quoteNo) + '" aria-expanded="false">' + navSvg("pin") + 'Address</button></div>' : '') +
+      '</div><div class="jlbtns">' +
+    '<button type="button" class="' + (!showTech || isMine(j) ? 'primary ' : '') + 'mini" data-open="' + esc(j.quoteNo) + '" data-step="' + nx.mode + '">' + nx.label + ' →</button></div></li>';
 }
 function homeReqRow(r){
   return '<li><div class="jlmain"><b>' + esc(r.quoteNo) + '</b> · ' + esc(r.name || "") + '<small>' + esc(r.machine || r.type || "Job request") + '</small>' +
@@ -3892,9 +3902,8 @@ function homeHtml(){
   const waiting = JOBS_STATE === "loading" && !JOBS.length ? skelRows() : JOBS_STATE === "failed" && !JOBS.length ? '<p class="hint">Could not load jobs (no connection?). Pull down or reopen the app to try again.</p>' : null;
   let body;
   if(HOME_TAB === "current"){
-    const trips = tripGroups(mine);
     body = waiting !== null ? waiting : mine.length
-      ? (trips.length ? '<h3 class="homegrp">Trips <span>' + trips.length + '</span></h3>' + trips.map(tripPanel).join("") : '') + [1, 2, 3].map(st => homeGroup(HOME_STAGES[st], mine.filter(j => jobNext(j).stage === st).map(j => homeJobRow(j, false)))).join("")
+      ? [1, 2, 3].map(st => homeGroup(HOME_STAGES[st], mine.filter(j => jobNext(j).stage === st).map(j => homeJobRow(j, false)))).join("")
       : '<p class="hint">You have no open jobs.' + (nNew ? ' Take one from New requests above.' : '') + '</p>';
   } else {
     const byTech = (a, b) => String(a.technician || "").localeCompare(String(b.technician || "")) || jobDays(b) - jobDays(a);
